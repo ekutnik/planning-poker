@@ -180,3 +180,26 @@ function reset(room: Room, cmd: CommandOf<"reset">): Result {
   }
   return ok(commit(room, { phase: "voting", participants }));
 }
+
+function disconnect(
+  room: Room,
+  cmd: CommandOf<"disconnect">,
+  now: number,
+): Result {
+  const participant = room.participants.get(cmd.participantId);
+  if (!participant) return ok(room); // no-op: disconnect for someone already gone (e.g. after leave)
+  if (participant.status === "disconnected") return ok(room); // no-op: already disconnected
+  const gone: Participant = {
+    ...participant,
+    status: "disconnected",
+    disconnectedAt: now,
+  };
+  return ok(commit(room, { participants: withParticipant(room, gone) }));
+}
+
+function leave(room: Room, cmd: CommandOf<"leave">): Result {
+  if (!room.participants.has(cmd.participantId)) return ok(room); // no-op: already gone
+  const participants = new Map(room.participants);
+  participants.delete(cmd.participantId);
+  return ok(commit(room, { participants }));
+}
