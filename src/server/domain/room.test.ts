@@ -90,6 +90,14 @@ describe("join", () => {
     });
   });
 
+  it("collapses internal runs of whitespace in names", () => {
+    const room = createRoom("r1");
+    const named = must(
+      applyCommand(room, join("a", "  Alice\t\n  Smith  "), NOW),
+    );
+    expect(named.participants.get("a")?.name).toBe("Alice Smith");
+  });
+
   it("reclaims an existing seat on rejoin, keeping the vote", () => {
     const room = run(
       createRoom("r1"),
@@ -153,6 +161,16 @@ describe("castVote", () => {
     expect(must(applyCommand(room, castVote("alice", "5"), NOW))).toBe(room);
   });
 
+  it("is a no-op when re-casting the same card after reveal (safe reconnect retry)", () => {
+    const room = run(
+      createRoom("r1"),
+      join("alice"),
+      castVote("alice", "5"),
+      reveal("alice"),
+    );
+    expect(must(applyCommand(room, castVote("alice", "5"), NOW))).toBe(room);
+  });
+
   it("rejects a vote from an unknown participant", () => {
     const room = run(createRoom("r1"), join("alice"));
     expect(applyCommand(room, castVote("ghost", "5"), NOW)).toEqual({
@@ -161,7 +179,15 @@ describe("castVote", () => {
     });
   });
 
-  it("rejects a vote that arrives after reveal", () => {
+  it("rejects a vote from a disconnected participant", () => {
+    const room = run(createRoom("r1"), join("alice"), disconnect("alice"));
+    expect(applyCommand(room, castVote("alice", "5"), NOW)).toEqual({
+      ok: false,
+      error: "NOT_CONNECTED",
+    });
+  });
+
+  it("rejects a different vote that arrives after reveal", () => {
     const room = run(
       createRoom("r1"),
       join("alice"),
@@ -189,6 +215,32 @@ describe("clearVote", () => {
   it("is a no-op when the vote is already null", () => {
     const room = run(createRoom("r1"), join("alice"));
     expect(must(applyCommand(room, clearVote("alice"), NOW))).toBe(room);
+  });
+
+  it("is a no-op when clearing an already-empty vote after reveal", () => {
+    // alice's vote lets the room reveal; bob never voted, so clearing his empty
+    // vote is a no-op even in the revealed phase (end state already holds).
+    const room = run(
+      createRoom("r1"),
+      join("alice"),
+      join("bob"),
+      castVote("alice", "5"),
+      reveal("alice"),
+    );
+    expect(must(applyCommand(room, clearVote("bob"), NOW))).toBe(room);
+  });
+
+  it("rejects clearing from a disconnected participant", () => {
+    const room = run(
+      createRoom("r1"),
+      join("alice"),
+      castVote("alice", "5"),
+      disconnect("alice"),
+    );
+    expect(applyCommand(room, clearVote("alice"), NOW)).toEqual({
+      ok: false,
+      error: "NOT_CONNECTED",
+    });
   });
 
   it("rejects clearing a vote after reveal", () => {
@@ -264,6 +316,19 @@ describe("reveal", () => {
       error: "UNKNOWN_PARTICIPANT",
     });
   });
+
+  it("rejects reveal from a disconnected participant", () => {
+    const room = run(
+      createRoom("r1"),
+      join("alice"),
+      castVote("alice", "5"),
+      disconnect("alice"),
+    );
+    expect(applyCommand(room, reveal("alice"), NOW)).toEqual({
+      ok: false,
+      error: "NOT_CONNECTED",
+    });
+  });
 });
 
 describe("reset", () => {
@@ -303,6 +368,14 @@ describe("reset", () => {
     expect(applyCommand(room, reset("ghost"), NOW)).toEqual({
       ok: false,
       error: "UNKNOWN_PARTICIPANT",
+    });
+  });
+
+  it("rejects reset from a disconnected participant", () => {
+    const room = run(createRoom("r1"), join("alice"), disconnect("alice"));
+    expect(applyCommand(room, reset("alice"), NOW)).toEqual({
+      ok: false,
+      error: "NOT_CONNECTED",
     });
   });
 });
@@ -372,6 +445,9 @@ describe("invariants", () => {
     { command: reset("alice"), outcome: "noop" },
     { command: disconnect("bob"), outcome: "change" },
     { command: disconnect("bob"), outcome: "noop" },
+    // bob is disconnected: a stray command from a resurrected socket is rejected
+    // (NOT_CONNECTED) before any phase/no-op logic runs.
+    { command: castVote("bob", "5"), outcome: "reject" },
     { command: leave("alice"), outcome: "change" },
     { command: leave("alice"), outcome: "noop" },
   ];
