@@ -42,6 +42,7 @@ export type DomainError =
   | "INVALID_NAME"
   | "ROOM_FULL"
   | "UNKNOWN_PARTICIPANT"
+  | "NOT_CONNECTED"
   | "VOTING_CLOSED"
   | "NO_VOTES_CAST";
 
@@ -112,7 +113,11 @@ function hasAnyVote(room: Room): boolean {
 // --- commands ---
 
 function join(room: Room, cmd: CommandOf<"join">): Result {
-  const name = cmd.name.trim();
+  // Normalise whitespace: trim the ends and collapse internal runs of spaces,
+  // tabs, and newlines to a single space so the participant list can't be broken
+  // by a pasted name. Note: length is measured in UTF-16 code units, so an emoji
+  // counts as two toward MAX_NAME_LENGTH — a known, acceptable simplification.
+  const name = cmd.name.trim().replace(/\s+/g, " ");
   if (name.length === 0 || name.length > MAX_NAME_LENGTH)
     return fail("INVALID_NAME");
 
@@ -145,6 +150,12 @@ function join(room: Room, cmd: CommandOf<"join">): Result {
 function castVote(room: Room, cmd: CommandOf<"castVote">): Result {
   const participant = room.participants.get(cmd.participantId);
   if (!participant) return fail("UNKNOWN_PARTICIPANT");
+  if (participant.status !== "connected") return fail("NOT_CONNECTED");
+  // Principle: a command whose requested end state already holds is a no-op,
+  // regardless of phase. Re-sending the card you already hold changes nothing, so
+  // it succeeds silently even after reveal; a *different* card asks for a change
+  // the phase forbids, so it's rejected. This lets a reconnecting client safely
+  // retry its last unacknowledged vote (Session 4) instead of getting an error.
   if (participant.vote === cmd.card) return ok(room); // no-op: same card already cast
   if (room.phase === "revealed") return fail("VOTING_CLOSED");
   const voted: Participant = { ...participant, vote: cmd.card };
@@ -154,6 +165,7 @@ function castVote(room: Room, cmd: CommandOf<"castVote">): Result {
 function clearVote(room: Room, cmd: CommandOf<"clearVote">): Result {
   const participant = room.participants.get(cmd.participantId);
   if (!participant) return fail("UNKNOWN_PARTICIPANT");
+  if (participant.status !== "connected") return fail("NOT_CONNECTED");
   if (participant.vote === null) return ok(room); // no-op: nothing to clear
   if (room.phase === "revealed") return fail("VOTING_CLOSED");
   const cleared: Participant = { ...participant, vote: null };
@@ -163,6 +175,7 @@ function clearVote(room: Room, cmd: CommandOf<"clearVote">): Result {
 function reveal(room: Room, cmd: CommandOf<"reveal">): Result {
   const participant = room.participants.get(cmd.participantId);
   if (!participant) return fail("UNKNOWN_PARTICIPANT");
+  if (participant.status !== "connected") return fail("NOT_CONNECTED");
   // No-op check precedes NO_VOTES_CAST: if everyone who voted has since left,
   // a second reveal must not suddenly start erroring.
   if (room.phase === "revealed") return ok(room);
@@ -173,6 +186,7 @@ function reveal(room: Room, cmd: CommandOf<"reveal">): Result {
 function reset(room: Room, cmd: CommandOf<"reset">): Result {
   const participant = room.participants.get(cmd.participantId);
   if (!participant) return fail("UNKNOWN_PARTICIPANT");
+  if (participant.status !== "connected") return fail("NOT_CONNECTED");
   if (room.phase === "voting" && !hasAnyVote(room)) return ok(room); // no-op: already clean
   const participants = new Map(room.participants);
   for (const [id, p] of participants) {
