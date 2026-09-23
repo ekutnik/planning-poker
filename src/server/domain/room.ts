@@ -141,3 +141,42 @@ function join(room: Room, cmd: CommandOf<"join">): Result {
   };
   return ok(commit(room, { participants: withParticipant(room, joined) }));
 }
+
+function castVote(room: Room, cmd: CommandOf<"castVote">): Result {
+  const participant = room.participants.get(cmd.participantId);
+  if (!participant) return fail("UNKNOWN_PARTICIPANT");
+  if (participant.vote === cmd.card) return ok(room); // no-op: same card already cast
+  if (room.phase === "revealed") return fail("VOTING_CLOSED");
+  const voted: Participant = { ...participant, vote: cmd.card };
+  return ok(commit(room, { participants: withParticipant(room, voted) }));
+}
+
+function clearVote(room: Room, cmd: CommandOf<"clearVote">): Result {
+  const participant = room.participants.get(cmd.participantId);
+  if (!participant) return fail("UNKNOWN_PARTICIPANT");
+  if (participant.vote === null) return ok(room); // no-op: nothing to clear
+  if (room.phase === "revealed") return fail("VOTING_CLOSED");
+  const cleared: Participant = { ...participant, vote: null };
+  return ok(commit(room, { participants: withParticipant(room, cleared) }));
+}
+
+function reveal(room: Room, cmd: CommandOf<"reveal">): Result {
+  const participant = room.participants.get(cmd.participantId);
+  if (!participant) return fail("UNKNOWN_PARTICIPANT");
+  // No-op check precedes NO_VOTES_CAST: if everyone who voted has since left,
+  // a second reveal must not suddenly start erroring.
+  if (room.phase === "revealed") return ok(room);
+  if (!hasAnyVote(room)) return fail("NO_VOTES_CAST");
+  return ok(commit(room, { phase: "revealed" }));
+}
+
+function reset(room: Room, cmd: CommandOf<"reset">): Result {
+  const participant = room.participants.get(cmd.participantId);
+  if (!participant) return fail("UNKNOWN_PARTICIPANT");
+  if (room.phase === "voting" && !hasAnyVote(room)) return ok(room); // no-op: already clean
+  const participants = new Map(room.participants);
+  for (const [id, p] of participants) {
+    if (p.vote !== null) participants.set(id, { ...p, vote: null });
+  }
+  return ok(commit(room, { phase: "voting", participants }));
+}
