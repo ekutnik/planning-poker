@@ -110,3 +110,34 @@ function hasAnyVote(room: Room): boolean {
 }
 
 // --- commands ---
+
+function join(room: Room, cmd: CommandOf<"join">): Result {
+  const name = cmd.name.trim();
+  if (name.length === 0 || name.length > MAX_NAME_LENGTH)
+    return fail("INVALID_NAME");
+
+  const existing = room.participants.get(cmd.participantId);
+  if (existing) {
+    // Reclaiming a seat after refresh or reconnect: keep the vote, restore presence.
+    if (existing.name === name && existing.status === "connected")
+      return ok(room);
+    const reclaimed: Participant = {
+      ...existing,
+      name,
+      status: "connected",
+      disconnectedAt: null,
+    };
+    return ok(commit(room, { participants: withParticipant(room, reclaimed) }));
+  }
+
+  if (room.participants.size >= MAX_PARTICIPANTS) return fail("ROOM_FULL");
+
+  const joined: Participant = {
+    id: cmd.participantId,
+    name,
+    vote: null,
+    status: "connected",
+    disconnectedAt: null,
+  };
+  return ok(commit(room, { participants: withParticipant(room, joined) }));
+}
