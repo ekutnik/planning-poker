@@ -251,10 +251,9 @@ export class RoomService {
     sockets.set(participantId, conn);
     if (previous && previous !== conn) {
       // Unbind before close, so the old socket's close handler is not still
-      // current and cannot dispatch disconnect (ADR 0006).
-      this.bindings.delete(previous);
-      this.lastSent.delete(previous);
-      this.pending.delete(previous);
+      // current and cannot dispatch disconnect (ADR 0006). forget() leaves
+      // `current` alone here, because it already points at the new socket.
+      this.forget(previous);
       this.info({ conn: previous.id, room: roomId, type: "supersede" });
       previous.close(CloseCode.SUPERSEDED, "superseded");
     }
