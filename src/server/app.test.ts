@@ -4,7 +4,7 @@ import type WebSocket from "ws";
 import type { ClientMessage, ServerMessage } from "../shared/protocol.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import { buildServer } from "./app.js";
-import { ROOM_ID_PATTERN } from "./identity.js";
+import { ROOM_ID_PATTERN, roomLogId } from "./identity.js";
 
 /**
  * A few end-to-end checks that the adapter is wired correctly. Room behaviour
@@ -146,5 +146,61 @@ describe("websocket route", () => {
     client.socket.send("x".repeat(4097));
 
     expect((await client.closed).code).toBe(1009);
+  });
+});
+
+describe("logging", () => {
+  it("keeps room ids and session tokens out of every log line (#21)", async () => {
+    const lines: Record<string, unknown>[] = [];
+    await app.close();
+    app = buildServer({
+      logger: {
+        stream: {
+          write: (line: string) =>
+            lines.push(JSON.parse(line) as Record<string, unknown>),
+        },
+      },
+    });
+    await app.ready();
+
+    const roomId = await createRoom();
+    const [aliceToken, bobToken] = [randomUUID(), randomUUID()];
+    const alice = await connect(roomId);
+    alice.send({ type: "join", sessionToken: aliceToken, name: "Alice" });
+    await alice.snapshot();
+    const bob = await connect(roomId);
+    bob.send({ type: "join", sessionToken: bobToken, name: "Bob" });
+    await bob.snapshot();
+    alice.send({ type: "castVote", card: "5" });
+    bob.send({ type: "reveal" });
+    await bob.snapshot();
+    const aliceTab2 = await connect(roomId);
+    aliceTab2.send({ type: "join", sessionToken: aliceToken, name: "Alice" });
+    await alice.closed; // superseded
+    await expect(app.injectWS("/ws/not-a-room")).rejects.toThrow("400");
+    await app.inject({ method: "GET", url: `/ws/${roomId}/unknown` });
+    await app.close();
+
+    const text = JSON.stringify(lines);
+    for (const secret of [roomId, aliceToken, bobToken]) {
+      expect(text).not.toContain(secret);
+    }
+    const urls = new Set(
+      lines.flatMap((line) => {
+        const req = line.req as { url?: string } | undefined;
+        return req?.url ? [req.url] : [];
+      }),
+    );
+    expect(urls).toEqual(new Set(["/api/rooms", "/ws/:roomId", "(unmatched)"]));
+    const rooms = new Set(
+      lines.flatMap((line) => (line.room ? [line.room] : [])),
+    );
+    expect(rooms).toEqual(new Set([roomLogId(roomId)]));
+    // No "close": injectWS's in-memory streams never emit a server-side close.
+    // The close path is covered in room-service.test.ts.
+    const types = new Set(lines.map((line) => line.type));
+    for (const type of ["open", "join", "castVote", "reveal", "supersede"]) {
+      expect(types).toContain(type);
+    }
   });
 });

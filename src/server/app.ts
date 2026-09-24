@@ -1,10 +1,17 @@
 import websocket from "@fastify/websocket";
-import Fastify, { type FastifyServerOptions } from "fastify";
+import Fastify, {
+  type FastifyLoggerOptions,
+  type FastifyRequest,
+} from "fastify";
 import { generateRoomId, ROOM_ID_PATTERN } from "./identity.js";
 import { RoomService, type Connection } from "./room-service.js";
 
 export interface ServerOptions {
-  readonly logger?: FastifyServerOptions["logger"];
+  /** Omit to disable logging; `stream` lets tests capture the lines. */
+  readonly logger?: {
+    readonly level?: string;
+    readonly stream?: FastifyLoggerOptions["stream"];
+  };
   readonly maxRooms?: number;
   readonly clock?: () => number;
 }
@@ -16,12 +23,31 @@ const roomParams = {
 } as const;
 
 /**
+ * Fastify's default request serializer logs the raw URL, and `/ws/:roomId` puts
+ * a join link there (#21). Log the matched route pattern instead.
+ */
+function serializeRequest(request: FastifyRequest) {
+  return {
+    method: request.method,
+    url: request.routeOptions.url ?? "(unmatched)",
+    remoteAddress: request.ip,
+  };
+}
+
+/**
  * A configured Fastify instance that does not listen; callers own the lifecycle.
  * The websocket route is a thin adapter: each socket becomes a Connection and
  * every decision lives in RoomService. If this grows, logic has leaked out.
  */
 export function buildServer(options: ServerOptions = {}) {
-  const app = Fastify({ logger: options.logger ?? false });
+  const app = Fastify({
+    logger: options.logger && {
+      ...options.logger,
+      serializers: { req: serializeRequest },
+    },
+  });
+  // The default 404 handler logs the raw URL; this one does not.
+  app.setNotFoundHandler((_request, reply) => reply.code(404).send());
   const rooms = new RoomService(
     options.clock ?? Date.now,
     { maxRooms: options.maxRooms ?? 10_000 },
