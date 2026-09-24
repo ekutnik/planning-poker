@@ -139,6 +139,7 @@ export function buildServer(options: ServerOptions = {}) {
         socket.on("message", (data: Buffer) =>
           rooms.message(conn, data.toString("utf8")),
         );
+        socket.on("pong", () => rooms.pong(conn));
         socket.on("close", () => rooms.close(conn));
       },
     );
