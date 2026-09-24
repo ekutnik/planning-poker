@@ -179,8 +179,12 @@ describe("logging", () => {
     await alice.closed; // superseded
     await expect(app.injectWS("/ws/not-a-room")).rejects.toThrow("400");
     await app.inject({ method: "GET", url: `/ws/${roomId}/unknown` });
+    const flooder = await connect(roomId); // the warn path an attacker can trigger
+    flooder.socket.send("x".repeat(4097));
+    expect((await flooder.closed).code).toBe(1009);
     await app.close();
 
+    expect(lines.filter((line) => line.level === 40)).toHaveLength(1);
     const text = JSON.stringify(lines);
     for (const secret of [roomId, aliceToken, bobToken]) {
       expect(text).not.toContain(secret);
