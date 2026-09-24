@@ -31,6 +31,15 @@ export interface Connection {
   terminate(): void;
 }
 
+/** How often the adapter runs sweep() unless told otherwise. */
+export const SWEEP_INTERVAL_MS = 5_000;
+
+/**
+ * A gap between sweeps longer than this many intervals means the process was
+ * paused, not that clients went quiet (#26).
+ */
+export const STALL_INTERVALS = 2;
+
 /** An unjoined socket is closed after this long (#14). */
 export const JOIN_TIMEOUT_MS = 10_000;
 
@@ -57,10 +66,11 @@ export interface Limits {
 }
 
 interface LogFields {
-  conn: string;
+  conn?: string;
   room?: string;
   type?: string;
   code?: string;
+  gapMs?: number;
 }
 
 /**
@@ -69,6 +79,12 @@ interface LogFields {
  */
 export interface RoomLog {
   info(fields: LogFields): void;
+}
+
+export interface ServiceOptions {
+  readonly log?: RoomLog;
+  /** The interval the caller runs sweep() at; sets the stall threshold (#26). */
+  readonly sweepIntervalMs?: number;
 }
 
 interface Pending {
@@ -105,12 +121,18 @@ export class RoomService {
   // The only way to the log. The raw RoomLog is captured here and never stored,
   // so no method can bypass this and log a room id (#21).
   private readonly info: (fields: LogFields) => void;
+  private readonly stallAfterMs: number;
+  private lastSweepAt: number | undefined;
 
   constructor(
     private readonly clock: () => number,
     private readonly limits: Limits,
-    log: RoomLog = { info() {} },
+    {
+      log = { info() {} },
+      sweepIntervalMs = SWEEP_INTERVAL_MS,
+    }: ServiceOptions = {},
   ) {
+    this.stallAfterMs = sweepIntervalMs * STALL_INTERVALS;
     this.info = (fields) =>
       log.info(
         fields.room === undefined
@@ -206,17 +228,31 @@ export class RoomService {
    * up to one sweep interval late. With a 5s interval, the join timeout closes
    * a socket after 10–15s, and a silent connection is terminated 35–40s after
    * its last pong.
+   *
+   * Stall guard (#26): deadlines and their evidence (pongs, joins) arrive
+   * through the same event loop, and Node runs an overdue timer before it
+   * reads queued I/O. After a pause longer than STALL_INTERVALS intervals,
+   * every deadline would look missed. So that sweep enforces none of them and
+   * only sends due pings; the next sweep runs after the queue is read.
    */
   sweep(): void {
     const now = this.clock();
+    const gapMs = now - (this.lastSweepAt ?? now);
+    const stalled = gapMs > this.stallAfterMs;
+    this.lastSweepAt = now;
+    if (stalled) this.info({ type: "sweep-stalled", gapMs });
+
     const expired: [Connection, Pending][] = [];
-    for (const entry of this.pending) {
-      if (now - entry[1].openedAt >= JOIN_TIMEOUT_MS) expired.push(entry);
+    if (!stalled) {
+      for (const entry of this.pending) {
+        if (now - entry[1].openedAt >= JOIN_TIMEOUT_MS) expired.push(entry);
+      }
     }
     const silent: Connection[] = [];
     const due: [Connection, Liveness][] = [];
     for (const [conn, beat] of this.liveness) {
-      if (now - beat.lastPongAt >= PONG_TIMEOUT_MS) silent.push(conn);
+      if (!stalled && now - beat.lastPongAt >= PONG_TIMEOUT_MS)
+        silent.push(conn);
       else if (now - beat.lastPingAt >= PING_INTERVAL_MS)
         due.push([conn, beat]);
     }

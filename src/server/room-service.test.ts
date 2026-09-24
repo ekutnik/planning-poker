@@ -8,6 +8,8 @@ import {
   PING_INTERVAL_MS,
   PONG_TIMEOUT_MS,
   RoomService,
+  STALL_INTERVALS,
+  SWEEP_INTERVAL_MS,
 } from "./room-service.js";
 
 const ROOM = "abcdefghijk";
@@ -37,17 +39,27 @@ class FakeConnection implements Connection {
   }
 }
 
-function setup(limits: Partial<Limits> = {}) {
+function setup(
+  limits: Partial<Limits> = {},
+  sweepIntervalMs = SWEEP_INTERVAL_MS,
+) {
   let now = 1_000;
   const logs: Parameters<RoomLog["info"]>[0][] = [];
   const log: RoomLog = { info: (fields) => logs.push(fields) };
   const service = new RoomService(
     () => now,
     { maxRooms: 10, maxPending: 10, ...limits },
-    log,
+    { log, sweepIntervalMs },
   );
   const advance = (ms: number) => {
     now += ms;
+  };
+  /** Advances `ms` in sweep-interval steps, sweeping after each, like the real timer. */
+  const tick = (ms: number) => {
+    for (let elapsed = 0; elapsed < ms; elapsed += sweepIntervalMs) {
+      advance(Math.min(sweepIntervalMs, ms - elapsed));
+      service.sweep();
+    }
   };
   const connect = (id: string, roomId = ROOM) => {
     const conn = new FakeConnection(id);
@@ -61,7 +73,7 @@ function setup(limits: Partial<Limits> = {}) {
       JSON.stringify({ type: "join", sessionToken: token, name }),
     );
   };
-  return { service, connect, join, logs, log, advance };
+  return { service, connect, join, logs, log, advance, tick };
 }
 
 function snapshots(conn: FakeConnection) {
@@ -295,7 +307,7 @@ describe("RoomService", () => {
   });
 
   it("empties connection bookkeeping after every socket closes", () => {
-    const { service, connect, join, advance } = setup();
+    const { service, connect, join, advance, tick } = setup();
     // Every way a socket can go, across two rooms.
     const alice = connect("alice");
     join(alice, ALICE, "Alice");
@@ -317,8 +329,7 @@ describe("RoomService", () => {
       service.close(conn);
     }
     service.sweep();
-    advance(PONG_TIMEOUT_MS);
-    service.sweep(); // the heartbeat terminates dave
+    tick(PONG_TIMEOUT_MS); // the heartbeat terminates dave
 
     expect(alice.closedWith?.code).toBe(CloseCode.SUPERSEDED);
     expect(bob.closedWith?.code).toBe(1000);
@@ -582,5 +593,58 @@ describe("RoomService — sweep: heartbeat (#13)", () => {
     service.pong(lurker);
     service.pong(new FakeConnection("stray"));
     expect(service.bookkeeping().liveness).toBe(0);
+  });
+});
+
+describe("RoomService — sweep: stall guard (#26)", () => {
+  function scene(sweepIntervalMs = SWEEP_INTERVAL_MS) {
+    const ctx = setup({}, sweepIntervalMs);
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    const bob = ctx.connect("bob");
+    ctx.join(bob, BOB, "Bob");
+    const lurker = ctx.connect("lurker");
+    lurker.onClose = null; // keep it observable after a close
+    ctx.service.sweep(); // a normal sweep sets the baseline
+    return { ...ctx, alice, bob, lurker };
+  }
+
+  it("enforces no deadline in the sweep right after a pause, but still pings", () => {
+    const { service, alice, bob, lurker, advance, logs } = scene();
+    advance(60_000); // the process was paused; every deadline looks missed
+    service.sweep();
+
+    expect(alice.terminated).toBe(false);
+    expect(bob.terminated).toBe(false);
+    expect(lurker.closedWith).toBeNull();
+    expect([alice.pings, bob.pings]).toEqual([1, 1]);
+    expect(logs).toContainEqual({ type: "sweep-stalled", gapMs: 60_000 });
+  });
+
+  it("resumes on the next sweep, once the queued evidence has been read", () => {
+    const { service, alice, bob, lurker, advance } = scene();
+    advance(60_000);
+    service.sweep();
+    service.pong(bob); // bob's pong was queued behind the timer; alice's never came
+
+    advance(SWEEP_INTERVAL_MS);
+    service.sweep();
+    expect(alice.terminated).toBe(true);
+    expect(bob.terminated).toBe(false);
+    expect(lurker.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
+  });
+
+  it("treats a gap of exactly the threshold as normal", () => {
+    const { service, lurker, advance } = scene();
+    advance(SWEEP_INTERVAL_MS * STALL_INTERVALS); // == JOIN_TIMEOUT_MS here
+    service.sweep();
+    expect(lurker.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
+  });
+
+  it("scales the threshold with the sweep interval it is told", () => {
+    const { service, lurker, advance } = scene(1_000);
+    advance(JOIN_TIMEOUT_MS); // 10 intervals of 1s: a stall at this cadence
+    service.sweep();
+    expect(lurker.closedWith).toBeNull();
   });
 });

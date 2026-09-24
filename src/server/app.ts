@@ -6,10 +6,12 @@ import Fastify, {
 } from "fastify";
 import type { WebSocket } from "ws";
 import { generateRoomId, ROOM_ID_PATTERN } from "./identity.js";
-import { RoomService, type Connection, type Limits } from "./room-service.js";
-
-/** How often the room service runs its time-based rules (see RoomService.sweep). */
-export const SWEEP_INTERVAL_MS = 5_000;
+import {
+  RoomService,
+  SWEEP_INTERVAL_MS,
+  type Connection,
+  type Limits,
+} from "./room-service.js";
 
 export const DEFAULT_LIMITS: Limits = { maxRooms: 10_000, maxPending: 1_000 };
 
@@ -86,16 +88,16 @@ export function buildServer(options: ServerOptions = {}) {
   });
   // The default 404 handler logs the raw URL; this one does not.
   app.setNotFoundHandler((_request, reply) => reply.code(404).send());
+  const sweepIntervalMs = options.sweepIntervalMs ?? SWEEP_INTERVAL_MS;
   const rooms = new RoomService(
     options.clock ?? Date.now,
     { ...DEFAULT_LIMITS, ...options.limits },
-    { info: (fields) => app.log.info(fields) },
+    { log: { info: (fields) => app.log.info(fields) }, sweepIntervalMs },
   );
 
   // One interval drives every timeout; there are no per-connection timers.
   let sweeper: NodeJS.Timeout | undefined;
   app.addHook("onReady", (done) => {
-    const interval = options.sweepIntervalMs ?? SWEEP_INTERVAL_MS;
     sweeper = setInterval(() => {
       // A throw from the service is a bug: log it loudly, but don't let one
       // bug crash the process and drop every room with it.
@@ -104,7 +106,7 @@ export function buildServer(options: ServerOptions = {}) {
       } catch (err) {
         app.log.error(err, "sweep failed");
       }
-    }, interval);
+    }, sweepIntervalMs);
     done();
   });
   app.addHook("onClose", (_instance, done) => {
