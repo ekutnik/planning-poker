@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # Every PR gets checked, whatever its base — stacked PRs included.
   pull_request:
-    branches: [develop, main]
+  # On direct pushes, only the long-lived branches matter.
   push:
     branches: [develop, main]
 
