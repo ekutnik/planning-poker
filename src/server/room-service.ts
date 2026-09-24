@@ -1,3 +1,4 @@
+import { CloseCode } from "../shared/close-codes.js";
 import type { ParticipantId } from "../shared/ids.js";
 import type {
   ClientMessage,
@@ -199,7 +200,7 @@ export class RoomService {
       this.lastSent.delete(previous);
       this.pending.delete(previous);
       this.info({ conn: previous.id, room: roomId, type: "supersede" });
-      previous.close(4001, "superseded");
+      previous.close(CloseCode.SUPERSEDED, "superseded");
     }
 
     this.sendSnapshot(conn, next, participantId);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CloseCode } from "../shared/close-codes.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import { roomLogId } from "./identity.js";
 import type { Connection, RoomLog } from "./room-service.js";
@@ -80,7 +81,10 @@ describe("RoomService — the four contracts", () => {
     const secondTab = connect("alice-2");
     join(secondTab, ALICE, "Alice");
 
-    expect(alice.closedWith).toEqual({ code: 4001, reason: "superseded" });
+    expect(alice.closedWith).toEqual({
+      code: CloseCode.SUPERSEDED,
+      reason: "superseded",
+    });
     expect(bob.sent.length).toBe(bobBefore);
     const seen = snapshots(secondTab).at(-1);
     expect(seen?.type).toBe("snapshot");
@@ -288,7 +292,7 @@ describe("RoomService", () => {
       service.close(conn);
     }
 
-    expect(alice.closedWith?.code).toBe(4001);
+    expect(alice.closedWith?.code).toBe(CloseCode.SUPERSEDED);
     expect(bob.closedWith?.code).toBe(1000);
     expect(service.bookkeeping()).toEqual({
       pending: 0,
