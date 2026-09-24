@@ -48,6 +48,9 @@ export class RoomService {
   private readonly bindings = new Map<Connection, Binding>();
   private readonly current = new Map<string, Map<ParticipantId, Connection>>();
   private readonly lastSent = new Map<Connection, string>();
+  // Weak on purpose: it dedupes a second close() without keeping any connection
+  // alive, so it cannot leak. A WeakSet can't be sized, which is why
+  // bookkeeping() doesn't report it.
   private readonly closed = new WeakSet<Connection>();
 
   constructor(
@@ -121,6 +124,7 @@ export class RoomService {
   bookkeeping(): {
     pending: number;
     bindings: number;
+    socketRooms: number;
     sockets: number;
     lastSent: number;
   } {
@@ -129,6 +133,9 @@ export class RoomService {
     return {
       pending: this.pending.size,
       bindings: this.bindings.size,
+      // Counted separately from sockets: an empty inner Map left in `current`
+      // is a leak too, and a sum of sizes would read it as zero.
+      socketRooms: this.current.size,
       sockets,
       lastSent: this.lastSent.size,
     };

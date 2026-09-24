@@ -267,15 +267,30 @@ describe("RoomService", () => {
 
   it("empties connection bookkeeping after every socket closes", () => {
     const { service, connect, join } = setup();
+    // Every way a socket can go, across two rooms.
     const alice = connect("alice");
-    const bob = connect("bob");
     join(alice, ALICE, "Alice");
+    const aliceTab2 = connect("alice-tab2");
+    join(aliceTab2, ALICE, "Alice"); // supersedes `alice`, which closes
+    const bob = connect("bob");
     join(bob, BOB, "Bob");
-    service.close(alice);
-    service.close(bob);
+    service.message(bob, JSON.stringify({ type: "leave" })); // leaves, which closes
+    const carol = connect("carol", "bbbbbbbbbbb");
+    join(carol, "SESSIONTOKEN_CAROL_00001", "Carol");
+    const nameless = connect("nameless", "ccccccccccc");
+    join(nameless, "SESSIONTOKEN_NAMELESS_01", " "); // join fails, stays pending
+    const lurker = connect("lurker"); // never joins
+
+    for (const conn of [aliceTab2, carol, nameless, lurker]) {
+      service.close(conn);
+    }
+
+    expect(alice.closedWith?.code).toBe(4001);
+    expect(bob.closedWith?.code).toBe(1000);
     expect(service.bookkeeping()).toEqual({
       pending: 0,
       bindings: 0,
+      socketRooms: 0,
       sockets: 0,
       lastSent: 0,
     });
