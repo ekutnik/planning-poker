@@ -3,7 +3,12 @@ import { CloseCode } from "../shared/close-codes.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import { roomLogId } from "./identity.js";
 import type { Connection, Limits, RoomLog } from "./room-service.js";
-import { JOIN_TIMEOUT_MS, RoomService } from "./room-service.js";
+import {
+  JOIN_TIMEOUT_MS,
+  PING_INTERVAL_MS,
+  PONG_TIMEOUT_MS,
+  RoomService,
+} from "./room-service.js";
 
 const ROOM = "abcdefghijk";
 const ALICE = "SESSIONTOKEN_ALICE_0001";
@@ -305,21 +310,27 @@ describe("RoomService", () => {
     join(nameless, "SESSIONTOKEN_NAMELESS_01", " "); // join fails, stays pending
     const lurker = connect("lurker"); // never joins
     const idler = connect("idler"); // never joins; the sweep closes it
+    const dave = connect("dave", "ddddddddddd");
+    join(dave, "SESSIONTOKEN_DAVE_000001", "Dave"); // goes silent
     advance(JOIN_TIMEOUT_MS);
     for (const conn of [aliceTab2, carol, nameless, lurker]) {
       service.close(conn);
     }
     service.sweep();
+    advance(PONG_TIMEOUT_MS);
+    service.sweep(); // the heartbeat terminates dave
 
     expect(alice.closedWith?.code).toBe(CloseCode.SUPERSEDED);
     expect(bob.closedWith?.code).toBe(1000);
     expect(idler.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
+    expect(dave.terminated).toBe(true);
     expect(service.bookkeeping()).toEqual({
       pending: 0,
       bindings: 0,
       socketRooms: 0,
       sockets: 0,
       lastSent: 0,
+      liveness: 0,
     });
   });
 
@@ -466,5 +477,110 @@ describe("RoomService — pending cap (#15)", () => {
     expect(connect("e").closedWith).toBeNull();
     expect(connect("f").closedWith).toBeNull();
     expect(connect("g").closedWith?.code).toBe(1013);
+  });
+});
+
+describe("RoomService — sweep: heartbeat (#13)", () => {
+  function twoInRoom() {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    const bob = ctx.connect("bob");
+    ctx.join(bob, BOB, "Bob");
+    return { ...ctx, alice, bob };
+  }
+
+  /** Sweeps every `step` ms for `total` ms; `answer` connections pong to pings. */
+  function run(
+    ctx: ReturnType<typeof setup>,
+    total: number,
+    step: number,
+    answer: FakeConnection[],
+  ) {
+    const seen = new Map(answer.map((conn) => [conn, conn.pings]));
+    for (let t = 0; t < total; t += step) {
+      ctx.advance(step);
+      ctx.service.sweep();
+      for (const conn of answer) {
+        if (conn.pings !== seen.get(conn)) ctx.service.pong(conn);
+        seen.set(conn, conn.pings);
+      }
+    }
+  }
+
+  it("terminates a connection whose last pong is PONG_TIMEOUT_MS old", () => {
+    const { service, alice, bob, advance } = twoInRoom();
+    advance(PONG_TIMEOUT_MS - 1);
+    service.pong(bob);
+    service.sweep();
+    expect(alice.terminated).toBe(false);
+
+    bob.sent.length = 0;
+    advance(1);
+    service.sweep();
+    expect(alice.terminated).toBe(true);
+    // terminate() goes through the normal close path, so others see it.
+    expect(snapshots(bob).at(-1)?.snapshot.participants).toMatchObject([
+      { name: "Alice", status: "disconnected" },
+      { name: "Bob", status: "connected" },
+    ]);
+  });
+
+  it("pings a connection once PING_INTERVAL_MS has passed, and not more often", () => {
+    const { service, alice, advance } = twoInRoom();
+    advance(PING_INTERVAL_MS - 1);
+    service.sweep();
+    expect(alice.pings).toBe(0);
+
+    advance(1);
+    service.sweep();
+    service.sweep();
+    expect(alice.pings).toBe(1);
+
+    advance(PING_INTERVAL_MS);
+    service.sweep();
+    expect(alice.pings).toBe(2);
+  });
+
+  it("keeps a connection that answers every ping open indefinitely", () => {
+    const ctx = twoInRoom();
+    run(ctx, PONG_TIMEOUT_MS * 20, 5_000, [ctx.alice, ctx.bob]);
+
+    expect(ctx.alice.terminated).toBe(false);
+    expect(ctx.alice.pings).toBeGreaterThan(20);
+  });
+
+  it.each([1_000, 3_000, 5_000])(
+    "terminates within one sweep interval of the deadline (%i ms interval)",
+    (step) => {
+      const ctx = twoInRoom();
+      let elapsed = 0;
+      while (!ctx.alice.terminated && elapsed < PONG_TIMEOUT_MS * 2) {
+        run(ctx, step, step, [ctx.bob]);
+        elapsed += step;
+      }
+      expect(elapsed).toBeGreaterThanOrEqual(PONG_TIMEOUT_MS);
+      expect(elapsed).toBeLessThan(PONG_TIMEOUT_MS + step);
+      expect(ctx.bob.terminated).toBe(false);
+    },
+  );
+
+  it("leaves unjoined sockets to the join timeout", () => {
+    const { service, connect, advance } = setup();
+    const lurker = connect("lurker");
+    lurker.onClose = null; // keep it around, as if its close were still in flight
+    advance(PONG_TIMEOUT_MS);
+    service.sweep();
+    expect(lurker.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
+    expect(lurker.pings).toBe(0);
+    expect(lurker.terminated).toBe(false);
+  });
+
+  it("ignores a pong from a connection that is not joined", () => {
+    const { service, connect } = setup();
+    const lurker = connect("lurker");
+    service.pong(lurker);
+    service.pong(new FakeConnection("stray"));
+    expect(service.bookkeeping().liveness).toBe(0);
   });
 });

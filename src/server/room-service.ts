@@ -34,6 +34,16 @@ export interface Connection {
 /** An unjoined socket is closed after this long (#14). */
 export const JOIN_TIMEOUT_MS = 10_000;
 
+/** A joined connection that has not been pinged for this long is pinged (#13). */
+export const PING_INTERVAL_MS = 15_000;
+
+/**
+ * A joined connection whose last pong is this old is terminated (#13): about
+ * two missed pings. A closed laptop lid or dropped Wi-Fi sends no FIN, so
+ * without this the server would treat a half-open socket as live forever.
+ */
+export const PONG_TIMEOUT_MS = 35_000;
+
 export interface Limits {
   /** Rooms held in memory. A join that would create one more gets SERVER_FULL. */
   readonly maxRooms: number;
@@ -66,6 +76,11 @@ interface Pending {
   readonly openedAt: number;
 }
 
+interface Liveness {
+  lastPingAt: number;
+  lastPongAt: number;
+}
+
 interface Binding {
   readonly roomId: string;
   readonly participantId: ParticipantId;
@@ -82,6 +97,7 @@ export class RoomService {
   private readonly bindings = new Map<Connection, Binding>();
   private readonly current = new Map<string, Map<ParticipantId, Connection>>();
   private readonly lastSent = new Map<Connection, string>();
+  private readonly liveness = new Map<Connection, Liveness>();
   // Weak on purpose: it dedupes a second close() without keeping any connection
   // alive, so it cannot leak. A WeakSet can't be sized, which is why
   // bookkeeping() doesn't report it.
@@ -170,13 +186,26 @@ export class RoomService {
     this.broadcast(result.room);
   }
 
+  /** Records a pong from a joined connection; others are ignored (#13). */
+  pong(conn: Connection): void {
+    const beat = this.liveness.get(conn);
+    if (beat) beat.lastPongAt = this.clock();
+  }
+
   /**
    * Applies every time-based rule against one reading of the clock. The adapter
    * calls this from a single interval; tests advance a fake clock and call it
    * directly. No per-connection timers exist, so no exit path has to cancel one.
    *
-   * The cost is precision: a deadline fires up to one sweep interval late. With
-   * a 5s interval, the 10s join timeout closes a socket after 10–15s.
+   * - Join timeout (#14): close a socket still unjoined after JOIN_TIMEOUT_MS.
+   * - Heartbeat (#13): ping a joined connection not pinged for PING_INTERVAL_MS;
+   *   terminate one whose last pong is PONG_TIMEOUT_MS old.
+   *
+   * Every rule compares timestamps, never a count of sweeps, so changing the
+   * interval changes only the lateness. The cost is precision: a deadline fires
+   * up to one sweep interval late. With a 5s interval, the join timeout closes
+   * a socket after 10–15s, and a silent connection is terminated 35–40s after
+   * its last pong.
    */
   sweep(): void {
     const now = this.clock();
@@ -184,11 +213,30 @@ export class RoomService {
     for (const entry of this.pending) {
       if (now - entry[1].openedAt >= JOIN_TIMEOUT_MS) expired.push(entry);
     }
-    // Mutate fully, then call out: close() may re-enter the service.
+    const silent: Connection[] = [];
+    const due: [Connection, Liveness][] = [];
+    for (const [conn, beat] of this.liveness) {
+      if (now - beat.lastPongAt >= PONG_TIMEOUT_MS) silent.push(conn);
+      else if (now - beat.lastPingAt >= PING_INTERVAL_MS)
+        due.push([conn, beat]);
+    }
+
+    // Mutate fully, then call out: close() and terminate() may re-enter the
+    // service. Silent connections are deliberately not forgotten here:
+    // terminate() reaches close(), which needs the binding to dispatch
+    // disconnect, exactly as for any other dropped socket.
     for (const [conn] of expired) this.pending.delete(conn);
+    for (const [, beat] of due) beat.lastPingAt = now;
+
     for (const [conn, { roomId }] of expired) {
       this.info({ conn: conn.id, room: roomId, type: "join-timeout" });
       conn.close(CloseCode.JOIN_TIMEOUT, "join timeout");
+    }
+    for (const [conn] of due) conn.ping();
+    for (const conn of silent) {
+      const room = this.bindings.get(conn)?.roomId;
+      this.info({ conn: conn.id, room, type: "heartbeat-timeout" });
+      conn.terminate();
     }
   }
 
@@ -199,6 +247,7 @@ export class RoomService {
     socketRooms: number;
     sockets: number;
     lastSent: number;
+    liveness: number;
   } {
     let sockets = 0;
     for (const room of this.current.values()) sockets += room.size;
@@ -210,6 +259,7 @@ export class RoomService {
       socketRooms: this.current.size,
       sockets,
       lastSent: this.lastSent.size,
+      liveness: this.liveness.size,
     };
   }
 
@@ -229,10 +279,11 @@ export class RoomService {
       room = createRoom(roomId);
     }
 
+    const now = this.clock();
     const result = applyCommand(
       room,
       { type: "join", participantId, name },
-      this.clock(),
+      now,
     );
     if (!result.ok) {
       this.sendError(conn, result.error, roomId);
@@ -243,6 +294,7 @@ export class RoomService {
     this.rooms.set(roomId, next);
     this.pending.delete(conn);
     this.bindings.set(conn, { roomId, participantId });
+    this.liveness.set(conn, { lastPingAt: now, lastPongAt: now });
 
     const sockets =
       this.current.get(roomId) ?? new Map<ParticipantId, Connection>();
@@ -319,6 +371,7 @@ export class RoomService {
     this.pending.delete(conn);
     this.bindings.delete(conn);
     this.lastSent.delete(conn);
+    this.liveness.delete(conn);
     if (!binding) return;
     const sockets = this.current.get(binding.roomId);
     if (sockets?.get(binding.participantId) === conn) {

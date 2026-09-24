@@ -6,7 +6,12 @@ import type { RoomSnapshot } from "../shared/snapshot.js";
 import { buildServer, toConnection, type ServerOptions } from "./app.js";
 import { CloseCode } from "../shared/close-codes.js";
 import { ROOM_ID_PATTERN, roomLogId } from "./identity.js";
-import { JOIN_TIMEOUT_MS, RoomService } from "./room-service.js";
+import {
+  JOIN_TIMEOUT_MS,
+  PING_INTERVAL_MS,
+  PONG_TIMEOUT_MS,
+  RoomService,
+} from "./room-service.js";
 
 /**
  * A few end-to-end checks that the adapter is wired correctly. Room behaviour
@@ -162,6 +167,27 @@ describe("websocket route", () => {
       code: CloseCode.JOIN_TIMEOUT,
       reason: "join timeout",
     });
+  });
+
+  it("forwards pongs, so a client that answers pings outlives the pong deadline", async () => {
+    let now = 0;
+    await restart({ clock: () => now, sweepIntervalMs: 5 });
+    const alice = await connect(await createRoom());
+    alice.send({ type: "join", sessionToken: randomUUID(), name: "Alice" });
+    await alice.snapshot();
+
+    // Browsers answer pings in the network stack. injectWS's client does not
+    // (ws only enables autoPong for clients it dials itself), so answer here.
+    const pinged = new Promise((resolve) =>
+      alice.socket.once("ping", () => resolve(alice.socket.pong())),
+    );
+    now = PING_INTERVAL_MS;
+    await pinged;
+    await sleep(20); // let the pong reach the server
+    now = PONG_TIMEOUT_MS; // past the deadline measured from join
+    await sleep(30);
+
+    expect(alice.socket.readyState).toBe(alice.socket.OPEN);
   });
 
   it("stops the sweep timer when the server closes", async () => {
