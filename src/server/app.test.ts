@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type WebSocket from "ws";
 import type { ClientMessage, ServerMessage } from "../shared/protocol.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
-import { buildServer, type ServerOptions } from "./app.js";
+import { buildServer, toConnection, type ServerOptions } from "./app.js";
 import { CloseCode } from "../shared/close-codes.js";
 import { ROOM_ID_PATTERN, roomLogId } from "./identity.js";
-import { JOIN_TIMEOUT_MS } from "./room-service.js";
+import { JOIN_TIMEOUT_MS, RoomService } from "./room-service.js";
 
 /**
  * A few end-to-end checks that the adapter is wired correctly. Room behaviour
@@ -244,5 +244,84 @@ describe("logging", () => {
     for (const type of ["open", "join", "castVote", "reveal", "supersede"]) {
       expect(types).toContain(type);
     }
+  });
+});
+
+describe("failure containment", () => {
+  const boom = () => {
+    throw new Error("socket gone");
+  };
+
+  it("toConnection never throws, and logs each failed socket call at warn", () => {
+    const warnings: { op?: string }[] = [];
+    const socket = { send: boom, close: boom, ping: boom, terminate: boom };
+    const conn = toConnection(socket, "req-1", {
+      warn: (fields: { op?: string }) => warnings.push(fields),
+    });
+
+    expect(() => {
+      conn.send({ type: "error", code: "NOT_JOINED" });
+      conn.close(CloseCode.JOIN_TIMEOUT, "join timeout");
+      conn.ping();
+      conn.terminate();
+    }).not.toThrow();
+    expect(warnings.map((fields) => fields.op)).toEqual([
+      "send",
+      "close",
+      "ping",
+      "terminate",
+    ]);
+  });
+
+  it("a socket whose close throws does not stop the sweep closing the rest", () => {
+    let now = 0;
+    const service = new RoomService(() => now, {
+      maxRooms: 10,
+      maxPending: 10,
+    });
+    const closed: string[] = [];
+    const quiet = { warn: () => {} };
+    const sockets = ["broken", "second", "third"].map((id) => ({
+      id,
+      send: () => {},
+      ping: () => {},
+      terminate: () => {},
+      close: id === "broken" ? boom : () => closed.push(id),
+    }));
+    for (const socket of sockets) {
+      service.open(toConnection(socket, socket.id, quiet), "abcdefghijk");
+    }
+
+    now += JOIN_TIMEOUT_MS;
+    expect(() => service.sweep()).not.toThrow();
+    expect(closed).toEqual(["second", "third"]);
+  });
+
+  it("keeps the server running when a sweep throws", async () => {
+    const lines: { level?: number; msg?: string }[] = [];
+    let reads = 0;
+    const clock = () => {
+      reads += 1;
+      if (reads === 1) throw new Error("clock broke");
+      return 0;
+    };
+    await restart({
+      clock,
+      sweepIntervalMs: 5,
+      logger: {
+        stream: {
+          write: (line: string) =>
+            lines.push(JSON.parse(line) as { level?: number; msg?: string }),
+        },
+      },
+    });
+    await sleep(30);
+
+    expect(lines.filter((line) => line.msg === "sweep failed")).toEqual([
+      expect.objectContaining({ level: 50 }),
+    ]);
+    expect(reads).toBeGreaterThan(1); // later ticks still ran
+    const health = await app.inject({ method: "GET", url: "/health" });
+    expect(health.statusCode).toBe(200);
   });
 });

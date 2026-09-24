@@ -15,6 +15,11 @@ import {
 import { project } from "./domain/projection.js";
 import { derivePublicId, roomLogId } from "./identity.js";
 
+/**
+ * One client socket, as the service sees it. Implementations must not throw:
+ * the service calls these mid-loop (sweep, broadcast, supersede), where a throw
+ * would leave later connections unhandled. The adapter catches and logs.
+ */
 export interface Connection {
   readonly id: string;
   send(message: ServerMessage): void;

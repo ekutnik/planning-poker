@@ -1,8 +1,10 @@
 import websocket from "@fastify/websocket";
 import Fastify, {
+  type FastifyBaseLogger,
   type FastifyLoggerOptions,
   type FastifyRequest,
 } from "fastify";
+import type { WebSocket } from "ws";
 import { generateRoomId, ROOM_ID_PATTERN } from "./identity.js";
 import { RoomService, type Connection, type Limits } from "./room-service.js";
 
@@ -40,6 +42,36 @@ function serializeRequest(request: FastifyRequest) {
   };
 }
 
+type Socket = Pick<WebSocket, "send" | "close" | "ping" | "terminate">;
+
+/**
+ * Wraps a socket as a Connection that never throws, as the interface requires.
+ * RoomService calls out to connections mid-loop (sweep, broadcast, supersede);
+ * a throw there would skip the rest of the loop or, from the sweep interval,
+ * crash the process and every room in it. A failed call is logged at warn.
+ */
+export function toConnection(
+  socket: Socket,
+  id: string,
+  log: Pick<FastifyBaseLogger, "warn">,
+): Connection {
+  const guard = (op: string, call: () => void) => {
+    try {
+      call();
+    } catch (err) {
+      log.warn({ err, conn: id, op }, "socket call failed");
+    }
+  };
+  return {
+    id,
+    send: (message) =>
+      guard("send", () => socket.send(JSON.stringify(message))),
+    close: (code, reason) => guard("close", () => socket.close(code, reason)),
+    ping: () => guard("ping", () => socket.ping()),
+    terminate: () => guard("terminate", () => socket.terminate()),
+  };
+}
+
 /**
  * A configured Fastify instance that does not listen; callers own the lifecycle.
  * The websocket route is a thin adapter: each socket becomes a Connection and
@@ -64,7 +96,15 @@ export function buildServer(options: ServerOptions = {}) {
   let sweeper: NodeJS.Timeout | undefined;
   app.addHook("onReady", (done) => {
     const interval = options.sweepIntervalMs ?? SWEEP_INTERVAL_MS;
-    sweeper = setInterval(() => rooms.sweep(), interval);
+    sweeper = setInterval(() => {
+      // A throw from the service is a bug: log it loudly, but don't let one
+      // bug crash the process and drop every room with it.
+      try {
+        rooms.sweep();
+      } catch (err) {
+        app.log.error(err, "sweep failed");
+      }
+    }, interval);
     done();
   });
   app.addHook("onClose", (_instance, done) => {
@@ -93,13 +133,7 @@ export function buildServer(options: ServerOptions = {}) {
       "/ws/:roomId",
       { websocket: true, schema: { params: roomParams } },
       (socket, request) => {
-        const conn: Connection = {
-          id: request.id,
-          send: (message) => socket.send(JSON.stringify(message)),
-          close: (code, reason) => socket.close(code, reason),
-          ping: () => socket.ping(),
-          terminate: () => socket.terminate(),
-        };
+        const conn = toConnection(socket, request.id, request.log);
         rooms.open(conn, request.params.roomId);
         // Never log `data`: a join frame carries the session token.
         socket.on("message", (data: Buffer) =>
