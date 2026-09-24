@@ -15,5 +15,25 @@ export default defineConfig([
       },
     },
   },
+  {
+    // Architecture guard: wire types in src/shared must stay dependency-free of
+    // the server and web layers, so both can safely import them. Checked by the
+    // linter rather than by memory.
+    files: ["src/shared/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/server/**", "**/web/**"],
+              message:
+                "src/shared must not import from src/server or src/web (keep the wire types dependency-free).",
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 ]);
