@@ -12,7 +12,7 @@ import {
   type Room,
 } from "./domain/room.js";
 import { project } from "./domain/projection.js";
-import { derivePublicId } from "./identity.js";
+import { derivePublicId, roomLogId } from "./identity.js";
 
 export interface Connection {
   readonly id: string;
@@ -20,14 +20,19 @@ export interface Connection {
   close(code: number, reason: string): void;
 }
 
-/** Structured fields only. Raw frames are never logged: join carries the token. */
+interface LogFields {
+  conn: string;
+  room?: string;
+  type?: string;
+  code?: string;
+}
+
+/**
+ * Structured fields only. Raw frames are never logged (join carries the token),
+ * and `room` is always a roomLogId, never the room id itself (#21).
+ */
 export interface RoomLog {
-  info(fields: {
-    conn: string;
-    room?: string;
-    type?: string;
-    code?: string;
-  }): void;
+  info(fields: LogFields): void;
 }
 
 interface Binding {
@@ -62,7 +67,7 @@ export class RoomService {
   open(conn: Connection, roomId: string): void {
     if (this.closed.has(conn) || this.bindings.has(conn)) return;
     this.pending.set(conn, roomId);
-    this.log.info({ conn: conn.id, room: roomId, type: "open" });
+    this.info({ conn: conn.id, room: roomId, type: "open" });
   }
 
   message(conn: Connection, raw: string): void {
@@ -75,7 +80,7 @@ export class RoomService {
       this.sendError(conn, "INVALID_MESSAGE", roomId ?? binding?.roomId);
       return;
     }
-    this.log.info({
+    this.info({
       conn: conn.id,
       room: roomId ?? binding?.roomId,
       type: message.type,
@@ -105,7 +110,7 @@ export class RoomService {
       binding !== undefined &&
       this.current.get(binding.roomId)?.get(binding.participantId) === conn;
     this.forget(conn);
-    this.log.info({ conn: conn.id, room: binding?.roomId, type: "close" });
+    this.info({ conn: conn.id, room: binding?.roomId, type: "close" });
     if (!stillCurrent || !binding) return;
 
     const room = this.rooms.get(binding.roomId);
@@ -183,7 +188,7 @@ export class RoomService {
       this.bindings.delete(previous);
       this.lastSent.delete(previous);
       this.pending.delete(previous);
-      this.log.info({ conn: previous.id, room: roomId, type: "supersede" });
+      this.info({ conn: previous.id, room: roomId, type: "supersede" });
       previous.close(4001, "superseded");
     }
 
@@ -239,8 +244,16 @@ export class RoomService {
   }
 
   private sendError(conn: Connection, code: ErrorCode, room?: string): void {
-    this.log.info({ conn: conn.id, room, code });
+    this.info({ conn: conn.id, room, code });
     conn.send({ type: "error", code });
+  }
+
+  /** The only way to the log, so a raw room id cannot reach it (#21). */
+  private info(fields: LogFields): void {
+    const { room } = fields;
+    this.log.info(
+      room === undefined ? fields : { ...fields, room: roomLogId(room) },
+    );
   }
 
   private forget(conn: Connection): void {
