@@ -222,12 +222,14 @@ export class RoomService {
    * - Join timeout (#14): close a socket still unjoined after JOIN_TIMEOUT_MS.
    * - Heartbeat (#13): ping a joined connection not pinged for PING_INTERVAL_MS;
    *   terminate one whose last pong is PONG_TIMEOUT_MS old.
+   * - Grace removal (#19): propose `expire` for every disconnected participant;
+   *   the domain removes those disconnected for DISCONNECT_GRACE_MS.
    *
    * Every rule compares timestamps, never a count of sweeps, so changing the
    * interval changes only the lateness. The cost is precision: a deadline fires
    * up to one sweep interval late. With a 5s interval, the join timeout closes
-   * a socket after 10–15s, and a silent connection is terminated 35–40s after
-   * its last pong.
+   * a socket after 10–15s, a silent connection is terminated 35–40s after its
+   * last pong, and a disconnected participant is removed 60–65s later.
    *
    * Stall guard (#26): deadlines and their evidence (pongs, joins) arrive
    * through the same event loop, and Node runs an overdue timer before it
@@ -257,12 +259,28 @@ export class RoomService {
         due.push([conn, beat]);
     }
 
-    // Mutate fully, then call out: close() and terminate() may re-enter the
-    // service. Silent connections are deliberately not forgotten here:
-    // terminate() reaches close(), which needs the binding to dispatch
+    // The sweep proposes; the domain decides who is past the grace period.
+    const expiredRooms: Room[] = [];
+    if (!stalled) {
+      for (const room of this.rooms.values()) {
+        let next = room;
+        for (const { id, status } of room.participants.values()) {
+          if (status !== "disconnected") continue;
+          const command = { type: "expire", participantId: id } as const;
+          const result = applyCommand(next, command, now);
+          if (result.ok) next = result.room;
+        }
+        if (next !== room) expiredRooms.push(next);
+      }
+    }
+
+    // Mutate fully, then call out: close(), terminate() and send() may
+    // re-enter the service. Silent connections are deliberately not forgotten
+    // here: terminate() reaches close(), which needs the binding to dispatch
     // disconnect, exactly as for any other dropped socket.
     for (const [conn] of expired) this.pending.delete(conn);
     for (const [, beat] of due) beat.lastPingAt = now;
+    for (const room of expiredRooms) this.rooms.set(room.id, room);
 
     for (const [conn, { roomId }] of expired) {
       this.info({ conn: conn.id, room: roomId, type: "join-timeout" });
@@ -273,6 +291,10 @@ export class RoomService {
       const room = this.bindings.get(conn)?.roomId;
       this.info({ conn: conn.id, room, type: "heartbeat-timeout" });
       conn.terminate();
+    }
+    for (const room of expiredRooms) {
+      this.info({ room: room.id, type: "expire" });
+      this.broadcast(room);
     }
   }
 

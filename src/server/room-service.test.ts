@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CloseCode } from "../shared/close-codes.js";
+import { DISCONNECT_GRACE_MS } from "./domain/room.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import { roomLogId } from "./identity.js";
 import type { Connection, Limits, RoomLog } from "./room-service.js";
@@ -646,5 +647,117 @@ describe("RoomService — sweep: stall guard (#26)", () => {
     advance(JOIN_TIMEOUT_MS); // 10 intervals of 1s: a stall at this cadence
     service.sweep();
     expect(lurker.closedWith).toBeNull();
+  });
+});
+
+describe("RoomService — sweep: grace removal (#19)", () => {
+  function voted() {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    const bob = ctx.connect("bob");
+    ctx.join(bob, BOB, "Bob");
+    ctx.service.message(alice, JSON.stringify({ type: "castVote", card: "5" }));
+    return { ...ctx, alice, bob };
+  }
+  const names = (conn: FakeConnection) =>
+    snapshots(conn)
+      .at(-1)
+      ?.snapshot.participants.map((p) => `${p.name}:${p.status}`);
+
+  it("removes a participant disconnected for the grace period, and tells the others", () => {
+    const { service, alice, bob, tick } = voted();
+    service.close(alice);
+    // bob keeps answering pings throughout, so only alice is at stake.
+    const keepBob = (ms: number) => {
+      for (let t = 0; t < ms; t += SWEEP_INTERVAL_MS) {
+        tick(SWEEP_INTERVAL_MS);
+        service.pong(bob);
+      }
+    };
+
+    keepBob(DISCONNECT_GRACE_MS - SWEEP_INTERVAL_MS);
+    expect(names(bob)).toEqual(["Alice:disconnected", "Bob:connected"]);
+
+    keepBob(SWEEP_INTERVAL_MS);
+    expect(names(bob)).toEqual(["Bob:connected"]);
+  });
+
+  it("expires several participants of one room in the same sweep", () => {
+    const { service, connect, join, alice, bob, tick } = voted();
+    const carol = connect("carol");
+    join(carol, "SESSIONTOKEN_CAROL_00001", "Carol");
+    service.close(alice);
+    service.close(carol);
+    for (let t = 0; t < DISCONNECT_GRACE_MS; t += SWEEP_INTERVAL_MS) {
+      tick(SWEEP_INTERVAL_MS);
+      service.pong(bob);
+    }
+    expect(names(bob)).toEqual(["Bob:connected"]);
+  });
+
+  it("lets a participant who reconnects within the grace period keep seat and vote", () => {
+    const { service, connect, join, alice, bob, tick } = voted();
+    service.close(alice);
+    tick(DISCONNECT_GRACE_MS - SWEEP_INTERVAL_MS);
+    service.pong(bob);
+
+    const aliceAgain = connect("alice-again");
+    join(aliceAgain, ALICE, "Alice");
+    tick(DISCONNECT_GRACE_MS);
+    expect(snapshots(aliceAgain).at(-1)?.snapshot).toMatchObject({
+      yourVote: "5",
+    });
+  });
+
+  it("lets an expired participant rejoin only as someone new, with no vote", () => {
+    const { service, connect, join, alice, tick } = voted();
+    service.close(alice);
+    tick(DISCONNECT_GRACE_MS);
+
+    const aliceAgain = connect("alice-again");
+    join(aliceAgain, ALICE, "Alice");
+    expect(snapshots(aliceAgain).at(-1)?.snapshot).toMatchObject({
+      yourVote: null,
+    });
+  });
+
+  it("does not expire anyone in the sweep right after a stall", () => {
+    const { service, alice, bob, advance } = voted();
+    service.close(alice);
+    service.sweep();
+    advance(DISCONNECT_GRACE_MS * 2); // paused well past the grace period
+    service.sweep();
+    expect(names(bob)).toContain("Alice:disconnected");
+    service.pong(bob); // bob's pong was queued behind the timer during the pause
+
+    advance(SWEEP_INTERVAL_MS);
+    service.sweep();
+    expect(names(bob)).not.toContain("Alice:disconnected");
+  });
+
+  it("removes a closed laptop within PONG_TIMEOUT + GRACE + two sweep intervals", () => {
+    const { service, alice, bob, advance } = voted();
+    // alice's lid closes: she never answers again. bob answers every ping.
+    let elapsed = 0;
+    let disconnectedAt: number | undefined;
+    let removedAt: number | undefined;
+    while (removedAt === undefined && elapsed < 10 * 60_000) {
+      advance(SWEEP_INTERVAL_MS);
+      elapsed += SWEEP_INTERVAL_MS;
+      service.sweep();
+      service.pong(bob);
+      const view = names(bob) ?? [];
+      if (disconnectedAt === undefined && view.includes("Alice:disconnected"))
+        disconnectedAt = elapsed;
+      if (!view.some((entry) => entry.startsWith("Alice:")))
+        removedAt = elapsed;
+    }
+
+    expect(alice.terminated).toBe(true);
+    expect(disconnectedAt).toBeGreaterThanOrEqual(PONG_TIMEOUT_MS);
+    expect(removedAt).toBeLessThanOrEqual(
+      PONG_TIMEOUT_MS + DISCONNECT_GRACE_MS + 2 * SWEEP_INTERVAL_MS,
+    );
   });
 });
