@@ -5,6 +5,14 @@ import type { DomainError } from "../../shared/errors.js";
 export const MAX_PARTICIPANTS = 30;
 export const MAX_NAME_LENGTH = 32;
 
+/**
+ * How long a disconnected participant keeps their seat and vote (#19). 60s
+ * covers a laptop briefly sleeping or a Wi-Fi handover during discussion, and
+ * a reconnect in that window reclaims the seat with the vote. Much longer and
+ * someone who has really left holds up every round as "not voted".
+ */
+export const DISCONNECT_GRACE_MS = 60_000;
+
 export type { ParticipantId };
 export type Phase = "voting" | "revealed";
 
@@ -38,7 +46,8 @@ export type Command =
   | { readonly type: "reveal"; readonly participantId: ParticipantId }
   | { readonly type: "reset"; readonly participantId: ParticipantId }
   | { readonly type: "disconnect"; readonly participantId: ParticipantId }
-  | { readonly type: "leave"; readonly participantId: ParticipantId };
+  | { readonly type: "leave"; readonly participantId: ParticipantId }
+  | { readonly type: "expire"; readonly participantId: ParticipantId };
 
 export type { DomainError };
 
@@ -72,6 +81,8 @@ export function applyCommand(
       return disconnect(room, command, now);
     case "leave":
       return leave(room, command);
+    case "expire":
+      return expire(room, command, now);
     default: {
       const unreachable: never = command;
       throw new Error(`Unhandled command: ${JSON.stringify(unreachable)}`);
@@ -97,6 +108,12 @@ function withParticipant(
   participant: Participant,
 ): ReadonlyMap<ParticipantId, Participant> {
   return new Map(room.participants).set(participant.id, participant);
+}
+
+function without(room: Room, participantId: ParticipantId): Room {
+  const participants = new Map(room.participants);
+  participants.delete(participantId);
+  return commit(room, { participants });
 }
 
 function hasAnyVote(room: Room): boolean {
@@ -209,7 +226,19 @@ function disconnect(
 
 function leave(room: Room, cmd: CommandOf<"leave">): Result {
   if (!room.participants.has(cmd.participantId)) return ok(room); // no-op: already gone
-  const participants = new Map(room.participants);
-  participants.delete(cmd.participantId);
-  return ok(commit(room, { participants }));
+  return ok(without(room, cmd.participantId));
+}
+
+/**
+ * Removes a participant whose grace period is over. Unlike leave, it has a
+ * rule, and the rule lives here: the sweep proposes, the domain decides. A
+ * participant who reconnected a moment before the sweep ran is a no-op by
+ * construction, whatever the sweep's timing.
+ */
+function expire(room: Room, cmd: CommandOf<"expire">, now: number): Result {
+  const participant = room.participants.get(cmd.participantId);
+  if (!participant) return ok(room); // no-op: already gone
+  if (participant.disconnectedAt === null) return ok(room); // no-op: connected
+  if (now - participant.disconnectedAt < DISCONNECT_GRACE_MS) return ok(room); // no-op: still in grace
+  return ok(without(room, cmd.participantId));
 }

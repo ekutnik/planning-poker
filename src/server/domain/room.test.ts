@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyCommand,
   createRoom,
+  DISCONNECT_GRACE_MS,
   MAX_NAME_LENGTH,
   MAX_PARTICIPANTS,
   type Command,
@@ -18,8 +19,12 @@ function must(result: Result): Room {
 }
 
 function run(room: Room, ...commands: Command[]): Room {
+  return runAt(NOW, room, ...commands);
+}
+
+function runAt(now: number, room: Room, ...commands: Command[]): Room {
   return commands.reduce(
-    (current, command) => must(applyCommand(current, command, NOW)),
+    (current, command) => must(applyCommand(current, command, now)),
     room,
   );
 }
@@ -55,6 +60,10 @@ const disconnect = (participantId: string): Command => ({
 });
 const leave = (participantId: string): Command => ({
   type: "leave",
+  participantId,
+});
+const expire = (participantId: string): Command => ({
+  type: "expire",
   participantId,
 });
 
@@ -425,6 +434,59 @@ describe("leave", () => {
   });
 });
 
+describe("expire", () => {
+  // alice and bob voted; alice disconnected at NOW.
+  const base = () =>
+    run(
+      createRoom("r1"),
+      join("alice"),
+      join("bob"),
+      castVote("alice", "5"),
+      castVote("bob", "8"),
+      disconnect("alice"),
+    );
+  const graceOver = NOW + DISCONNECT_GRACE_MS;
+
+  it("removes a participant, and their vote, once the grace period is over", () => {
+    const room = runAt(graceOver, base(), expire("alice"));
+    expect(room.participants.has("alice")).toBe(false);
+    expect(room.participants.get("bob")?.vote).toBe("8");
+  });
+
+  it("is a no-op while the grace period is still running", () => {
+    const room = base();
+    expect(must(applyCommand(room, expire("alice"), graceOver - 1))).toBe(room);
+  });
+
+  it("is a no-op for a participant who reconnected, however late the sweep runs", () => {
+    const room = run(base(), join("alice")); // reclaims the seat
+    const later = graceOver * 10;
+    expect(must(applyCommand(room, expire("alice"), later))).toBe(room);
+    expect(room.participants.get("alice")?.vote).toBe("5");
+  });
+
+  it("is a no-op for a connected participant and for an unknown one", () => {
+    const room = base();
+    expect(must(applyCommand(room, expire("bob"), graceOver))).toBe(room);
+    expect(must(applyCommand(room, expire("ghost"), graceOver))).toBe(room);
+  });
+
+  it("lets an expired participant rejoin only as someone new, with no vote", () => {
+    const room = runAt(graceOver, base(), expire("alice"), join("alice"));
+    expect(room.participants.get("alice")).toMatchObject({
+      status: "connected",
+      vote: null,
+    });
+  });
+
+  it("is deterministic: the same room and time give the same result", () => {
+    const room = base();
+    expect(applyCommand(room, expire("alice"), graceOver)).toEqual(
+      applyCommand(room, expire("alice"), graceOver),
+    );
+  });
+});
+
 describe("invariants", () => {
   // A realistic mixed scenario; each step is tagged with its expected outcome so
   // one loop can assert the version and immutability rules across all commands.
@@ -448,6 +510,8 @@ describe("invariants", () => {
     // bob is disconnected: a stray command from a resurrected socket is rejected
     // (NOT_CONNECTED) before any phase/no-op logic runs.
     { command: castVote("bob", "5"), outcome: "reject" },
+    // bob is still within the grace period at NOW, so expiry changes nothing.
+    { command: expire("bob"), outcome: "noop" },
     { command: leave("alice"), outcome: "change" },
     { command: leave("alice"), outcome: "noop" },
   ];
