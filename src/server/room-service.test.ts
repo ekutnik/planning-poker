@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { CloseCode } from "../shared/close-codes.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import { roomLogId } from "./identity.js";
-import type { Connection, RoomLog } from "./room-service.js";
-import { RoomService } from "./room-service.js";
+import type { Connection, Limits, RoomLog } from "./room-service.js";
+import { JOIN_TIMEOUT_MS, RoomService } from "./room-service.js";
 
 const ROOM = "abcdefghijk";
 const ALICE = "SESSIONTOKEN_ALICE_0001";
@@ -11,6 +12,8 @@ const BOB = "SESSIONTOKEN_BOB_0000001";
 class FakeConnection implements Connection {
   readonly sent: ServerMessage[] = [];
   closedWith: { code: number; reason: string } | null = null;
+  pings = 0;
+  terminated = false;
   onClose: (() => void) | null = null;
   constructor(readonly id: string) {}
   send(message: ServerMessage): void {
@@ -20,12 +23,27 @@ class FakeConnection implements Connection {
     this.closedWith = { code, reason };
     this.onClose?.();
   }
+  ping(): void {
+    this.pings += 1;
+  }
+  terminate(): void {
+    this.terminated = true;
+    this.onClose?.();
+  }
 }
 
-function setup(maxRooms = 10) {
+function setup(limits: Partial<Limits> = {}) {
+  let now = 1_000;
   const logs: Parameters<RoomLog["info"]>[0][] = [];
   const log: RoomLog = { info: (fields) => logs.push(fields) };
-  const service = new RoomService(() => 1_000, { maxRooms }, log);
+  const service = new RoomService(
+    () => now,
+    { maxRooms: 10, maxPending: 10, ...limits },
+    log,
+  );
+  const advance = (ms: number) => {
+    now += ms;
+  };
   const connect = (id: string, roomId = ROOM) => {
     const conn = new FakeConnection(id);
     conn.onClose = () => service.close(conn);
@@ -38,7 +56,7 @@ function setup(maxRooms = 10) {
       JSON.stringify({ type: "join", sessionToken: token, name }),
     );
   };
-  return { service, connect, join, logs, log };
+  return { service, connect, join, logs, log, advance };
 }
 
 function snapshots(conn: FakeConnection) {
@@ -80,7 +98,10 @@ describe("RoomService — the four contracts", () => {
     const secondTab = connect("alice-2");
     join(secondTab, ALICE, "Alice");
 
-    expect(alice.closedWith).toEqual({ code: 4001, reason: "superseded" });
+    expect(alice.closedWith).toEqual({
+      code: CloseCode.SUPERSEDED,
+      reason: "superseded",
+    });
     expect(bob.sent.length).toBe(bobBefore);
     const seen = snapshots(secondTab).at(-1);
     expect(seen?.type).toBe("snapshot");
@@ -242,7 +263,7 @@ describe("RoomService", () => {
   });
 
   it("does not keep a room when the first join fails", () => {
-    const { service, connect, join } = setup(1);
+    const { service, connect, join } = setup({ maxRooms: 1 });
     const ghost = connect("ghost", "aaaaaaaaaaa");
     service.message(
       ghost,
@@ -260,7 +281,7 @@ describe("RoomService", () => {
   });
 
   it("refuses a new room once maxRooms is reached", () => {
-    const { connect, join } = setup(1);
+    const { connect, join } = setup({ maxRooms: 1 });
     const alice = connect("alice", "aaaaaaaaaaa");
     join(alice, ALICE, "Alice");
     const bob = connect("bob", "bbbbbbbbbbb");
@@ -269,7 +290,7 @@ describe("RoomService", () => {
   });
 
   it("empties connection bookkeeping after every socket closes", () => {
-    const { service, connect, join } = setup();
+    const { service, connect, join, advance } = setup();
     // Every way a socket can go, across two rooms.
     const alice = connect("alice");
     join(alice, ALICE, "Alice");
@@ -283,13 +304,16 @@ describe("RoomService", () => {
     const nameless = connect("nameless", "ccccccccccc");
     join(nameless, "SESSIONTOKEN_NAMELESS_01", " "); // join fails, stays pending
     const lurker = connect("lurker"); // never joins
-
+    const idler = connect("idler"); // never joins; the sweep closes it
+    advance(JOIN_TIMEOUT_MS);
     for (const conn of [aliceTab2, carol, nameless, lurker]) {
       service.close(conn);
     }
+    service.sweep();
 
-    expect(alice.closedWith?.code).toBe(4001);
+    expect(alice.closedWith?.code).toBe(CloseCode.SUPERSEDED);
     expect(bob.closedWith?.code).toBe(1000);
+    expect(idler.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
     expect(service.bookkeeping()).toEqual({
       pending: 0,
       bindings: 0,
@@ -348,5 +372,99 @@ describe("RoomService", () => {
     const bobBefore = bob.sent.length;
     service.close(alice);
     expect(bob.sent.length).toBe(bobBefore);
+  });
+});
+
+describe("RoomService — sweep: join timeout (#14)", () => {
+  it("closes an unjoined socket once JOIN_TIMEOUT_MS has passed", () => {
+    const { service, connect, advance } = setup();
+    const lurker = connect("lurker");
+
+    advance(JOIN_TIMEOUT_MS - 1);
+    service.sweep();
+    expect(lurker.closedWith).toBeNull();
+
+    advance(1);
+    service.sweep();
+    expect(lurker.closedWith).toEqual({
+      code: CloseCode.JOIN_TIMEOUT,
+      reason: "join timeout",
+    });
+    expect(service.bookkeeping().pending).toBe(0);
+  });
+
+  it("never times out a socket that joined in time", () => {
+    const { service, connect, join, advance } = setup();
+    const alice = connect("alice");
+    advance(JOIN_TIMEOUT_MS - 1);
+    join(alice, ALICE, "Alice");
+
+    advance(JOIN_TIMEOUT_MS * 10);
+    service.sweep();
+    expect(alice.closedWith).toBeNull();
+  });
+
+  it("still times out a socket whose join failed", () => {
+    const { service, connect, join, advance } = setup();
+    const nameless = connect("nameless");
+    join(nameless, ALICE, " "); // INVALID_NAME: stays pending
+
+    advance(JOIN_TIMEOUT_MS);
+    service.sweep();
+    expect(nameless.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
+  });
+
+  it("times out each socket against its own open time", () => {
+    const { service, connect, advance } = setup();
+    const early = connect("early");
+    advance(JOIN_TIMEOUT_MS / 2);
+    const late = connect("late");
+
+    advance(JOIN_TIMEOUT_MS / 2);
+    service.sweep();
+    expect(early.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
+    expect(late.closedWith).toBeNull();
+  });
+
+  it("ignores a frame from a timed-out socket that races its close", () => {
+    const { service, connect, join, advance } = setup();
+    const lurker = connect("lurker");
+    lurker.onClose = null; // the transport has not delivered close yet
+    advance(JOIN_TIMEOUT_MS);
+    service.sweep();
+
+    join(lurker, ALICE, "Alice");
+    expect(lurker.sent).toEqual([]);
+    expect(service.bookkeeping().bindings).toBe(0);
+  });
+});
+
+describe("RoomService — pending cap (#15)", () => {
+  it("closes a socket beyond the cap with 1013 and never tracks it", () => {
+    const { service, connect } = setup({ maxPending: 2 });
+    connect("a");
+    connect("b");
+    const c = connect("c");
+
+    expect(c.closedWith).toEqual({ code: 1013, reason: "try again later" });
+    expect(service.bookkeeping().pending).toBe(2);
+  });
+
+  it("frees a slot when a pending socket joins, closes or times out", () => {
+    const { service, connect, join, advance } = setup({ maxPending: 2 });
+    const a = connect("a");
+    const b = connect("b");
+
+    join(a, ALICE, "Alice"); // joined sockets do not count
+    expect(connect("c").closedWith).toBeNull();
+
+    service.close(b);
+    expect(connect("d").closedWith).toBeNull();
+
+    advance(JOIN_TIMEOUT_MS);
+    service.sweep(); // times out c and d
+    expect(connect("e").closedWith).toBeNull();
+    expect(connect("f").closedWith).toBeNull();
+    expect(connect("g").closedWith?.code).toBe(1013);
   });
 });

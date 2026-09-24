@@ -1,10 +1,17 @@
 import websocket from "@fastify/websocket";
 import Fastify, {
+  type FastifyBaseLogger,
   type FastifyLoggerOptions,
   type FastifyRequest,
 } from "fastify";
+import type { WebSocket } from "ws";
 import { generateRoomId, ROOM_ID_PATTERN } from "./identity.js";
-import { RoomService, type Connection } from "./room-service.js";
+import { RoomService, type Connection, type Limits } from "./room-service.js";
+
+/** How often the room service runs its time-based rules (see RoomService.sweep). */
+export const SWEEP_INTERVAL_MS = 5_000;
+
+export const DEFAULT_LIMITS: Limits = { maxRooms: 10_000, maxPending: 1_000 };
 
 export interface ServerOptions {
   /** Omit to disable logging; `stream` lets tests capture the lines. */
@@ -12,8 +19,9 @@ export interface ServerOptions {
     readonly level?: string;
     readonly stream?: FastifyLoggerOptions["stream"];
   };
-  readonly maxRooms?: number;
+  readonly limits?: Partial<Limits>;
   readonly clock?: () => number;
+  readonly sweepIntervalMs?: number;
 }
 
 const roomParams = {
@@ -34,6 +42,36 @@ function serializeRequest(request: FastifyRequest) {
   };
 }
 
+type Socket = Pick<WebSocket, "send" | "close" | "ping" | "terminate">;
+
+/**
+ * Wraps a socket as a Connection that never throws, as the interface requires.
+ * RoomService calls out to connections mid-loop (sweep, broadcast, supersede);
+ * a throw there would skip the rest of the loop or, from the sweep interval,
+ * crash the process and every room in it. A failed call is logged at warn.
+ */
+export function toConnection(
+  socket: Socket,
+  id: string,
+  log: Pick<FastifyBaseLogger, "warn">,
+): Connection {
+  const guard = (op: string, call: () => void) => {
+    try {
+      call();
+    } catch (err) {
+      log.warn({ err, conn: id, op }, "socket call failed");
+    }
+  };
+  return {
+    id,
+    send: (message) =>
+      guard("send", () => socket.send(JSON.stringify(message))),
+    close: (code, reason) => guard("close", () => socket.close(code, reason)),
+    ping: () => guard("ping", () => socket.ping()),
+    terminate: () => guard("terminate", () => socket.terminate()),
+  };
+}
+
 /**
  * A configured Fastify instance that does not listen; callers own the lifecycle.
  * The websocket route is a thin adapter: each socket becomes a Connection and
@@ -50,9 +88,29 @@ export function buildServer(options: ServerOptions = {}) {
   app.setNotFoundHandler((_request, reply) => reply.code(404).send());
   const rooms = new RoomService(
     options.clock ?? Date.now,
-    { maxRooms: options.maxRooms ?? 10_000 },
+    { ...DEFAULT_LIMITS, ...options.limits },
     { info: (fields) => app.log.info(fields) },
   );
+
+  // One interval drives every timeout; there are no per-connection timers.
+  let sweeper: NodeJS.Timeout | undefined;
+  app.addHook("onReady", (done) => {
+    const interval = options.sweepIntervalMs ?? SWEEP_INTERVAL_MS;
+    sweeper = setInterval(() => {
+      // A throw from the service is a bug: log it loudly, but don't let one
+      // bug crash the process and drop every room with it.
+      try {
+        rooms.sweep();
+      } catch (err) {
+        app.log.error(err, "sweep failed");
+      }
+    }, interval);
+    done();
+  });
+  app.addHook("onClose", (_instance, done) => {
+    clearInterval(sweeper);
+    done();
+  });
 
   void app.register(websocket, {
     // ws closes oversized frames with 1009 before they reach the parser.
@@ -75,11 +133,7 @@ export function buildServer(options: ServerOptions = {}) {
       "/ws/:roomId",
       { websocket: true, schema: { params: roomParams } },
       (socket, request) => {
-        const conn: Connection = {
-          id: request.id,
-          send: (message) => socket.send(JSON.stringify(message)),
-          close: (code, reason) => socket.close(code, reason),
-        };
+        const conn = toConnection(socket, request.id, request.log);
         rooms.open(conn, request.params.roomId);
         // Never log `data`: a join frame carries the session token.
         socket.on("message", (data: Buffer) =>
