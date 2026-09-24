@@ -18,7 +18,22 @@ import { derivePublicId, roomLogId } from "./identity.js";
 export interface Connection {
   readonly id: string;
   send(message: ServerMessage): void;
+  /** Closes with a handshake, so the client receives the code and reason. */
   close(code: number, reason: string): void;
+  /** Sends a protocol-level ping. Browsers answer it without running page code. */
+  ping(): void;
+  /** Drops the socket without a handshake; `close` still follows through RoomService.close. */
+  terminate(): void;
+}
+
+/** An unjoined socket is closed after this long (#14). */
+export const JOIN_TIMEOUT_MS = 10_000;
+
+export interface Limits {
+  /** Rooms held in memory. A join that would create one more gets SERVER_FULL. */
+  readonly maxRooms: number;
+  /** Unjoined sockets at once. Beyond this, a new socket is closed with 1013 (#15). */
+  readonly maxPending: number;
 }
 
 interface LogFields {
@@ -36,6 +51,11 @@ export interface RoomLog {
   info(fields: LogFields): void;
 }
 
+interface Pending {
+  readonly roomId: string;
+  readonly openedAt: number;
+}
+
 interface Binding {
   readonly roomId: string;
   readonly participantId: ParticipantId;
@@ -43,14 +63,12 @@ interface Binding {
 
 /**
  * Transport-agnostic room registry. Sockets are a Connection; Fastify is just
- * one adapter. The clock is injected so Session 4 can test timeouts with fake time.
- *
- * Session 4, not built here: a join timeout (~10s) and a cap on pending sockets.
- * An unjoined socket currently sits in `pending` forever.
+ * one adapter. Time comes only from the injected clock, and every time-based
+ * rule runs in sweep(), so tests use fake time and no timers.
  */
 export class RoomService {
   private readonly rooms = new Map<string, Room>();
-  private readonly pending = new Map<Connection, string>();
+  private readonly pending = new Map<Connection, Pending>();
   private readonly bindings = new Map<Connection, Binding>();
   private readonly current = new Map<string, Map<ParticipantId, Connection>>();
   private readonly lastSent = new Map<Connection, string>();
@@ -64,7 +82,7 @@ export class RoomService {
 
   constructor(
     private readonly clock: () => number,
-    private readonly limits: { readonly maxRooms: number },
+    private readonly limits: Limits,
     log: RoomLog = { info() {} },
   ) {
     this.info = (fields) =>
@@ -76,13 +94,19 @@ export class RoomService {
   }
 
   open(conn: Connection, roomId: string): void {
-    if (this.closed.has(conn) || this.bindings.has(conn)) return;
-    this.pending.set(conn, roomId);
+    if (this.closed.has(conn) || this.pending.has(conn)) return;
+    if (this.bindings.has(conn)) return;
+    if (this.pending.size >= this.limits.maxPending) {
+      this.info({ conn: conn.id, room: roomId, code: "PENDING_FULL" });
+      conn.close(1013, "try again later"); // standard: Try Again Later
+      return;
+    }
+    this.pending.set(conn, { roomId, openedAt: this.clock() });
     this.info({ conn: conn.id, room: roomId, type: "open" });
   }
 
   message(conn: Connection, raw: string): void {
-    const roomId = this.pending.get(conn);
+    const roomId = this.pending.get(conn)?.roomId;
     const binding = this.bindings.get(conn);
     if (roomId === undefined && binding === undefined) return;
 
@@ -134,6 +158,28 @@ export class RoomService {
     if (!result.ok || result.room === room) return;
     this.rooms.set(binding.roomId, result.room);
     this.broadcast(result.room);
+  }
+
+  /**
+   * Applies every time-based rule against one reading of the clock. The adapter
+   * calls this from a single interval; tests advance a fake clock and call it
+   * directly. No per-connection timers exist, so no exit path has to cancel one.
+   *
+   * The cost is precision: a deadline fires up to one sweep interval late. With
+   * a 5s interval, the 10s join timeout closes a socket after 10–15s.
+   */
+  sweep(): void {
+    const now = this.clock();
+    const expired: [Connection, Pending][] = [];
+    for (const entry of this.pending) {
+      if (now - entry[1].openedAt >= JOIN_TIMEOUT_MS) expired.push(entry);
+    }
+    // Mutate fully, then call out: close() may re-enter the service.
+    for (const [conn] of expired) this.pending.delete(conn);
+    for (const [conn, { roomId }] of expired) {
+      this.info({ conn: conn.id, room: roomId, type: "join-timeout" });
+      conn.close(CloseCode.JOIN_TIMEOUT, "join timeout");
+    }
   }
 
   /** Live connection bookkeeping, so tests can prove close() leaks nothing. */
