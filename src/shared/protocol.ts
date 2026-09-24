@@ -33,7 +33,12 @@ export const ClientMessage = z.discriminatedUnion("type", [
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
 export type ErrorCode =
-  DomainError | "INVALID_MESSAGE" | "NOT_JOINED" | "RATE_LIMITED";
+  | DomainError
+  | "INVALID_MESSAGE"
+  | "NOT_JOINED"
+  | "ALREADY_JOINED"
+  | "SERVER_FULL"
+  | "RATE_LIMITED";
 
 export type ServerMessage =
   | { readonly type: "snapshot"; readonly snapshot: RoomSnapshot }

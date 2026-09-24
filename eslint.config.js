@@ -14,6 +14,14 @@ export default defineConfig([
         tsconfigRootDir: import.meta.dirname,
       },
     },
+    rules: {
+      // `const { version, ...content } = snapshot` discards version on purpose
+      // (suppression compares everything except it). That rest sibling is not unused.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { ignoreRestSiblings: true },
+      ],
+    },
   },
   {
     // Architecture guard: wire types in src/shared must stay dependency-free of
