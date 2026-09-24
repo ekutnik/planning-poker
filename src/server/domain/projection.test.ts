@@ -70,6 +70,16 @@ describe("project — no-leak (key whitelist)", () => {
     };
 
     expect(snapshot.phase).toBe("voting");
+    // Envelope whitelist: a leak can also sit at the top level (e.g. a future
+    // "convenience" results field during voting). The secret cannot be present.
+    expect(Object.keys(snapshot).sort()).toEqual([
+      "participants",
+      "phase",
+      "roomId",
+      "version",
+      "viewerId",
+      "yourVote",
+    ]);
     // The viewer's own vote, and nothing about anyone else's value.
     expect(snapshot.yourVote).toBe(OWN_VOTE[viewer]);
 
@@ -93,6 +103,22 @@ describe("project — no-leak (key whitelist)", () => {
     };
 
     expect(snapshot.phase).toBe("revealed");
+    expect(Object.keys(snapshot).sort()).toEqual([
+      "participants",
+      "phase",
+      "results",
+      "roomId",
+      "version",
+      "viewerId",
+    ]);
+    for (const view of snapshot.participants) {
+      expect(Object.keys(view).sort()).toEqual([
+        "id",
+        "name",
+        "status",
+        "vote",
+      ]);
+    }
     expect(snapshot.results.voteCount).toBe(3);
     const votes = Object.fromEntries(
       snapshot.participants.map((p) => [p.id, p.vote]),
