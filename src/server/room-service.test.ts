@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ServerMessage } from "../shared/protocol.js";
-import type { Connection } from "./room-service.js";
+import { roomLogId } from "./identity.js";
+import type { Connection, RoomLog } from "./room-service.js";
 import { RoomService } from "./room-service.js";
 
 const ROOM = "abcdefghijk";
@@ -22,7 +23,9 @@ class FakeConnection implements Connection {
 }
 
 function setup(maxRooms = 10) {
-  const service = new RoomService(() => 1_000, { maxRooms });
+  const logs: Parameters<RoomLog["info"]>[0][] = [];
+  const log: RoomLog = { info: (fields) => logs.push(fields) };
+  const service = new RoomService(() => 1_000, { maxRooms }, log);
   const connect = (id: string, roomId = ROOM) => {
     const conn = new FakeConnection(id);
     conn.onClose = () => service.close(conn);
@@ -35,7 +38,7 @@ function setup(maxRooms = 10) {
       JSON.stringify({ type: "join", sessionToken: token, name }),
     );
   };
-  return { service, connect, join };
+  return { service, connect, join, logs, log };
 }
 
 function snapshots(conn: FakeConnection) {
@@ -294,6 +297,38 @@ describe("RoomService", () => {
       sockets: 0,
       lastSent: 0,
     });
+  });
+
+  it("logs a room correlation id, never the room id or a token", () => {
+    const { service, connect, join, logs, log } = setup();
+    // By construction: the service keeps no reference to the raw logger, so
+    // there is nothing a future method could call to bypass the redaction.
+    expect(Object.values(service)).not.toContain(log);
+
+    const alice = connect("alice");
+    join(alice, ALICE, "Alice");
+    join(connect("alice-tab2"), ALICE, "Alice"); // supersede
+    const bob = connect("bob");
+    join(bob, BOB, "Bob");
+    service.message(bob, "{nope"); // error path
+    service.message(bob, JSON.stringify({ type: "leave" })); // leave, then close
+
+    // Every call site was exercised, so the assertions below are not vacuous.
+    expect(new Set(logs.map((line) => line.type ?? line.code))).toEqual(
+      new Set([
+        "open",
+        "join",
+        "supersede",
+        "close",
+        "INVALID_MESSAGE",
+        "leave",
+      ]),
+    );
+    // A close after leave has no binding left, so it carries no room at all.
+    const rooms = logs.flatMap((line) => (line.room ? [line.room] : []));
+    expect(new Set(rooms)).toEqual(new Set([roomLogId(ROOM)]));
+    const text = JSON.stringify(logs);
+    for (const secret of [ROOM, ALICE, BOB]) expect(text).not.toContain(secret);
   });
 
   it("ignores a message from a connection that was never opened", () => {

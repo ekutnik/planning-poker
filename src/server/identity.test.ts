@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { derivePublicId, generateRoomId, ROOM_ID_PATTERN } from "./identity.js";
+import {
+  derivePublicId,
+  generateRoomId,
+  ROOM_ID_PATTERN,
+  roomLogId,
+} from "./identity.js";
 
 describe("derivePublicId", () => {
   it("is deterministic", () => {
@@ -26,5 +31,16 @@ describe("generateRoomId", () => {
     for (let i = 0; i < 1_000; i++) {
       expect(generateRoomId()).toMatch(ROOM_ID_PATTERN);
     }
+  });
+});
+
+describe("roomLogId", () => {
+  it("is 8 hex characters and deterministic", () => {
+    expect(roomLogId("abcdefghijk")).toMatch(/^[0-9a-f]{8}$/);
+    expect(roomLogId("abcdefghijk")).toBe(roomLogId("abcdefghijk"));
+  });
+
+  it("differs between rooms", () => {
+    expect(roomLogId("abcdefghijk")).not.toBe(roomLogId("bbbbbbbbbbb"));
   });
 });

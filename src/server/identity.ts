@@ -14,3 +14,12 @@ export function generateRoomId(): string {
 }
 
 export const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+
+/**
+ * Log-safe stand-in for a room id. With no authentication (ADR 0005) a room id
+ * is a join link, so it stays out of logs like a token. 32 bits of hash are
+ * enough to correlate lines about one room, not to recover a 64-bit id.
+ */
+export function roomLogId(roomId: string): string {
+  return createHash("sha256").update(roomId).digest("hex").slice(0, 8);
+}
