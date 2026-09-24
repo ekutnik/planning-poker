@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type WebSocket from "ws";
 import type { ClientMessage, ServerMessage } from "../shared/protocol.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
-import { buildServer } from "./app.js";
+import { buildServer, type ServerOptions } from "./app.js";
+import { CloseCode } from "../shared/close-codes.js";
 import { ROOM_ID_PATTERN, roomLogId } from "./identity.js";
+import { JOIN_TIMEOUT_MS } from "./room-service.js";
 
 /**
  * A few end-to-end checks that the adapter is wired correctly. Room behaviour
@@ -60,6 +62,15 @@ async function connect(roomId: string): Promise<TestClient> {
   const client = new TestClient(await app.injectWS(`/ws/${roomId}`));
   clients.push(client);
   return client;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Replaces the default app for a test that needs its own options. */
+async function restart(options: ServerOptions): Promise<void> {
+  await app.close();
+  app = buildServer(options);
+  await app.ready();
 }
 
 async function createRoom(): Promise<string> {
@@ -140,6 +151,35 @@ describe("websocket route", () => {
     },
   );
 
+  it("closes a socket that never joins with JOIN_TIMEOUT, from the sweep timer", async () => {
+    let now = 0;
+    await restart({ clock: () => now, sweepIntervalMs: 5 });
+    const lurker = await connect(await createRoom());
+
+    now += JOIN_TIMEOUT_MS;
+
+    expect(await lurker.closed).toEqual({
+      code: CloseCode.JOIN_TIMEOUT,
+      reason: "join timeout",
+    });
+  });
+
+  it("stops the sweep timer when the server closes", async () => {
+    let reads = 0;
+    const clock = () => {
+      reads += 1;
+      return 0;
+    };
+    await restart({ clock, sweepIntervalMs: 5 });
+    await sleep(25);
+    expect(reads).toBeGreaterThan(0);
+
+    await app.close();
+    const readsAtClose = reads;
+    await sleep(25);
+    expect(reads).toBe(readsAtClose);
+  });
+
   it("closes the socket with 1009 when a frame exceeds maxPayload", async () => {
     const client = await connect(await createRoom());
 
@@ -152,8 +192,7 @@ describe("websocket route", () => {
 describe("logging", () => {
   it("keeps room ids and session tokens out of every log line (#21)", async () => {
     const lines: Record<string, unknown>[] = [];
-    await app.close();
-    app = buildServer({
+    await restart({
       logger: {
         stream: {
           write: (line: string) =>
@@ -161,7 +200,6 @@ describe("logging", () => {
         },
       },
     });
-    await app.ready();
 
     const roomId = await createRoom();
     const [aliceToken, bobToken] = [randomUUID(), randomUUID()];

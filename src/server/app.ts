@@ -4,7 +4,12 @@ import Fastify, {
   type FastifyRequest,
 } from "fastify";
 import { generateRoomId, ROOM_ID_PATTERN } from "./identity.js";
-import { RoomService, type Connection } from "./room-service.js";
+import { RoomService, type Connection, type Limits } from "./room-service.js";
+
+/** How often the room service runs its time-based rules (see RoomService.sweep). */
+export const SWEEP_INTERVAL_MS = 5_000;
+
+export const DEFAULT_LIMITS: Limits = { maxRooms: 10_000, maxPending: 1_000 };
 
 export interface ServerOptions {
   /** Omit to disable logging; `stream` lets tests capture the lines. */
@@ -12,8 +17,9 @@ export interface ServerOptions {
     readonly level?: string;
     readonly stream?: FastifyLoggerOptions["stream"];
   };
-  readonly maxRooms?: number;
+  readonly limits?: Partial<Limits>;
   readonly clock?: () => number;
+  readonly sweepIntervalMs?: number;
 }
 
 const roomParams = {
@@ -50,9 +56,21 @@ export function buildServer(options: ServerOptions = {}) {
   app.setNotFoundHandler((_request, reply) => reply.code(404).send());
   const rooms = new RoomService(
     options.clock ?? Date.now,
-    { maxRooms: options.maxRooms ?? 10_000 },
+    { ...DEFAULT_LIMITS, ...options.limits },
     { info: (fields) => app.log.info(fields) },
   );
+
+  // One interval drives every timeout; there are no per-connection timers.
+  let sweeper: NodeJS.Timeout | undefined;
+  app.addHook("onReady", (done) => {
+    const interval = options.sweepIntervalMs ?? SWEEP_INTERVAL_MS;
+    sweeper = setInterval(() => rooms.sweep(), interval);
+    done();
+  });
+  app.addHook("onClose", (_instance, done) => {
+    clearInterval(sweeper);
+    done();
+  });
 
   void app.register(websocket, {
     // ws closes oversized frames with 1009 before they reach the parser.
@@ -79,6 +97,8 @@ export function buildServer(options: ServerOptions = {}) {
           id: request.id,
           send: (message) => socket.send(JSON.stringify(message)),
           close: (code, reason) => socket.close(code, reason),
+          ping: () => socket.ping(),
+          terminate: () => socket.terminate(),
         };
         rooms.open(conn, request.params.roomId);
         // Never log `data`: a join frame carries the session token.
