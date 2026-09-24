@@ -1,9 +1,11 @@
 import type { Card } from "../../shared/deck.js";
+import type { ParticipantId } from "../../shared/ids.js";
+import type { DomainError } from "../../shared/errors.js";
 
 export const MAX_PARTICIPANTS = 30;
 export const MAX_NAME_LENGTH = 32;
 
-export type ParticipantId = string;
+export type { ParticipantId };
 export type Phase = "voting" | "revealed";
 
 export interface Participant {
@@ -38,13 +40,7 @@ export type Command =
   | { readonly type: "disconnect"; readonly participantId: ParticipantId }
   | { readonly type: "leave"; readonly participantId: ParticipantId };
 
-export type DomainError =
-  | "INVALID_NAME"
-  | "ROOM_FULL"
-  | "UNKNOWN_PARTICIPANT"
-  | "NOT_CONNECTED"
-  | "VOTING_CLOSED"
-  | "NO_VOTES_CAST";
+export type { DomainError };
 
 export type Result =
   | { readonly ok: true; readonly room: Room }
