@@ -37,7 +37,12 @@ export const JOIN_TIMEOUT_MS = 10_000;
 export interface Limits {
   /** Rooms held in memory. A join that would create one more gets SERVER_FULL. */
   readonly maxRooms: number;
-  /** Unjoined sockets at once. Beyond this, a new socket is closed with 1013 (#15). */
+  /**
+   * Unjoined sockets at once. Beyond this, a new socket is closed with 1013 (#15).
+   * Bounds unjoined sockets, not sockets in their closing handshake: ws keeps a
+   * closed socket open for up to 30s (its closeTimeout) if the peer never
+   * answers. A per-IP connection cap (#16) bounds those.
+   */
   readonly maxPending: number;
 }
 
