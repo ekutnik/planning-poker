@@ -57,12 +57,22 @@ export class RoomService {
   // alive, so it cannot leak. A WeakSet can't be sized, which is why
   // bookkeeping() doesn't report it.
   private readonly closed = new WeakSet<Connection>();
+  // The only way to the log. The raw RoomLog is captured here and never stored,
+  // so no method can bypass this and log a room id (#21).
+  private readonly info: (fields: LogFields) => void;
 
   constructor(
     private readonly clock: () => number,
     private readonly limits: { readonly maxRooms: number },
-    private readonly log: RoomLog = { info() {} },
-  ) {}
+    log: RoomLog = { info() {} },
+  ) {
+    this.info = (fields) =>
+      log.info(
+        fields.room === undefined
+          ? fields
+          : { ...fields, room: roomLogId(fields.room) },
+      );
+  }
 
   open(conn: Connection, roomId: string): void {
     if (this.closed.has(conn) || this.bindings.has(conn)) return;
@@ -246,14 +256,6 @@ export class RoomService {
   private sendError(conn: Connection, code: ErrorCode, room?: string): void {
     this.info({ conn: conn.id, room, code });
     conn.send({ type: "error", code });
-  }
-
-  /** The only way to the log, so a raw room id cannot reach it (#21). */
-  private info(fields: LogFields): void {
-    const { room } = fields;
-    this.log.info(
-      room === undefined ? fields : { ...fields, room: roomLogId(room) },
-    );
   }
 
   private forget(conn: Connection): void {

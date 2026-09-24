@@ -24,13 +24,8 @@ class FakeConnection implements Connection {
 
 function setup(maxRooms = 10) {
   const logs: Parameters<RoomLog["info"]>[0][] = [];
-  const service = new RoomService(
-    () => 1_000,
-    { maxRooms },
-    {
-      info: (fields) => logs.push(fields),
-    },
-  );
+  const log: RoomLog = { info: (fields) => logs.push(fields) };
+  const service = new RoomService(() => 1_000, { maxRooms }, log);
   const connect = (id: string, roomId = ROOM) => {
     const conn = new FakeConnection(id);
     conn.onClose = () => service.close(conn);
@@ -43,7 +38,7 @@ function setup(maxRooms = 10) {
       JSON.stringify({ type: "join", sessionToken: token, name }),
     );
   };
-  return { service, connect, join, logs };
+  return { service, connect, join, logs, log };
 }
 
 function snapshots(conn: FakeConnection) {
@@ -305,7 +300,11 @@ describe("RoomService", () => {
   });
 
   it("logs a room correlation id, never the room id or a token", () => {
-    const { service, connect, join, logs } = setup();
+    const { service, connect, join, logs, log } = setup();
+    // By construction: the service keeps no reference to the raw logger, so
+    // there is nothing a future method could call to bypass the redaction.
+    expect(Object.values(service)).not.toContain(log);
+
     const alice = connect("alice");
     join(alice, ALICE, "Alice");
     join(connect("alice-tab2"), ALICE, "Alice"); // supersede
