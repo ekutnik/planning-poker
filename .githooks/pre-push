@@ -1,0 +1,10 @@
+#!/bin/sh
+# Runs the same checks as CI before anything leaves this machine, so a push
+# that would fail CI fails here first. Commits are deliberately not gated.
+#
+# Installed by `npm install` (the prepare script sets core.hooksPath).
+# It checks the working tree, so commit or stash changes for an exact result.
+# Skip once with: git push --no-verify
+set -e
+echo "pre-push: npm run check"
+npm run check
