@@ -1,4 +1,4 @@
-import { useId, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
 import type { Card } from "../shared/deck.js";
 import { submitMasked } from "./masked.js";
 
@@ -22,6 +22,7 @@ export function MaskedVote({
   const [value, setValue] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const id = useId();
+  const input = useRef<HTMLInputElement>(null);
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return;
@@ -32,10 +33,19 @@ export function MaskedVote({
     if (vote !== null) onVote(vote);
   };
 
+  // The button unmounts once the vote is gone, so focus goes back to the
+  // field; and "Vote recorded" would now contradict the screen.
+  const clear = () => {
+    setMessage(null);
+    input.current?.focus();
+    onClear();
+  };
+
   return (
     <div className="own-vote">
       <label htmlFor={id}>Your vote (hidden)</label>
       <input
+        ref={input}
         id={id}
         className="masked"
         type="text"
@@ -58,7 +68,7 @@ export function MaskedVote({
       {hasVoted && (
         <>
           <p className="own-vote-confirmation">You&apos;ve voted ✓</p>
-          <button type="button" disabled={disabled} onClick={onClear}>
+          <button type="button" disabled={disabled} onClick={clear}>
             Clear my vote
           </button>
         </>
