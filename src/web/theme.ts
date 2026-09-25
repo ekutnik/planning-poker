@@ -75,8 +75,13 @@ export function createThemeStore(
   return {
     getTheme: () => theme,
     subscribe: (listener) => {
+      if (unwatch === null) {
+        // Nobody was watching, so a choice made in another tab meanwhile was
+        // missed: catch up once. No listeners yet, so nobody is notified.
+        show(parseTheme(storage.read(THEME_KEY)));
+        unwatch = watch(onStorage);
+      }
       listeners.add(listener);
-      unwatch ??= watch(onStorage);
       return () => {
         listeners.delete(listener);
         if (listeners.size === 0) {

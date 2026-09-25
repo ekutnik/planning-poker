@@ -144,6 +144,15 @@ describe("createThemeStore across tabs (#41)", () => {
     expect(store.getTheme()).toBe("system");
   });
 
+  it("catches up on a change made while nobody was watching", () => {
+    const { storage, root, store, unsubscribe } = setUp();
+    unsubscribe();
+    storage.setItem(THEME_KEY, "dark"); // another tab, during the gap
+    store.subscribe(() => undefined);
+    expect(store.getTheme()).toBe("dark");
+    expect(root.snapshot().theme).toBe("dark");
+  });
+
   it("watches only while someone is subscribed", () => {
     const { tabs, store, unsubscribe } = setUp();
     const second = store.subscribe(() => undefined);
