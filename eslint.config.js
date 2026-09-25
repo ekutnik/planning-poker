@@ -64,11 +64,13 @@ export default defineConfig([
   },
   { files: ["src/web/**/*.{ts,tsx}"], ...reactHooks.configs.flat.recommended },
   {
-    // Architecture guard: the client talks to the server only over HTTP and
-    // the wire protocol in src/shared, never by importing server code.
+    // Architecture guards for the client: it talks to the server only over
+    // HTTP and the wire protocol in src/shared, never by importing server
+    // code; and it may import only types from shared/protocol, which builds
+    // Zod schemas as it loads and would put Zod in the browser bundle.
     files: ["src/web/**/*.{ts,tsx}"],
     rules: {
-      "no-restricted-imports": [
+      "@typescript-eslint/no-restricted-imports": [
         "error",
         {
           patterns: [

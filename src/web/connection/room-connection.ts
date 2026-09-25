@@ -1,5 +1,6 @@
 import type { ErrorCode, ServerMessage } from "../../shared/protocol.js";
-import { socketPath, type ClientMessage } from "../../shared/protocol.js";
+import type { ClientMessage } from "../../shared/protocol.js";
+import { socketPath } from "../../shared/socket.js";
 import type { RoomSnapshot } from "../../shared/snapshot.js";
 import {
   BACKOFF,

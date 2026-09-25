@@ -12,22 +12,10 @@ import type { RoomSnapshot } from "./snapshot.js";
 
 const SessionToken = z.string().regex(SESSION_TOKEN_PATTERN);
 
-/**
- * The wire protocol's version (#17). The client sends it in the socket URL;
- * the server closes any other value with CloseCode.OUTDATED_CLIENT, so a tab
- * left open across a deploy is told to reload instead of failing validation.
- * Bump it for any change an old client could not handle: a message renamed,
- * removed or given a new required field, or a field whose meaning changes.
- * A new server message type needs no bump, because clients ignore unknown
- * types (#20). The rule applies from the first deploy: until then no old
- * client exists anywhere.
- */
-export const PROTOCOL_VERSION = 1;
-
-/** The socket path for a room, carrying the protocol version. */
-export function socketPath(roomId: string): string {
-  return `/ws/${roomId}?v=${PROTOCOL_VERSION}`;
-}
+// The socket's protocol version and path live in socket.ts, which the client
+// imports at runtime; this module builds Zod schemas when it loads, and only
+// the server validates messages.
+export { PROTOCOL_VERSION, socketPath } from "./socket.js";
 
 export const ClientMessage = z.discriminatedUnion("type", [
   // Only `join` carries identity (the session token). After join the socket *is*
