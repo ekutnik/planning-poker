@@ -7,7 +7,8 @@ export type StopReason =
   | "outdated"
   | "room-full"
   | "server-full"
-  | "invalid-name";
+  | "invalid-name"
+  | "join-rejected";
 
 export type Backoff = "normal" | "long";
 

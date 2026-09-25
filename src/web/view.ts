@@ -55,6 +55,7 @@ export const STOP_ACTIONS: Readonly<Record<StopReason, StopAction>> = {
   "room-full": "try-again",
   "server-full": "try-again",
   "invalid-name": "change-name",
+  "join-rejected": "reload",
 };
 
 /** The reveal's results as plain lines of text, until Session 6 designs them. */

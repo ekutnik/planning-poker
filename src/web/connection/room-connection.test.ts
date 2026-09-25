@@ -179,6 +179,7 @@ describe("RoomConnection — joining", () => {
     ["ROOM_FULL", "room-full"],
     ["SERVER_FULL", "server-full"],
     ["INVALID_NAME", "invalid-name"],
+    ["INVALID_MESSAGE", "join-rejected"],
   ])(
     "stops on %s during join, closes its socket, and never retries",
     (code, reason) => {
@@ -205,6 +206,18 @@ describe("RoomConnection — joining", () => {
     latest().receive({ type: "error", code: "ROOM_FULL" });
     expect(connection.getState()).toMatchObject({ status: "open" });
     expect(errors).toEqual(["ROOM_FULL"]);
+  });
+
+  it("reports a rejected join through warn, as a bug to fix", () => {
+    const { connection, latest, warnings } = setup();
+    connection.start();
+    latest().open();
+    latest().receive({ type: "error", code: "INVALID_MESSAGE" });
+    expect(warnings).toEqual([{ code: "INVALID_MESSAGE" }]);
+    expect(connection.getState()).toEqual({
+      status: "stopped",
+      reason: "join-rejected",
+    });
   });
 
   it("passes other errors to listeners without changing state", () => {

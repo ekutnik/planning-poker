@@ -50,6 +50,10 @@ export const STOP_COPY: Readonly<Record<StopReason, StopCopy>> = {
     title: "The server has no room for another game right now.",
     body: "Try again in a few minutes.",
   },
+  "join-rejected": {
+    title: "The server could not accept this tab's request to join.",
+    body: "Reload the page to get the latest version, then join again.",
+  },
   "invalid-name": {
     title: `Names can be 1 to ${MAX_NAME_LENGTH} characters.`,
     body: "Choose a different name to join.",

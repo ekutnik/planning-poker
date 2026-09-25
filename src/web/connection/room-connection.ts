@@ -65,11 +65,18 @@ export type RoomAction = Exclude<
   { type: "join" | "ping" | "leave" }
 >;
 
-/** Errors that mean the join itself failed: stop, never retry into a loop. */
+/**
+ * Errors that mean the join itself failed: stop, never retry into a loop. An
+ * unjoined socket would otherwise sit until JOIN_TIMEOUT, which retries the
+ * same join forever. INVALID_MESSAGE covers every cause of a join frame the
+ * server cannot parse (a malformed token, an over-long name, an outdated
+ * shape), not only the ones we have thought of.
+ */
 const JOIN_PHASE_ERRORS: Partial<Record<ErrorCode, StopReason>> = {
   ROOM_FULL: "room-full",
   SERVER_FULL: "server-full",
   INVALID_NAME: "invalid-name",
+  INVALID_MESSAGE: "join-rejected",
 };
 
 /**
@@ -275,6 +282,10 @@ export class RoomConnection {
   private handleError(code: ErrorCode): void {
     const reason = this.joined ? undefined : JOIN_PHASE_ERRORS[code];
     if (reason) {
+      // A rejected join frame is our bug, not the person's: report it.
+      if (reason === "join-rejected") {
+        this.deps.warn?.("the server rejected our join message", { code });
+      }
       // Staying unjoined would end in JOIN_TIMEOUT, which retries: a loop.
       this.stop(reason);
       return;
