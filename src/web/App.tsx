@@ -1,9 +1,44 @@
-/** Placeholder until the create and join flows land (Session 5, PR D). */
-export function App() {
-  return (
-    <main>
-      <h1>Planning Poker</h1>
-      <p>The client is under construction.</p>
-    </main>
-  );
+import { useSyncExternalStore } from "react";
+import type { Identity } from "./identity.js";
+import { HomePage } from "./HomePage.js";
+import { RoomPage } from "./RoomPage.js";
+import { roomPath, type Router } from "./router.js";
+
+export function App({
+  router,
+  identity,
+}: {
+  readonly router: Router;
+  readonly identity: Identity;
+}) {
+  const route = useSyncExternalStore(router.subscribe, router.getRoute);
+  const home = () => router.navigate("/");
+  switch (route.name) {
+    case "home":
+      return (
+        <HomePage
+          identity={identity}
+          onCreated={(roomId) => router.navigate(roomPath(roomId))}
+        />
+      );
+    case "room":
+      return (
+        <RoomPage
+          key={route.roomId}
+          roomId={route.roomId}
+          identity={identity}
+          onHome={home}
+        />
+      );
+    case "not-found":
+      return (
+        <main>
+          <h1>There is no room here.</h1>
+          <p>Check the link, or start a new room.</p>
+          <button type="button" onClick={home}>
+            Start a room
+          </button>
+        </main>
+      );
+  }
 }

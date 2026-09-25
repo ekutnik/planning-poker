@@ -26,11 +26,12 @@ type RouterWindow = Pick<Window, "addEventListener" | "removeEventListener"> & {
   readonly history: Pick<History, "pushState">;
 };
 
+/** Function properties, so they can be handed to useSyncExternalStore detached. */
 export interface Router {
   /** Stable: the same object until the route changes (useSyncExternalStore). */
-  getRoute(): Route;
-  subscribe(listener: () => void): () => void;
-  navigate(path: string): void;
+  readonly getRoute: () => Route;
+  readonly subscribe: (listener: () => void) => () => void;
+  readonly navigate: (path: string) => void;
 }
 
 /**
@@ -50,7 +51,7 @@ export function createRouter(win: RouterWindow): Router {
 
   return {
     getRoute: () => route,
-    subscribe(listener) {
+    subscribe: (listener) => {
       if (listeners.size === 0) win.addEventListener("popstate", update);
       listeners.add(listener);
       return () => {
@@ -58,7 +59,7 @@ export function createRouter(win: RouterWindow): Router {
         if (listeners.size === 0) win.removeEventListener("popstate", update);
       };
     },
-    navigate(path) {
+    navigate: (path) => {
       win.history.pushState(null, "", path);
       update();
     },

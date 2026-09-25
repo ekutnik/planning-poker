@@ -1,0 +1,17 @@
+/* Just enough to be usable. Session 6 designs the real thing. */
+body {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  margin: 0 auto;
+  max-width: 40rem;
+  padding: 1rem;
+}
+
+button[aria-pressed="true"] {
+  font-weight: bold;
+  outline: 3px solid currentColor;
+}
+
+main[aria-busy="true"] button:disabled {
+  opacity: 0.5;
+}
