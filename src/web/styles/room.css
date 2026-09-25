@@ -38,16 +38,20 @@ button:disabled {
   font-weight: var(--weight-bold);
 }
 
-/* Voting: compact is one column, in reading order. */
-.voting {
+/* A round, voting or revealed: compact is one column, in reading order. */
+.round {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   padding-block: var(--space-4);
 }
 
-.voting--participant {
+.round--voting.round--participant {
   grid-template-areas: "status" "people" "deck" "controls";
+}
+
+.round--revealed {
+  grid-template-areas: "status" "people" "scale" "result" "controls";
 }
 
 /* The facilitator's controls are pinned to the bottom in compact. */
@@ -56,7 +60,7 @@ button:disabled {
   --controls-bar-height: 4.25rem;
 }
 
-.voting--facilitator {
+.round--voting.round--facilitator {
   grid-template-areas: "status" "people" "deck" "own" "controls";
 }
 
@@ -64,11 +68,11 @@ button:disabled {
    not under it. No bottom padding is needed: a sticky bar settles back into
    the flow at the end of the page, so the last content always scrolls clear.
    The extra space-2 keeps the focus ring (3px, 2px outside) clear too. */
-html:has(.voting--facilitator) {
+html:has(.round--facilitator) {
   scroll-padding-block-end: calc(var(--controls-bar-height) + var(--space-2));
 }
 
-.voting--facilitator .controls {
+.round--facilitator .controls {
   position: sticky;
   bottom: 0;
   box-sizing: border-box;
@@ -112,6 +116,11 @@ html:has(.voting--facilitator) {
   margin-inline-end: var(--space-1);
 }
 
+.person-card {
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
 /* The deck. Edge outlines (3:1), a Cobalt fill for your own choice, and the
    global focus ring 2px outside: selection and focus never look the same. */
 .deck {
@@ -121,7 +130,8 @@ html:has(.voting--facilitator) {
   gap: var(--space-2);
 }
 
-.card {
+.card,
+.scale-card {
   min-width: 2.25em;
   min-height: 3em;
   padding: var(--space-1) var(--space-2);
@@ -152,6 +162,95 @@ html:has(.voting--facilitator) {
   margin: 0;
 }
 
+/* The scale: the deck row after reveal. Compact lists the steps down the
+   page, each card with its names beside it; wide lays them across, with the
+   names stacked above each card. Cards nobody chose keep their place, with
+   a Rule outline: an empty state, still labelled in Ink. */
+.scale {
+  grid-area: scale;
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scale-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.scale-card {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.75em;
+  min-height: 2.25em;
+  font-size: var(--text-status);
+}
+
+.scale-step--empty .scale-card {
+  border-color: var(--rule);
+}
+
+.scale-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scale-name {
+  font-size: var(--text-name);
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+/* Colour is never the only signal: the sentence below says it in words. */
+.scale-name--agree,
+.result-summary--agree {
+  color: var(--agree);
+}
+
+.scale-name--discuss,
+.result-summary--discuss {
+  color: var(--discuss);
+}
+
+/* The only motion (docs/design.md): names settle onto the scale once, at
+   reveal, and not at all with reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .scale-name {
+    animation: settle var(--settle) ease-out both;
+  }
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5em);
+  }
+}
+
+.result {
+  grid-area: result;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.result p {
+  margin: 0;
+}
+
+.result-summary {
+  font-size: var(--text-status);
+  font-weight: var(--weight-bold);
+}
+
 /* Masked like a password, without being one: a password field would invite
    password managers to offer to save the vote. Where this property is
    missing, MaskedVote falls back to a password field (maskedInputType). */
@@ -167,12 +266,12 @@ html:has(.voting--facilitator) {
 }
 
 @media (min-width: 55em) {
-  .voting {
+  .round {
     grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr) auto;
     column-gap: var(--space-5);
   }
 
-  .voting--participant {
+  .round--voting.round--participant {
     grid-template-areas:
       "status status status"
       "people deck deck"
@@ -180,18 +279,33 @@ html:has(.voting--facilitator) {
   }
 
   /* Controls up front, always in the same place: top of the main area. */
-  .voting--facilitator {
+  .round--voting.round--facilitator {
     grid-template-areas:
       "status status controls"
       "people deck deck"
       ". own own";
   }
 
-  html:has(.voting--facilitator) {
+  .round--revealed.round--participant {
+    grid-template-areas:
+      "status status status"
+      "people scale scale"
+      ". result result"
+      ". controls controls";
+  }
+
+  .round--revealed.round--facilitator {
+    grid-template-areas:
+      "status status controls"
+      "people scale scale"
+      ". result result";
+  }
+
+  html:has(.round--facilitator) {
     scroll-padding-block-end: 0;
   }
 
-  .voting--facilitator .controls {
+  .round--facilitator .controls {
     position: static;
     min-block-size: 0;
     flex-direction: column;
@@ -203,5 +317,29 @@ html:has(.voting--facilitator) {
   .people {
     flex-direction: column;
     flex-wrap: nowrap;
+  }
+
+  .scale {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .scale-step {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .scale-card {
+    inline-size: auto;
+    min-height: 3em;
+    font-size: var(--text-card);
+  }
+
+  .scale-names {
+    flex-direction: column-reverse;
+    flex-wrap: nowrap;
+    align-items: center;
+    text-align: center;
   }
 }

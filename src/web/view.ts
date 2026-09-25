@@ -3,7 +3,6 @@ import type { RoomAction } from "./connection/room-connection.js";
 import type { ConnectionState } from "./connection/room-connection.js";
 import type { StopReason } from "./connection/policy.js";
 import { STOP_COPY } from "./copy.js";
-import type { RoomSnapshot } from "../shared/snapshot.js";
 import { validName } from "../shared/rules.js";
 
 /** The shared name rule, with the copy to show when it fails. */
@@ -57,28 +56,3 @@ export const STOP_ACTIONS: Readonly<Record<StopReason, StopAction>> = {
   "invalid-name": "change-name",
   "join-rejected": "reload",
 };
-
-/** The reveal's results as plain lines of text, until Session 6 designs them. */
-export function resultLines(
-  snapshot: Extract<RoomSnapshot, { phase: "revealed" }>,
-): string[] {
-  const { results, participants } = snapshot;
-  const nameOf = (id: string) =>
-    participants.find((participant) => participant.id === id)?.name ??
-    "Someone";
-  const lines = [
-    `${results.voteCount} ${results.voteCount === 1 ? "vote" : "votes"}`,
-    ...results.distribution.map(({ card, count }) => `${card}: ${count}`),
-  ];
-  if (results.consensus) lines.push("Consensus.");
-  else if (results.min !== null && results.max !== null) {
-    lines.push(
-      `Range ${results.min}–${results.max}` +
-        (results.wideSpread ? ", a wide spread." : "."),
-    );
-  }
-  if (results.outliers.length > 0) {
-    lines.push(`Outliers: ${results.outliers.map(nameOf).join(", ")}.`);
-  }
-  return lines;
-}
