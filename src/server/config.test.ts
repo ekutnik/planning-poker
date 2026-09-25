@@ -1,0 +1,169 @@
+import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:net";
+import { describe, expect, it, onTestFinished } from "vitest";
+import { DEFAULT_LIMITS } from "./app.js";
+import { parseConfig } from "./config.js";
+import {
+  MAX_SWEEP_INTERVAL_MS,
+  ROOM_TTL_MS,
+  SWEEP_INTERVAL_MS,
+} from "./room-service.js";
+
+describe("parseConfig (#18)", () => {
+  it("uses the defaults when nothing is set, and ignores unrelated variables", () => {
+    expect(parseConfig({ HOME: "/home/someone", PATH: "/usr/bin" })).toEqual({
+      ok: true,
+      config: {
+        port: 3000,
+        logLevel: "info",
+        limits: DEFAULT_LIMITS,
+        sweepIntervalMs: SWEEP_INTERVAL_MS,
+        roomTtlMs: ROOM_TTL_MS,
+      },
+    });
+  });
+
+  it("reads every setting", () => {
+    expect(
+      parseConfig({
+        PORT: "8080",
+        LOG_LEVEL: "warn",
+        MAX_ROOMS: "50",
+        MAX_PENDING: "20",
+        SWEEP_INTERVAL_MS: "1000",
+        ROOM_TTL_MS: "60000",
+      }),
+    ).toEqual({
+      ok: true,
+      config: {
+        port: 8080,
+        logLevel: "warn",
+        limits: { maxRooms: 50, maxPending: 20 },
+        sweepIntervalMs: 1000,
+        roomTtlMs: 60_000,
+      },
+    });
+  });
+
+  it.each([
+    ["MAX_ROOMS", "abc"],
+    ["MAX_ROOMS", "0"],
+    ["MAX_ROOMS", "1.5"],
+    ["MAX_PENDING", "-3"],
+    ["PORT", "70000"],
+    ["PORT", ""],
+    ["LOG_LEVEL", "loud"],
+    ["SWEEP_INTERVAL_MS", "60000"],
+    ["SWEEP_INTERVAL_MS", "10"],
+    ["ROOM_TTL_MS", "ten minutes"],
+    // Number() would accept all of these; plain decimal digits only.
+    ["MAX_ROOMS", "0x10"],
+    ["MAX_ROOMS", "1e4"],
+    ["MAX_ROOMS", " 5"],
+    ["MAX_ROOMS", "5 "],
+    ["MAX_ROOMS", "+5"],
+  ])("refuses %s=%j and names it", (name, value) => {
+    const result = parseConfig({ [name]: value });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain(name);
+  });
+
+  it("caps SWEEP_INTERVAL_MS at MAX_SWEEP_INTERVAL_MS, the heartbeat's safe maximum", () => {
+    const at = parseConfig({
+      SWEEP_INTERVAL_MS: String(MAX_SWEEP_INTERVAL_MS),
+    });
+    const above = parseConfig({
+      SWEEP_INTERVAL_MS: String(MAX_SWEEP_INTERVAL_MS + 1),
+    });
+    expect(at.ok).toBe(true);
+    expect(above.ok).toBe(false);
+  });
+
+  it("reports every invalid variable at once", () => {
+    const result = parseConfig({ MAX_ROOMS: "abc", PORT: "0" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("MAX_ROOMS");
+      expect(result.error).toContain("PORT");
+    }
+  });
+});
+
+describe("main", () => {
+  it("refuses to start on an invalid environment", () => {
+    const run = spawnSync(
+      process.execPath,
+      ["--import", "tsx", "src/server/main.ts"],
+      {
+        env: { ...process.env, MAX_ROOMS: "abc", PORT: "0" },
+        encoding: "utf8",
+        timeout: 15_000,
+      },
+    );
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain("Invalid configuration");
+    expect(run.stderr).toContain("MAX_ROOMS");
+  });
+
+  it("logs the effective config at startup, so a misspelled variable shows", async () => {
+    const port = await freePort();
+    const child = spawn(
+      process.execPath,
+      ["--import", "tsx", "src/server/main.ts"],
+      {
+        env: {
+          ...process.env,
+          PORT: String(port),
+          LOG_LEVEL: "info",
+          MAX_ROOM: "7", // typo for MAX_ROOMS: ignored, so the default applies
+        },
+      },
+    );
+    // Runs even if the test times out, so a failure never leaks a server.
+    onTestFinished(() => {
+      child.kill();
+    });
+
+    const line = await firstLine(child.stdout, '"configuration"', 4_000);
+    const logged = JSON.parse(line) as { config: { limits: unknown } };
+    expect(logged.config.limits).toEqual(DEFAULT_LIMITS);
+  });
+});
+
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+function firstLine(
+  stream: NodeJS.ReadableStream,
+  containing: string,
+  timeoutMs: number,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () =>
+        reject(new Error(`no line containing ${containing} in ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    let buffered = "";
+    stream.setEncoding("utf8");
+    stream.on("data", (chunk: string) => {
+      buffered += chunk;
+      const line = buffered.split("\n").find((l) => l.includes(containing));
+      if (line) {
+        clearTimeout(timer);
+        resolve(line);
+      }
+    });
+    stream.on("end", () =>
+      reject(new Error(`no line containing ${containing}`)),
+    );
+  });
+}

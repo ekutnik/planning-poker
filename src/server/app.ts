@@ -24,6 +24,7 @@ export interface ServerOptions {
   readonly limits?: Partial<Limits>;
   readonly clock?: () => number;
   readonly sweepIntervalMs?: number;
+  readonly roomTtlMs?: number;
 }
 
 const roomParams = {
@@ -98,6 +99,7 @@ export function buildServer(options: ServerOptions = {}) {
         warn: (fields) => app.log.warn(fields),
       },
       sweepIntervalMs,
+      roomTtlMs: options.roomTtlMs,
     },
   );
 

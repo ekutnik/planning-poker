@@ -6,10 +6,13 @@ import { roomLogId } from "./identity.js";
 import type { Connection, Limits, RoomLog } from "./room-service.js";
 import {
   JOIN_TIMEOUT_MS,
+  MAX_SWEEP_INTERVAL_MS,
   PING_INTERVAL_MS,
   PONG_TIMEOUT_MS,
   redactRoomIds,
+  ROOM_TTL_MS,
   RoomService,
+  RTT_MARGIN_MS,
   STALL_INTERVALS,
   SWEEP_INTERVAL_MS,
 } from "./room-service.js";
@@ -336,12 +339,15 @@ describe("RoomService", () => {
     }
     service.sweep();
     tick(PONG_TIMEOUT_MS); // the heartbeat terminates dave
+    tick(DISCONNECT_GRACE_MS + ROOM_TTL_MS); // grace removal, then the room TTL
 
     expect(alice.closedWith?.code).toBe(CloseCode.SUPERSEDED);
     expect(bob.closedWith?.code).toBe(1000);
     expect(idler.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
     expect(dave.terminated).toBe(true);
     expect(service.bookkeeping()).toEqual({
+      rooms: 0,
+      emptyRooms: 0,
       pending: 0,
       bindings: 0,
       socketRooms: 0,
@@ -666,6 +672,19 @@ describe("RoomService — sweep: stall guard (#26)", () => {
     expect(lurker.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
   });
 
+  it("MAX_SWEEP_INTERVAL_MS keeps a healthy connection inside the pong deadline", () => {
+    // If a constant changes so that this no longer holds, this fails, instead
+    // of the guarantee quietly breaking in production.
+    const worstPongAge = (interval: number) =>
+      PING_INTERVAL_MS + (1 + STALL_INTERVALS) * interval + RTT_MARGIN_MS;
+    expect(worstPongAge(MAX_SWEEP_INTERVAL_MS)).toBeLessThan(PONG_TIMEOUT_MS);
+    // ...and it is the largest such interval.
+    expect(worstPongAge(MAX_SWEEP_INTERVAL_MS + 1)).toBeGreaterThanOrEqual(
+      PONG_TIMEOUT_MS,
+    );
+    expect(SWEEP_INTERVAL_MS).toBeLessThanOrEqual(MAX_SWEEP_INTERVAL_MS);
+  });
+
   it("scales the threshold with the sweep interval it is told", () => {
     const { service, lurker, advance } = scene(1_000);
     advance(JOIN_TIMEOUT_MS); // 10 intervals of 1s: a stall at this cadence
@@ -783,5 +802,150 @@ describe("RoomService — sweep: grace removal (#19)", () => {
     expect(removedAt).toBeLessThanOrEqual(
       PONG_TIMEOUT_MS + DISCONNECT_GRACE_MS + 2 * SWEEP_INTERVAL_MS,
     );
+  });
+});
+
+describe("RoomService — sweep: room TTL (#18)", () => {
+  function leaveRoom(ctx: ReturnType<typeof setup>, conn: FakeConnection) {
+    ctx.service.message(conn, JSON.stringify({ type: "leave" }));
+  }
+
+  it("evicts a room once it has been empty for ROOM_TTL_MS", () => {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    leaveRoom(ctx, alice);
+    expect(ctx.service.bookkeeping()).toMatchObject({
+      rooms: 1,
+      emptyRooms: 1,
+    });
+
+    ctx.tick(ROOM_TTL_MS - SWEEP_INTERVAL_MS);
+    expect(ctx.service.bookkeeping().rooms).toBe(1);
+
+    ctx.tick(SWEEP_INTERVAL_MS);
+    expect(ctx.service.bookkeeping()).toMatchObject({
+      rooms: 0,
+      emptyRooms: 0,
+    });
+  });
+
+  it("counts the TTL from when grace removal empties the room", () => {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    ctx.service.close(alice); // disconnected: not empty until grace removal
+    ctx.tick(DISCONNECT_GRACE_MS);
+    expect(ctx.service.bookkeeping()).toMatchObject({
+      rooms: 1,
+      emptyRooms: 1,
+    });
+
+    ctx.tick(ROOM_TTL_MS);
+    expect(ctx.service.bookkeeping().rooms).toBe(0);
+  });
+
+  it("never evicts a room that has participants, however long it lasts", () => {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    for (let t = 0; t < ROOM_TTL_MS * 3; t += SWEEP_INTERVAL_MS) {
+      ctx.tick(SWEEP_INTERVAL_MS);
+      ctx.service.pong(alice);
+    }
+    expect(ctx.service.bookkeeping()).toMatchObject({
+      rooms: 1,
+      emptyRooms: 0,
+    });
+    expect(alice.terminated).toBe(false);
+  });
+
+  it("never evicts a room someone rejoined and stayed in", () => {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    leaveRoom(ctx, alice);
+    ctx.tick(ROOM_TTL_MS - SWEEP_INTERVAL_MS);
+
+    const bob = ctx.connect("bob");
+    ctx.join(bob, BOB, "Bob"); // the room is occupied again
+    for (let t = 0; t < ROOM_TTL_MS * 2; t += SWEEP_INTERVAL_MS) {
+      ctx.tick(SWEEP_INTERVAL_MS);
+      ctx.service.pong(bob);
+    }
+    expect(ctx.service.bookkeeping()).toMatchObject({
+      rooms: 1,
+      emptyRooms: 0,
+    });
+    ctx.service.message(bob, JSON.stringify({ type: "castVote", card: "3" }));
+    expect(snapshots(bob).at(-1)?.snapshot).toMatchObject({ yourVote: "3" });
+  });
+
+  it("resets the TTL when someone joins the empty room again", () => {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    leaveRoom(ctx, alice);
+    ctx.tick(ROOM_TTL_MS - SWEEP_INTERVAL_MS);
+
+    const bob = ctx.connect("bob");
+    ctx.join(bob, BOB, "Bob");
+    leaveRoom(ctx, bob);
+    ctx.tick(ROOM_TTL_MS - SWEEP_INTERVAL_MS);
+    expect(ctx.service.bookkeeping().rooms).toBe(1);
+
+    ctx.tick(SWEEP_INTERVAL_MS);
+    expect(ctx.service.bookkeeping().rooms).toBe(0);
+  });
+
+  it("recreates an evicted room, empty, on the next join (ADR 0001)", () => {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    ctx.service.message(alice, JSON.stringify({ type: "castVote", card: "5" }));
+    leaveRoom(ctx, alice);
+    ctx.tick(ROOM_TTL_MS);
+
+    const bob = ctx.connect("bob");
+    ctx.join(bob, BOB, "Bob");
+    expect(snapshots(bob).at(-1)?.snapshot).toMatchObject({
+      phase: "voting",
+      participants: [{ name: "Bob", hasVoted: false }],
+    });
+    expect(ctx.service.bookkeeping()).toMatchObject({
+      rooms: 1,
+      emptyRooms: 0,
+    });
+  });
+
+  it("frees the evicted room's maxRooms slot", () => {
+    const ctx = setup({ maxRooms: 1 });
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    leaveRoom(ctx, alice);
+
+    const early = ctx.connect("early", "bbbbbbbbbbb");
+    ctx.join(early, BOB, "Bob");
+    expect(early.sent).toEqual([{ type: "error", code: "SERVER_FULL" }]);
+
+    ctx.tick(ROOM_TTL_MS);
+    const late = ctx.connect("late", "bbbbbbbbbbb");
+    ctx.join(late, BOB, "Bob");
+    expect(snapshots(late)).toHaveLength(1);
+  });
+
+  it("evicts nothing in the sweep right after a stall", () => {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    ctx.join(alice, ALICE, "Alice");
+    leaveRoom(ctx, alice);
+    ctx.service.sweep();
+    ctx.advance(ROOM_TTL_MS * 2);
+    ctx.service.sweep();
+    expect(ctx.service.bookkeeping().rooms).toBe(1);
+
+    ctx.advance(SWEEP_INTERVAL_MS);
+    ctx.service.sweep();
+    expect(ctx.service.bookkeeping().rooms).toBe(0);
   });
 });
