@@ -119,6 +119,7 @@ export class RoomConnection {
   private attempt = 0; // consecutive failed connections since the last snapshot
   private backoff: Backoff = "normal"; // of the pending retry
   private retryTimer: number | null = null;
+  private disposed = false;
 
   constructor(
     private readonly roomId: string,
@@ -141,14 +142,14 @@ export class RoomConnection {
   }
 
   start(): void {
-    if (this.socket || this.retryTimer !== null) return;
+    if (this.disposed || this.socket || this.retryTimer !== null) return;
     if (this.state.status === "stopped") return;
     this.connect();
   }
 
   /** From a stopped state, for "Use this tab" and "Try again". */
   restart(): void {
-    if (this.state.status !== "stopped") return;
+    if (this.disposed || this.state.status !== "stopped") return;
     this.attempt = 0;
     this.connect();
   }
@@ -158,6 +159,20 @@ export class RoomConnection {
     if (this.state.status !== "open" || !this.socket) return false;
     this.socket.send(JSON.stringify(action));
     return true;
+  }
+
+  /**
+   * Tears down without telling the server, for unmount and navigation: the
+   * server sees the socket close and starts the grace period, so coming back
+   * soon reclaims the seat. Clears every timer and listener; the connection
+   * cannot be used again. React's StrictMode runs this on every mount in
+   * development, so a leaked timer or socket shows up as a duplicate join.
+   */
+  dispose(): void {
+    this.disposed = true;
+    this.abandonSocket("dispose");
+    this.listeners.clear();
+    this.errorListeners.clear();
   }
 
   leave(): void {
