@@ -59,6 +59,27 @@ export const PING_INTERVAL_MS = 15_000;
  */
 export const PONG_TIMEOUT_MS = 35_000;
 
+/** Allowance for a ping and its pong to cross the network. */
+export const RTT_MARGIN_MS = 1_000;
+
+/**
+ * The largest sweep interval I at which a healthy connection can never be
+ * terminated, even through a stall the guard does not detect (#26):
+ *
+ *   PING_INTERVAL_MS + (1 + STALL_INTERVALS) × I + RTT_MARGIN_MS < PONG_TIMEOUT_MS
+ *
+ * A ping goes out up to one interval late (PING_INTERVAL_MS + I), its pong
+ * takes up to RTT_MARGIN_MS, and a stall of up to STALL_INTERVALS × I goes
+ * undetected while delaying that pong. With the current constants this is
+ * 6,333 ms. Config rejects anything larger, so no setting can void the
+ * guarantee the README states.
+ */
+export const MAX_SWEEP_INTERVAL_MS =
+  Math.ceil(
+    (PONG_TIMEOUT_MS - PING_INTERVAL_MS - RTT_MARGIN_MS) /
+      (1 + STALL_INTERVALS),
+  ) - 1;
+
 export interface Limits {
   /** Rooms held in memory. A join that would create one more gets SERVER_FULL. */
   readonly maxRooms: number;

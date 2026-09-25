@@ -2,6 +2,7 @@ import * as z from "zod";
 import { DEFAULT_LIMITS } from "./app.js";
 import {
   JOIN_TIMEOUT_MS,
+  MAX_SWEEP_INTERVAL_MS,
   ROOM_TTL_MS,
   SWEEP_INTERVAL_MS,
   type Limits,
@@ -31,10 +32,14 @@ const Env = z.object({
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
   MAX_ROOMS: whole(1).default(DEFAULT_LIMITS.maxRooms),
   MAX_PENDING: whole(1).default(DEFAULT_LIMITS.maxPending),
-  // Every deadline fires up to one interval late, so an interval longer than
-  // the shortest deadline (the join timeout) would make that deadline
-  // meaningless. Below 100ms the sweep is close to a busy loop.
-  SWEEP_INTERVAL_MS: whole(100, JOIN_TIMEOUT_MS).default(SWEEP_INTERVAL_MS),
+  // Two ceilings, whichever is lower: MAX_SWEEP_INTERVAL_MS keeps a healthy
+  // connection inside the pong deadline through an undetected stall, and the
+  // join timeout would be meaningless if it could fire a whole interval late
+  // with an interval longer than itself. Below 100ms it is close to a busy loop.
+  SWEEP_INTERVAL_MS: whole(
+    100,
+    Math.min(MAX_SWEEP_INTERVAL_MS, JOIN_TIMEOUT_MS),
+  ).default(SWEEP_INTERVAL_MS),
   ROOM_TTL_MS: whole(1).default(ROOM_TTL_MS),
 });
 

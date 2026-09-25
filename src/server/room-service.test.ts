@@ -6,11 +6,13 @@ import { roomLogId } from "./identity.js";
 import type { Connection, Limits, RoomLog } from "./room-service.js";
 import {
   JOIN_TIMEOUT_MS,
+  MAX_SWEEP_INTERVAL_MS,
   PING_INTERVAL_MS,
   PONG_TIMEOUT_MS,
   redactRoomIds,
   ROOM_TTL_MS,
   RoomService,
+  RTT_MARGIN_MS,
   STALL_INTERVALS,
   SWEEP_INTERVAL_MS,
 } from "./room-service.js";
@@ -668,6 +670,19 @@ describe("RoomService — sweep: stall guard (#26)", () => {
     advance(SWEEP_INTERVAL_MS * STALL_INTERVALS); // == JOIN_TIMEOUT_MS here
     service.sweep();
     expect(lurker.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
+  });
+
+  it("MAX_SWEEP_INTERVAL_MS keeps a healthy connection inside the pong deadline", () => {
+    // If a constant changes so that this no longer holds, this fails, instead
+    // of the guarantee quietly breaking in production.
+    const worstPongAge = (interval: number) =>
+      PING_INTERVAL_MS + (1 + STALL_INTERVALS) * interval + RTT_MARGIN_MS;
+    expect(worstPongAge(MAX_SWEEP_INTERVAL_MS)).toBeLessThan(PONG_TIMEOUT_MS);
+    // ...and it is the largest such interval.
+    expect(worstPongAge(MAX_SWEEP_INTERVAL_MS + 1)).toBeGreaterThanOrEqual(
+      PONG_TIMEOUT_MS,
+    );
+    expect(SWEEP_INTERVAL_MS).toBeLessThanOrEqual(MAX_SWEEP_INTERVAL_MS);
   });
 
   it("scales the threshold with the sweep interval it is told", () => {

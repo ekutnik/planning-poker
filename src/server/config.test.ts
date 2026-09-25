@@ -2,7 +2,11 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_LIMITS } from "./app.js";
 import { parseConfig } from "./config.js";
-import { ROOM_TTL_MS, SWEEP_INTERVAL_MS } from "./room-service.js";
+import {
+  MAX_SWEEP_INTERVAL_MS,
+  ROOM_TTL_MS,
+  SWEEP_INTERVAL_MS,
+} from "./room-service.js";
 
 describe("parseConfig (#18)", () => {
   it("uses the defaults when nothing is set, and ignores unrelated variables", () => {
@@ -55,6 +59,17 @@ describe("parseConfig (#18)", () => {
     const result = parseConfig({ [name]: value });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain(name);
+  });
+
+  it("caps SWEEP_INTERVAL_MS at MAX_SWEEP_INTERVAL_MS, the heartbeat's safe maximum", () => {
+    const at = parseConfig({
+      SWEEP_INTERVAL_MS: String(MAX_SWEEP_INTERVAL_MS),
+    });
+    const above = parseConfig({
+      SWEEP_INTERVAL_MS: String(MAX_SWEEP_INTERVAL_MS + 1),
+    });
+    expect(at.ok).toBe(true);
+    expect(above.ok).toBe(false);
   });
 
   it("reports every invalid variable at once", () => {
