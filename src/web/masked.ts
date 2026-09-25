@@ -27,3 +27,19 @@ export function submitMasked(raw: string): {
     message: vote === null ? MASKED_COPY.invalid : MASKED_COPY.recorded,
   };
 }
+
+/**
+ * How the field hides what is typed. A text field masked with CSS keeps
+ * password managers away; a password field would invite them to offer to
+ * save the vote. But `-webkit-text-security` is non-standard, and where it
+ * is missing a text field would show "13" on the shared screen with no
+ * error, so fall back to a password field, which every browser masks.
+ * `supports` is CSS.supports, or undefined outside a browser.
+ */
+export function maskedInputType(
+  supports: ((property: string, value: string) => boolean) | undefined,
+): "text" | "password" {
+  return supports?.("-webkit-text-security", "disc") === true
+    ? "text"
+    : "password";
+}

@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DECK } from "../shared/deck.js";
 import { moveFocus, tabStop } from "./deck-keys.js";
 import { createFacilitateStore, FACILITATE_KEY } from "./facilitate.js";
-import { MASKED_COPY, parseMaskedEntry, submitMasked } from "./masked.js";
+import {
+  MASKED_COPY,
+  maskedInputType,
+  parseMaskedEntry,
+  submitMasked,
+} from "./masked.js";
 import type { KeyValueStore } from "./storage.js";
 
 describe("moveFocus", () => {
@@ -62,6 +67,22 @@ describe("the masked field", () => {
       expect(result.message).not.toContain(entry);
     },
   );
+});
+
+describe("maskedInputType", () => {
+  it("masks a text field with CSS where the browser supports it", () => {
+    const supports = vi.fn(() => true);
+    expect(maskedInputType(supports)).toBe("text");
+    expect(supports).toHaveBeenCalledWith("-webkit-text-security", "disc");
+  });
+
+  it("falls back to a password field where it does not", () => {
+    expect(maskedInputType(() => false)).toBe("password");
+  });
+
+  it("falls back to a password field when support is unknown", () => {
+    expect(maskedInputType(undefined)).toBe("password");
+  });
 });
 
 describe("createFacilitateStore", () => {

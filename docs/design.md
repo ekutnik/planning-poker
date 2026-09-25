@@ -167,7 +167,8 @@ A per-person view, not a role, so the server does not change and anyone can stil
 
 - Labelled "Your vote (hidden)". Type 13 and press Enter. It accepts every deck value, plus `?`, and `c` for ☕. The field clears after each vote, and the confirmation is "Vote recorded".
 - Errors never echo the input: "Not a card on the deck", never "4 is not a card".
-- Keep password managers out: no `<form>` (Enter is handled directly), `autocomplete="off"`, `spellcheck="false"`, and a manual check in Chrome and Safari for "Save password?" prompts.
+- Masked with `-webkit-text-security` on a text field, because a password field invites password managers. That property is non-standard, and where it is missing the field would show "13" on the shared screen with no error, so the app checks `CSS.supports("-webkit-text-security", "disc")` once and falls back to `type="password"`.
+- Keep password managers out: no `<form>` (Enter is handled directly), `autocomplete="off"`, `spellcheck="false"`, and a manual check in Chrome, Safari and Firefox for "Save password?" prompts.
 - Clicking a card still works in the facilitator view, for anyone who does not mind the cursor being seen.
 
 ## Copy
@@ -219,6 +220,7 @@ Session 7 audits what is built in; it is not a retrofit. It needs a browser, and
 
 - **Screen-level no-leak test,** mirroring the wire-level vote-privacy test: in the facilitator view before reveal, no element shows the viewer's own card (no selected state on any deck card, no card value in any visible text, and the masked field empty after submit). Removing the hiding once must fail it.
 - **Invalid masked input** produces the fixed error copy, never containing the typed value.
+- **Masking fallback:** the no-leak test runs in a browser with and without `-webkit-text-security`, and expects a text field or a password field accordingly.
 - **Theme:** the no-flash script applies exactly what the app would, for every stored value (unit test); the stored choice is applied before first paint (the Session 8 end-to-end suite).
 - **Contrast, two tiers, both themes:** meaning (Ink, Cobalt, Agree, Discuss) at least 4.5:1 on Paper; control boundaries (Edge, Cobalt) at least 3:1; Rule below 3:1, so it cannot stand in for Edge; and a Paper numeral on a Cobalt fill at least 4.5:1.
 - Focus order and 200% zoom need a browser, so they belong to the Session 7 audit above.

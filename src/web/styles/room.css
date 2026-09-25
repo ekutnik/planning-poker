@@ -137,7 +137,8 @@ button:disabled {
 }
 
 /* Masked like a password, without being one: a password field would invite
-   password managers to offer to save the vote. */
+   password managers to offer to save the vote. Where this property is
+   missing, MaskedVote falls back to a password field (maskedInputType). */
 .masked {
   width: 6ch;
   padding: var(--space-1) var(--space-2);

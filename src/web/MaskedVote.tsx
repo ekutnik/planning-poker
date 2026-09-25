@@ -1,6 +1,15 @@
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import type { Card } from "../shared/deck.js";
-import { submitMasked } from "./masked.js";
+import { maskedInputType, submitMasked } from "./masked.js";
+
+// Checked once, when the module loads: support cannot change while the page
+// is open.
+const css = (globalThis as { CSS?: typeof CSS }).CSS;
+const INPUT_TYPE = maskedInputType(
+  css === undefined
+    ? undefined
+    : (property, value) => css.supports(property, value),
+);
 
 /**
  * The leak-free way to vote on a shared screen, where the cursor moving to a
@@ -48,7 +57,7 @@ export function MaskedVote({
         ref={input}
         id={id}
         className="masked"
-        type="text"
+        type={INPUT_TYPE}
         value={value}
         disabled={disabled}
         autoComplete="off"
