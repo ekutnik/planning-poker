@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Card } from "../shared/deck.js";
 import type { Results, RoomSnapshot } from "../shared/snapshot.js";
-import { freshAnnouncement, phaseAnnouncement } from "./announce.js";
+import {
+  freshAnnouncement,
+  NEXT_ROUND,
+  phaseAnnouncement,
+} from "./announce.js";
 import { resultCopy, spokenCard } from "./result.js";
 
 type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
@@ -184,7 +188,7 @@ describe("resultCopy: the reveal in words", () => {
   });
 });
 
-describe("phaseAnnouncement: only the reveal itself is announced", () => {
+describe("phaseAnnouncement: only a change of phase is announced", () => {
   const result = revealed(
     { consensus: true, min: "5", max: "5", spreadSteps: 0 },
     ["Ada", "5"],
@@ -209,8 +213,15 @@ describe("phaseAnnouncement: only the reveal itself is announced", () => {
     expect(phaseAnnouncement("revealed", result)).toBe("");
   });
 
-  it("clears when the next round starts", () => {
-    expect(phaseAnnouncement("revealed", voting)).toBe("");
+  it("announces the next round, however it was started", () => {
+    // Someone else pressing "Start next round" swaps the scale for the deck:
+    // a change a screen reader user must hear about.
+    expect(phaseAnnouncement("revealed", voting)).toBe(NEXT_ROUND);
+    expect(NEXT_ROUND).toBe("Next round started.");
+  });
+
+  it("stays quiet within the voting phase", () => {
+    expect(phaseAnnouncement("voting", voting)).toBe("");
   });
 });
 

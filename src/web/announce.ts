@@ -3,20 +3,24 @@ import { resultCopy } from "./result.js";
 
 type Phase = RoomSnapshot["phase"];
 
+export const NEXT_ROUND = "Next round started.";
+
 /**
- * What the room's live region says after a snapshot. Only the change from
- * voting to revealed is announced: not a room that is already revealed when
- * you join, and not later snapshots during the discussion (someone leaving
+ * What the room's live region says after a snapshot. Only a change of phase
+ * is announced, whoever caused it: the result at reveal, and "Next round
+ * started." when the scale gives way to the deck again. Not a room you join
+ * in either phase, and not later snapshots within a phase (someone leaving
  * would otherwise re-read the result), which would make a screen reader
- * chatter. "Start next round" clears it.
+ * chatter.
  */
 export function phaseAnnouncement(
   previous: Phase,
   snapshot: RoomSnapshot,
 ): string {
-  return previous === "voting" && snapshot.phase === "revealed"
+  if (previous === snapshot.phase) return "";
+  return snapshot.phase === "revealed"
     ? resultCopy(snapshot).announcement
-    : "";
+    : NEXT_ROUND;
 }
 
 const INVISIBLE = " ";
