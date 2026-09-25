@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { createRoom } from "./api.js";
+import { HOME_COPY } from "./copy.js";
 import type { Identity } from "./identity.js";
 import { NameForm } from "./NameForm.js";
 
+/** The landing page: a name, one button, and the promise the tool keeps. */
 export function HomePage({
   identity,
   onCreated,
@@ -29,20 +31,17 @@ export function HomePage({
   };
 
   return (
-    <main>
-      <h1>Planning Poker</h1>
-      <p>Estimate together. Votes stay hidden until everyone reveals.</p>
+    <main className="page">
+      <h1>{HOME_COPY.heading}</h1>
+      <p>{HOME_COPY.intro}</p>
       <NameForm
         initial={identity.lastName()}
-        submitLabel="Create a room"
+        submitLabel={HOME_COPY.submit}
         busy={busy}
         onSubmit={create}
       />
-      {failed && (
-        <p role="alert">
-          The room could not be created. Check your connection and try again.
-        </p>
-      )}
+      <p>{HOME_COPY.invite}</p>
+      {failed && <p role="alert">{HOME_COPY.failed}</p>}
     </main>
   );
 }

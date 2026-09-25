@@ -1,12 +1,13 @@
 import type { ErrorCode } from "../shared/protocol.js";
 import { MAX_NAME_LENGTH, MAX_PARTICIPANTS } from "../shared/rules.js";
 import type { StopReason } from "./connection/policy.js";
+import type { StopAction } from "./view.js";
 
 /**
  * What to show for each server error. Exhaustive on purpose: a new ErrorCode
  * does not compile until someone writes its copy. null means the UI state
  * already shows it, so the error adds nothing. Copy says what happened and
- * what to do, without apologising.
+ * what to do, without apologising, in the words the buttons use.
  */
 export const ERROR_COPY: Readonly<Record<ErrorCode, string | null>> = {
   INVALID_NAME: null, // join-phase: the stopped screen explains it
@@ -15,11 +16,11 @@ export const ERROR_COPY: Readonly<Record<ErrorCode, string | null>> = {
   NOT_CONNECTED: null, // shown as reconnecting
   NOT_JOINED: null, // the client sends room actions only once joined
   ALREADY_JOINED: null, // the client joins once per socket
-  VOTING_CLOSED: "The cards are revealed. Start a new round to vote again.",
-  NO_VOTES_CAST: "Nobody has voted yet. Pick a card before revealing.",
+  VOTING_CLOSED: "Votes are revealed. Start the next round to vote again.",
+  NO_VOTES_CAST: "Nobody has voted yet. Choose a card before revealing.",
   UNKNOWN_PARTICIPANT: "This tab lost its seat. Reload the page to rejoin.",
   INVALID_MESSAGE:
-    "The server could not read that. Reload the page to get the latest version.",
+    "The server couldn't read that. Reload the page to get the latest version.",
   RATE_LIMITED: "That was a lot at once. Wait a moment, then try again.",
 };
 
@@ -43,15 +44,15 @@ export const STOP_COPY: Readonly<Record<StopReason, StopCopy>> = {
     body: "Reload the page to continue.",
   },
   "room-full": {
-    title: `This room is full. It holds up to ${MAX_PARTICIPANTS} people.`,
-    body: "Try again when someone leaves.",
+    title: "This room is full.",
+    body: `A room holds up to ${MAX_PARTICIPANTS} people. Try again when someone leaves.`,
   },
   "server-full": {
-    title: "The server has no room for another game right now.",
+    title: "The server is full right now.",
     body: "Try again in a few minutes.",
   },
   "join-rejected": {
-    title: "The server could not accept this tab's request to join.",
+    title: "This tab couldn't join the room.",
     body: "Reload the page to get the latest version, then join again.",
   },
   "invalid-name": {
@@ -59,3 +60,39 @@ export const STOP_COPY: Readonly<Record<StopReason, StopCopy>> = {
     body: "Choose a different name to join.",
   },
 };
+
+/** The landing page: create a room, then share its link. */
+export const HOME_COPY = {
+  heading: "Estimate together",
+  intro:
+    "Everyone votes on their own screen, and the votes stay hidden until someone reveals them.",
+  invite: "You'll get a link to share with your team.",
+  submit: "Create a room",
+  failed: "The room couldn't be created. Check your connection and try again.",
+} as const;
+
+/** A room link opened in a browser that has no name yet. */
+export const JOIN_COPY = {
+  heading: "Join the room",
+  intro: "Everyone in the room sees your name.",
+  submit: "Join",
+} as const;
+
+/** A link that is not a room. The same words as the landing's button. */
+export const NOT_FOUND_COPY = {
+  title: "There's no room at this link.",
+  body: "Check the link, or create a new room.",
+  action: HOME_COPY.submit,
+} as const;
+
+/** The labels on the stopped screens' one button each. */
+export const STOP_ACTION_LABELS = {
+  "use-this-tab": "Use this tab",
+  reload: "Reload",
+  "try-again": "Try again",
+  "change-name": "Change name",
+  home: "Back to start",
+} as const satisfies Readonly<Record<StopAction, string>>;
+
+export const NOT_SAVED_COPY =
+  "This browser isn't saving your seat, so reloading will join you as someone new.";

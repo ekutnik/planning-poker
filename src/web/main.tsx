@@ -7,6 +7,7 @@ import "./styles/tokens.css";
 import "./styles/base.css";
 import "./index.css";
 import "./styles/room.css";
+import "./styles/pages.css";
 import { createRouter } from "./router.js";
 import { createThemeStore } from "./theme.js";
 

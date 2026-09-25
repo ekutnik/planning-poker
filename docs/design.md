@@ -181,27 +181,39 @@ A per-person view, not a role, so the server does not change and anyone can stil
 - Keep password managers out: no `<form>` (Enter is handled directly), `autocomplete="off"`, `spellcheck="false"`, and a manual check in Chrome, Safari and Firefox for "Save password?" prompts.
 - Clicking a card still works in the facilitator view, for anyone who does not mind the cursor being seen.
 
+## Screens outside the room
+
+The landing page, the name form for a room link, the stopped screens and "no room here" use the room's system: the same header, left-aligned text in a readable measure, one heading, a sentence or two, and one Cobalt action. The name field has an Edge outline, like the cards; an invalid name is said in words below it, and the outline turns Ink to agree. Each stopped screen says what happened and offers exactly one way on, as a button: nothing retries on its own.
+
 ## Copy
 
-Each action keeps one name through the whole flow.
+Each action keeps one name through the whole flow. The rules, checked by `copy.test.ts` for every message outside the round's own lines:
 
-| Moment                | Copy                                                                         |
-| --------------------- | ---------------------------------------------------------------------------- |
-| Status (participant)  | "4 of 5 have voted", or "Everyone has voted"                                 |
-| Status (facilitator)  | "Waiting for Cy. Fay is away.", or "Everyone has voted. Fay is away."        |
-| Primary actions       | "Reveal votes" → "Votes revealed"; "Start next round"                        |
-| Own vote, facilitator | "You've voted ✓"; "Vote recorded"; "Clear my vote"                           |
-| Consensus             | "Everyone chose 5."                                                          |
-| Close spread          | "Close: 3 and 5."                                                            |
-| Wide spread           | "Spread of 3 steps, from 3 to 13. Ada and Eli, talk through your estimates." |
-| One number, not all   | "All numbers agree: 5."                                                      |
-| One numeric voter     | "Only Ada voted: 8.", or "Only Ada chose a number: 8."                       |
-| No numeric votes      | "No numeric votes this round."                                               |
-| No votes              | "Nobody voted this round."                                                   |
-| Non-numeric votes     | "Cy voted ?"                                                                 |
-| Link                  | "Copy link" → "Link copied"                                                  |
-| Invalid masked entry  | "Not a card on the deck"                                                     |
-| Next round (spoken)   | "Next round started."                                                        |
+- Say what happened and what to do, without apologising.
+- Sentences end with a full stop, including a heading that is one ("You left the room."). Labels do not: buttons, and headings that name a place ("Join the room").
+- Contractions, as in "You've voted" and "hasn't voted": "couldn't", never "could not".
+- One name per thing: it is a room, not a game; you choose a card, not pick one; "Create a room" everywhere; "Start next round", never "new round"; and anyone can reveal, so nothing says "until everyone reveals".
+
+| Moment                | Copy                                                                               |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| Landing               | "Estimate together"; "Create a room"; "You'll get a link to share with your team." |
+| Room link, no name    | "Join the room"; "Everyone in the room sees your name."; "Join"                    |
+| Not a room            | "There's no room at this link."; "Create a room"                                   |
+| Status (participant)  | "4 of 5 have voted", or "Everyone has voted"                                       |
+| Status (facilitator)  | "Waiting for Cy. Fay is away.", or "Everyone has voted. Fay is away."              |
+| Primary actions       | "Reveal votes" → "Votes revealed"; "Start next round"                              |
+| Own vote, facilitator | "You've voted ✓"; "Vote recorded"; "Clear my vote"                                 |
+| Consensus             | "Everyone chose 5."                                                                |
+| Close spread          | "Close: 3 and 5."                                                                  |
+| Wide spread           | "Spread of 3 steps, from 3 to 13. Ada and Eli, talk through your estimates."       |
+| One number, not all   | "All numbers agree: 5."                                                            |
+| One numeric voter     | "Only Ada voted: 8.", or "Only Ada chose a number: 8."                             |
+| No numeric votes      | "No numeric votes this round."                                                     |
+| No votes              | "Nobody voted this round."                                                         |
+| Non-numeric votes     | "Cy voted ?"                                                                       |
+| Link                  | "Copy link" → "Link copied"                                                        |
+| Invalid masked entry  | "Not a card on the deck"                                                           |
+| Next round (spoken)   | "Next round started."                                                              |
 
 The rarer result lines cover every case the results model can produce:
 

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { NOT_FOUND_COPY } from "./copy.js";
 import type { FacilitateStore } from "./facilitate.js";
 import { Header } from "./Header.js";
 import { HomePage } from "./HomePage.js";
@@ -45,11 +46,11 @@ export function App({
       return (
         <>
           <Header theme={theme} />
-          <main>
-            <h1>There is no room here.</h1>
-            <p>Check the link, or start a new room.</p>
-            <button type="button" onClick={home}>
-              Start a room
+          <main className="page">
+            <h1>{NOT_FOUND_COPY.title}</h1>
+            <p>{NOT_FOUND_COPY.body}</p>
+            <button type="button" className="primary" onClick={home}>
+              {NOT_FOUND_COPY.action}
             </button>
           </main>
         </>

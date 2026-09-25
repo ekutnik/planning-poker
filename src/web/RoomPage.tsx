@@ -1,4 +1,5 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
+import { JOIN_COPY } from "./copy.js";
 import { CopyLinkButton } from "./CopyLinkButton.js";
 import { createBrowserConnection } from "./connection/browser.js";
 import { retryOnReturn } from "./connection/wake.js";
@@ -12,7 +13,6 @@ import { StoppedScreen } from "./StoppedScreen.js";
 import type { ThemeStore } from "./theme.js";
 import { bannerFor, canAct } from "./view.js";
 
-/** A direct link asks for a name first; then the room itself. */
 interface Stores {
   readonly theme: ThemeStore;
   readonly facilitate: FacilitateStore;
@@ -35,11 +35,12 @@ export function RoomPage({
     return (
       <>
         <Header theme={stores.theme} />
-        <main>
-          <h1>Join the room</h1>
+        <main className="page">
+          <h1>{JOIN_COPY.heading}</h1>
+          <p>{JOIN_COPY.intro}</p>
           <NameForm
             initial={null}
-            submitLabel="Join"
+            submitLabel={JOIN_COPY.submit}
             onSubmit={(chosen) => {
               identity.rememberName(chosen);
               setName(chosen);
@@ -128,7 +129,7 @@ function Room({
     return (
       <>
         {header}
-        <main>
+        <main className="page">
           <p role="status">{bannerFor(state)}</p>
         </main>
       </>
