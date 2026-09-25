@@ -22,6 +22,19 @@ npm run check   # typecheck, lint, format check and tests, as CI runs them
 
 `npm install` points git at [`.githooks/`](.githooks). Its `pre-push` hook runs `npm run check`, so a push that would fail CI fails locally first. Commits are not gated, so work-in-progress commits stay cheap, and CI remains the real gate. Skip the hook once with `git push --no-verify`.
 
+### Configuration
+
+The server reads its settings from environment variables. Unset means the default. A set but invalid value, including an empty string, stops it from starting, with a message that names every bad variable.
+
+| Variable            | Default  | Meaning                                                                            |
+| ------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `PORT`              | `3000`   | HTTP and WebSocket port                                                            |
+| `LOG_LEVEL`         | `info`   | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`                     |
+| `MAX_ROOMS`         | `10000`  | Rooms held in memory; a join that would create one more is refused                 |
+| `MAX_PENDING`       | `1000`   | Sockets that have not joined yet; more are refused with `1013`                     |
+| `SWEEP_INTERVAL_MS` | `5000`   | How often timeouts are checked (100–10000; every timeout can be one interval late) |
+| `ROOM_TTL_MS`       | `600000` | How long a room may stay empty before it is evicted                                |
+
 ## Architecture
 
 ### Presence and timeouts
