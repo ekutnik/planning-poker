@@ -95,7 +95,7 @@ describe.each([
       const publicParts = (html: string) =>
         html
           .replace(/<ul class="people"[\s\S]*?<\/ul>/, "")
-          .replace(/<p class="status">[^<]*<\/p>/, "")
+          .replace(/<p class="status"[^>]*>[^<]*<\/p>/, "")
           .replace(/<div class="controls">[\s\S]*?<\/div>/, "");
       expect(publicParts(stripped)).toBe(publicParts(notVoted));
       expect(voted).toContain("You&#x27;ve voted ✓");
