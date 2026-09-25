@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import { phaseAnnouncement } from "./announce.js";
+import { NOT_SAVED_COPY } from "./copy.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { RevealedView } from "./RevealedView.js";
 import { VotingView } from "./VotingView.js";
@@ -45,12 +46,7 @@ export function RoomView({
       </p>
       {banner && <p role="status">{banner}</p>}
       {notice && <p role="alert">{notice}</p>}
-      {!persistent && (
-        <p>
-          This browser is not saving your seat, so reloading joins you as
-          someone new.
-        </p>
-      )}
+      {!persistent && <p>{NOT_SAVED_COPY}</p>}
       {snapshot.phase === "voting" ? (
         <VotingView
           snapshot={snapshot}

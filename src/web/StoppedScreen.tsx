@@ -1,16 +1,11 @@
 import type { StopReason } from "./connection/policy.js";
-import { STOP_COPY } from "./copy.js";
+import { STOP_ACTION_LABELS, STOP_COPY } from "./copy.js";
 import { STOP_ACTIONS } from "./view.js";
 
-const LABELS = {
-  "use-this-tab": "Use this tab",
-  reload: "Reload",
-  "try-again": "Try again",
-  "change-name": "Change name",
-  home: "Back to start",
-} as const;
-
-/** Nothing here retries on its own; every way on is a button. */
+/**
+ * Why the room stopped, and the one way on. Nothing here retries on its own;
+ * every way on is a button.
+ */
 export function StoppedScreen({
   reason,
   onRestart,
@@ -38,7 +33,7 @@ export function StoppedScreen({
       <h1>{title}</h1>
       <p>{body}</p>
       <button type="button" onClick={handlers[action]}>
-        {LABELS[action]}
+        {STOP_ACTION_LABELS[action]}
       </button>
     </main>
   );
