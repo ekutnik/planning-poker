@@ -31,6 +31,15 @@ export interface Connection {
   terminate(): void;
 }
 
+/** How often the adapter runs sweep() unless told otherwise. */
+export const SWEEP_INTERVAL_MS = 5_000;
+
+/**
+ * A gap between sweeps longer than this many intervals means the process was
+ * paused, not that clients went quiet (#26).
+ */
+export const STALL_INTERVALS = 2;
+
 /** An unjoined socket is closed after this long (#14). */
 export const JOIN_TIMEOUT_MS = 10_000;
 
@@ -57,10 +66,11 @@ export interface Limits {
 }
 
 interface LogFields {
-  conn: string;
+  conn?: string;
   room?: string;
   type?: string;
   code?: string;
+  gapMs?: number;
 }
 
 /**
@@ -68,7 +78,30 @@ interface LogFields {
  * and `room` is always a roomLogId, never the room id itself (#21).
  */
 export interface RoomLog {
+  /** Client behaviour: opens, joins, timeouts, errors sent to a client. */
   info(fields: LogFields): void;
+  /** Server health: something about this process needs attention. */
+  warn(fields: LogFields): void;
+}
+
+const NO_LOG: RoomLog = { info() {}, warn() {} };
+
+/** Wraps a RoomLog so that no level can receive a raw room id (#21). */
+export function redactRoomIds(log: RoomLog): RoomLog {
+  const scrub = (fields: LogFields): LogFields =>
+    fields.room === undefined
+      ? fields
+      : { ...fields, room: roomLogId(fields.room) };
+  return {
+    info: (fields) => log.info(scrub(fields)),
+    warn: (fields) => log.warn(scrub(fields)),
+  };
+}
+
+export interface ServiceOptions {
+  readonly log?: RoomLog;
+  /** The interval the caller runs sweep() at; sets the stall threshold (#26). */
+  readonly sweepIntervalMs?: number;
 }
 
 interface Pending {
@@ -102,33 +135,31 @@ export class RoomService {
   // alive, so it cannot leak. A WeakSet can't be sized, which is why
   // bookkeeping() doesn't report it.
   private readonly closed = new WeakSet<Connection>();
-  // The only way to the log. The raw RoomLog is captured here and never stored,
-  // so no method can bypass this and log a room id (#21).
-  private readonly info: (fields: LogFields) => void;
+  // Only the redacted logger is stored. The raw RoomLog never becomes a field,
+  // so no method can bypass the redaction and log a room id (#21).
+  private readonly log: RoomLog;
+  private readonly stallAfterMs: number;
+  private lastSweepAt: number | undefined;
 
   constructor(
     private readonly clock: () => number,
     private readonly limits: Limits,
-    log: RoomLog = { info() {} },
+    { log = NO_LOG, sweepIntervalMs = SWEEP_INTERVAL_MS }: ServiceOptions = {},
   ) {
-    this.info = (fields) =>
-      log.info(
-        fields.room === undefined
-          ? fields
-          : { ...fields, room: roomLogId(fields.room) },
-      );
+    this.stallAfterMs = sweepIntervalMs * STALL_INTERVALS;
+    this.log = redactRoomIds(log);
   }
 
   open(conn: Connection, roomId: string): void {
     if (this.closed.has(conn) || this.pending.has(conn)) return;
     if (this.bindings.has(conn)) return;
     if (this.pending.size >= this.limits.maxPending) {
-      this.info({ conn: conn.id, room: roomId, code: "PENDING_FULL" });
+      this.log.info({ conn: conn.id, room: roomId, code: "PENDING_FULL" });
       conn.close(1013, "try again later"); // standard: Try Again Later
       return;
     }
     this.pending.set(conn, { roomId, openedAt: this.clock() });
-    this.info({ conn: conn.id, room: roomId, type: "open" });
+    this.log.info({ conn: conn.id, room: roomId, type: "open" });
   }
 
   message(conn: Connection, raw: string): void {
@@ -141,7 +172,7 @@ export class RoomService {
       this.sendError(conn, "INVALID_MESSAGE", roomId ?? binding?.roomId);
       return;
     }
-    this.info({
+    this.log.info({
       conn: conn.id,
       room: roomId ?? binding?.roomId,
       type: message.type,
@@ -171,7 +202,7 @@ export class RoomService {
       binding !== undefined &&
       this.current.get(binding.roomId)?.get(binding.participantId) === conn;
     this.forget(conn);
-    this.info({ conn: conn.id, room: binding?.roomId, type: "close" });
+    this.log.info({ conn: conn.id, room: binding?.roomId, type: "close" });
     if (!stillCurrent || !binding) return;
 
     const room = this.rooms.get(binding.roomId);
@@ -200,43 +231,80 @@ export class RoomService {
    * - Join timeout (#14): close a socket still unjoined after JOIN_TIMEOUT_MS.
    * - Heartbeat (#13): ping a joined connection not pinged for PING_INTERVAL_MS;
    *   terminate one whose last pong is PONG_TIMEOUT_MS old.
+   * - Grace removal (#19): propose `expire` for every disconnected participant;
+   *   the domain removes those disconnected for DISCONNECT_GRACE_MS.
    *
    * Every rule compares timestamps, never a count of sweeps, so changing the
    * interval changes only the lateness. The cost is precision: a deadline fires
    * up to one sweep interval late. With a 5s interval, the join timeout closes
-   * a socket after 10–15s, and a silent connection is terminated 35–40s after
-   * its last pong.
+   * a socket after 10–15s, a silent connection is terminated 35–40s after its
+   * last pong, and a disconnected participant is removed 60–65s later.
+   *
+   * Stall guard (#26): deadlines and their evidence (pongs, joins) arrive
+   * through the same event loop, and Node runs an overdue timer before it
+   * reads queued I/O. After a pause longer than STALL_INTERVALS intervals,
+   * every deadline would look missed. So that sweep enforces none of them and
+   * only sends due pings; the next sweep runs after the queue is read.
    */
   sweep(): void {
     const now = this.clock();
+    const gapMs = now - (this.lastSweepAt ?? now);
+    const stalled = gapMs > this.stallAfterMs;
+    this.lastSweepAt = now;
+    // A stall is about this server's health, not a client's behaviour.
+    if (stalled) this.log.warn({ type: "sweep-stalled", gapMs });
+
     const expired: [Connection, Pending][] = [];
-    for (const entry of this.pending) {
-      if (now - entry[1].openedAt >= JOIN_TIMEOUT_MS) expired.push(entry);
+    if (!stalled) {
+      for (const entry of this.pending) {
+        if (now - entry[1].openedAt >= JOIN_TIMEOUT_MS) expired.push(entry);
+      }
     }
     const silent: Connection[] = [];
     const due: [Connection, Liveness][] = [];
     for (const [conn, beat] of this.liveness) {
-      if (now - beat.lastPongAt >= PONG_TIMEOUT_MS) silent.push(conn);
+      if (!stalled && now - beat.lastPongAt >= PONG_TIMEOUT_MS)
+        silent.push(conn);
       else if (now - beat.lastPingAt >= PING_INTERVAL_MS)
         due.push([conn, beat]);
     }
 
-    // Mutate fully, then call out: close() and terminate() may re-enter the
-    // service. Silent connections are deliberately not forgotten here:
-    // terminate() reaches close(), which needs the binding to dispatch
+    // The sweep proposes; the domain decides who is past the grace period.
+    const expiredRooms: Room[] = [];
+    if (!stalled) {
+      for (const room of this.rooms.values()) {
+        let next = room;
+        for (const { id, status } of room.participants.values()) {
+          if (status !== "disconnected") continue;
+          const command = { type: "expire", participantId: id } as const;
+          const result = applyCommand(next, command, now);
+          if (result.ok) next = result.room;
+        }
+        if (next !== room) expiredRooms.push(next);
+      }
+    }
+
+    // Mutate fully, then call out: close(), terminate() and send() may
+    // re-enter the service. Silent connections are deliberately not forgotten
+    // here: terminate() reaches close(), which needs the binding to dispatch
     // disconnect, exactly as for any other dropped socket.
     for (const [conn] of expired) this.pending.delete(conn);
     for (const [, beat] of due) beat.lastPingAt = now;
+    for (const room of expiredRooms) this.rooms.set(room.id, room);
 
     for (const [conn, { roomId }] of expired) {
-      this.info({ conn: conn.id, room: roomId, type: "join-timeout" });
+      this.log.info({ conn: conn.id, room: roomId, type: "join-timeout" });
       conn.close(CloseCode.JOIN_TIMEOUT, "join timeout");
     }
     for (const [conn] of due) conn.ping();
     for (const conn of silent) {
       const room = this.bindings.get(conn)?.roomId;
-      this.info({ conn: conn.id, room, type: "heartbeat-timeout" });
+      this.log.info({ conn: conn.id, room, type: "heartbeat-timeout" });
       conn.terminate();
+    }
+    for (const room of expiredRooms) {
+      this.log.info({ room: room.id, type: "expire" });
+      this.broadcast(room);
     }
   }
 
@@ -306,7 +374,7 @@ export class RoomService {
       // current and cannot dispatch disconnect (ADR 0006). forget() leaves
       // `current` alone here, because it already points at the new socket.
       this.forget(previous);
-      this.info({ conn: previous.id, room: roomId, type: "supersede" });
+      this.log.info({ conn: previous.id, room: roomId, type: "supersede" });
       previous.close(CloseCode.SUPERSEDED, "superseded");
     }
 
@@ -362,7 +430,7 @@ export class RoomService {
   }
 
   private sendError(conn: Connection, code: ErrorCode, room?: string): void {
-    this.info({ conn: conn.id, room, code });
+    this.log.info({ conn: conn.id, room, code });
     conn.send({ type: "error", code });
   }
 
