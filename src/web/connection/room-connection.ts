@@ -194,17 +194,26 @@ export class RoomConnection {
       snapshot: this.snapshot,
     });
     const current = () => generation === this.generation;
-    this.socket = this.deps.openSocket(socketPath(this.roomId), {
-      onOpen: () => {
-        if (current()) this.handleOpen();
-      },
-      onMessage: (data) => {
-        if (current()) this.handleMessage(data);
-      },
-      onClose: (code) => {
-        if (current()) this.handleClose(code);
-      },
-    });
+    try {
+      this.socket = this.deps.openSocket(socketPath(this.roomId), {
+        onOpen: () => {
+          if (current()) this.handleOpen();
+        },
+        onMessage: (data) => {
+          if (current()) this.handleMessage(data);
+        },
+        onClose: (code) => {
+          if (current()) this.handleClose(code);
+        },
+      });
+    } catch (error) {
+      // new WebSocket() throws synchronously on a malformed URL, or on ws:
+      // from an https page. This may run inside the retry timer, so a throw
+      // would escape uncaught and leave no timer to move the client on.
+      this.deps.warn?.("could not open a socket", { error: String(error) });
+      this.scheduleRetry("normal");
+      return;
+    }
     // One timer for the whole lifecycle: the connect deadline until the
     // socket opens, liveness after.
     this.scheduleTick();

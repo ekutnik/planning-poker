@@ -116,15 +116,22 @@ function snapshot(version: number): RoomSnapshot {
   };
 }
 
-function setup(random = () => 0.5) {
+function setup(random = () => 0.5, failingOpens = 0) {
   const clock = new FakeClock();
   const sockets: FakeSocket[] = [];
+  let failuresLeft = failingOpens;
   const warnings: Record<string, unknown>[] = [];
   const connection = new RoomConnection(
     ROOM,
     { sessionToken: TOKEN, name: "Alice" },
     {
       openSocket: (path, events) => {
+        if (failuresLeft > 0) {
+          failuresLeft -= 1;
+          throw new SyntaxError(
+            "The URL's scheme must be either 'ws' or 'wss'.",
+          );
+        }
         const socket = new FakeSocket(path, events);
         sockets.push(socket);
         return socket;
@@ -434,6 +441,27 @@ describe("RoomConnection — no state waits forever", () => {
     expect(connection.getState()).toMatchObject({ status: "reconnecting" });
     clock.advance(BACKOFF.normal.baseMs);
     expect(sockets).toHaveLength(2);
+  });
+
+  it("retries when opening a socket throws, and the next attempt succeeds", () => {
+    const { connection, latest, sockets, clock, warnings } = setup(
+      () => 0.999,
+      1,
+    );
+    connection.start(); // throws inside connect()
+    expect(connection.getState()).toMatchObject({
+      status: "reconnecting",
+      attempt: 1,
+    });
+    expect(warnings).toEqual([
+      { error: "SyntaxError: The URL's scheme must be either 'ws' or 'wss'." },
+    ]);
+
+    clock.advance(BACKOFF.normal.baseMs);
+    expect(sockets).toHaveLength(1);
+    latest().open();
+    latest().receive({ type: "snapshot", snapshot: snapshot(1) });
+    expect(connection.getState()).toMatchObject({ status: "open" });
   });
 
   it("keeps exactly one timer pending in every state short of stopped", () => {
