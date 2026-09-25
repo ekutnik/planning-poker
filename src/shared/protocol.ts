@@ -18,6 +18,9 @@ const SessionToken = z.string().regex(/^[A-Za-z0-9_-]{22,64}$/);
  * left open across a deploy is told to reload instead of failing validation.
  * Bump it for any change an old client could not handle: a message renamed,
  * removed or given a new required field, or a field whose meaning changes.
+ * A new server message type needs no bump, because clients ignore unknown
+ * types (#20). The rule applies from the first deploy: until then no old
+ * client exists anywhere.
  */
 export const PROTOCOL_VERSION = 1;
 
