@@ -25,7 +25,9 @@ const RETRY = (backoff: Backoff): ClosePolicy => ({ kind: "retry", backoff });
  * does not understand is more likely a network hiccup than a verdict.
  */
 const CLOSE_POLICY: ReadonlyMap<number, ClosePolicy> = new Map([
-  [1000, STOP("left")], // normal closure: the server confirms our leave
+  // The server ended the session deliberately. Our own leave never reaches
+  // here, because leave() abandons the socket before it closes.
+  [1000, STOP("left")],
   [CloseCode.SUPERSEDED, STOP("superseded")], // opened in another tab
   [CloseCode.OUTDATED_CLIENT, STOP("outdated")], // a new version is deployed
   [CloseCode.JOIN_TIMEOUT, RETRY("normal")],

@@ -499,6 +499,7 @@ describe("RoomConnection — sending and leaving", () => {
     connection.leave();
     expect(latest().sent.at(-1)).toEqual({ type: "leave" });
     expect(latest().closedWith?.code).toBe(1000);
+    // Stopped by leave() itself, before and without any close from the server.
     expect(connection.getState()).toEqual({
       status: "stopped",
       reason: "left",

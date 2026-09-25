@@ -9,7 +9,7 @@ import {
 
 describe("policyFor (#20)", () => {
   it.each<[string, number, ClosePolicy]>([
-    ["normal closure (our leave)", 1000, { kind: "stop", reason: "left" }],
+    ["the server ended the session", 1000, { kind: "stop", reason: "left" }],
     [
       "SUPERSEDED",
       CloseCode.SUPERSEDED,
