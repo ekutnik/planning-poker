@@ -139,8 +139,8 @@ export class RoomService {
   private readonly current = new Map<string, Map<ParticipantId, Connection>>();
   private readonly lastSent = new Map<Connection, string>();
   private readonly liveness = new Map<Connection, Liveness>();
-  // When each room last became empty. The domain has no timestamp for that,
-  // and store() is the only writer, so it cannot drift from `rooms` (#18).
+  // When each room became empty. The domain has no timestamp for that; only
+  // store() and evict() write it, together with `rooms` (#18).
   private readonly emptySince = new Map<string, number>();
   // Weak on purpose: it dedupes a second close() without keeping any connection
   // alive, so it cannot leak. A WeakSet can't be sized, which is why
@@ -318,10 +318,7 @@ export class RoomService {
     // disconnect, exactly as for any other dropped socket.
     for (const [conn] of expired) this.pending.delete(conn);
     for (const [, beat] of due) beat.lastPingAt = now;
-    for (const roomId of evicted) {
-      this.rooms.delete(roomId);
-      this.emptySince.delete(roomId);
-    }
+    for (const roomId of evicted) this.evict(roomId);
     for (const room of expiredRooms) this.store(room, now);
 
     for (const [conn, { roomId }] of expired) {
@@ -474,7 +471,10 @@ export class RoomService {
     conn.send({ type: "error", code });
   }
 
-  /** The only writer of `rooms`, so `emptySince` always matches it (#18). */
+  /**
+   * store() and evict() are the only writers of `rooms`, and each updates
+   * `emptySince` in the same step, so the two maps cannot drift (#18).
+   */
   private store(room: Room, now: number): void {
     this.rooms.set(room.id, room);
     // A room only becomes empty through a write, and an empty room gets no
@@ -482,6 +482,11 @@ export class RoomService {
     // when it became empty.
     if (room.participants.size > 0) this.emptySince.delete(room.id);
     else this.emptySince.set(room.id, now);
+  }
+
+  private evict(roomId: string): void {
+    this.rooms.delete(roomId);
+    this.emptySince.delete(roomId);
   }
 
   private forget(conn: Connection): void {
