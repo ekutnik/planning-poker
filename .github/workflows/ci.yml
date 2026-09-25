@@ -28,3 +28,5 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
+      # Same steps, same order as `npm run check`, which the pre-push hook runs.
+      - run: npm run build:web
