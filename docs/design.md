@@ -226,3 +226,4 @@ Session 7 audits what is built in; it is not a retrofit. It needs a browser, and
 - **Theme:** the no-flash script applies exactly what the app would, for every stored value (unit test); the stored choice is applied before first paint (the Session 8 end-to-end suite).
 - **Contrast, two tiers, both themes:** meaning (Ink, Cobalt, Agree, Discuss) at least 4.5:1 on Paper; control boundaries (Edge, Cobalt) at least 3:1; Rule below 3:1, so it cannot stand in for Edge; and a Paper numeral on a Cobalt fill at least 4.5:1.
 - Focus order and 200% zoom need a browser, so they belong to the Session 7 audit above.
+- **The Session 8 end-to-end suite** also covers what static markup cannot: "Clear my vote" clears the "Vote recorded" message and returns focus to the masked field; and in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked.
