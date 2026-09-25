@@ -9,7 +9,7 @@ Whenever a room changes — someone joins or leaves, casts or changes a vote, or
 
 ## Decision
 
-On every change, the server broadcasts a complete room snapshot (projected per viewer — see 0004) to all clients. Clients replace their local state wholesale. We do not send diffs. Every snapshot carries a monotonically increasing `version`, and clients discard any snapshot whose `version` is not newer than the one they already hold.
+On every change, the server broadcasts a complete room snapshot (projected per viewer — see 0004) to all clients. Clients replace their local state wholesale. We do not send diffs. Every snapshot carries a `version` that increases within one room's lifetime, but it is only comparable within one connection: after a server restart, recreate-on-join starts the room again at version 1, so a client comparing across connections would discard every new snapshot as stale and freeze. The protection against stale data across reconnects is simpler: a client ignores every event from a socket that is no longer its current one. Within one connection, where TCP already guarantees order, a decreasing `version` is a server bug worth logging.
 
 ## Alternatives considered
 
@@ -18,6 +18,6 @@ On every change, the server broadcasts a complete room snapshot (projected per v
 
 ## Consequences
 
-What gets easier: correctness is trivial. There is one source of truth — the server — and every broadcast overwrites the client entirely, so clients cannot drift. There is no merge logic and no patch-ordering. Reconnection is just "here is the current snapshot," and the `version` field lets a client cheaply drop a stale snapshot that races with a fresh one after reconnect.
+What gets easier: correctness is trivial. There is one source of truth — the server — and every broadcast overwrites the client entirely, so clients cannot drift. There is no merge logic and no patch-ordering. Reconnection is just "here is the current snapshot": a stale snapshot racing a fresh one after reconnect arrives on a socket that is no longer current, and is dropped for that reason, not by comparing versions.
 
 What gets harder: each message carries the whole room rather than a delta. This is a non-issue at our scale. A room is one scrum team, and even at our hard cap of `MAX_PARTICIPANTS = 30` a snapshot is low single-digit kilobytes — a rounding error on any modern connection, sent only when something actually changes. Snapshots are correct by construction; diffs would be a premature optimization bought with real complexity. If rooms ever became far larger, we would reconsider.
