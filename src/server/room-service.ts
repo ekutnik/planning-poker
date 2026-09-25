@@ -43,6 +43,12 @@ export const STALL_INTERVALS = 2;
 /** An unjoined socket is closed after this long (#14). */
 export const JOIN_TIMEOUT_MS = 10_000;
 
+/**
+ * An empty room is evicted after this long (#18). It can be short: with
+ * recreate-on-join (ADR 0001), an old link still works; it just starts empty.
+ */
+export const ROOM_TTL_MS = 10 * 60_000;
+
 /** A joined connection that has not been pinged for this long is pinged (#13). */
 export const PING_INTERVAL_MS = 15_000;
 
@@ -102,6 +108,8 @@ export interface ServiceOptions {
   readonly log?: RoomLog;
   /** The interval the caller runs sweep() at; sets the stall threshold (#26). */
   readonly sweepIntervalMs?: number;
+  /** How long a room may stay empty before the sweep evicts it (#18). */
+  readonly roomTtlMs?: number;
 }
 
 interface Pending {
@@ -131,6 +139,9 @@ export class RoomService {
   private readonly current = new Map<string, Map<ParticipantId, Connection>>();
   private readonly lastSent = new Map<Connection, string>();
   private readonly liveness = new Map<Connection, Liveness>();
+  // When each room last became empty. The domain has no timestamp for that,
+  // and store() is the only writer, so it cannot drift from `rooms` (#18).
+  private readonly emptySince = new Map<string, number>();
   // Weak on purpose: it dedupes a second close() without keeping any connection
   // alive, so it cannot leak. A WeakSet can't be sized, which is why
   // bookkeeping() doesn't report it.
@@ -139,14 +150,20 @@ export class RoomService {
   // so no method can bypass the redaction and log a room id (#21).
   private readonly log: RoomLog;
   private readonly stallAfterMs: number;
+  private readonly roomTtlMs: number;
   private lastSweepAt: number | undefined;
 
   constructor(
     private readonly clock: () => number,
     private readonly limits: Limits,
-    { log = NO_LOG, sweepIntervalMs = SWEEP_INTERVAL_MS }: ServiceOptions = {},
+    {
+      log = NO_LOG,
+      sweepIntervalMs = SWEEP_INTERVAL_MS,
+      roomTtlMs = ROOM_TTL_MS,
+    }: ServiceOptions = {},
   ) {
     this.stallAfterMs = sweepIntervalMs * STALL_INTERVALS;
+    this.roomTtlMs = roomTtlMs;
     this.log = redactRoomIds(log);
   }
 
@@ -207,13 +224,14 @@ export class RoomService {
 
     const room = this.rooms.get(binding.roomId);
     if (!room) return;
+    const now = this.clock();
     const result = applyCommand(
       room,
       { type: "disconnect", participantId: binding.participantId },
-      this.clock(),
+      now,
     );
     if (!result.ok || result.room === room) return;
-    this.rooms.set(binding.roomId, result.room);
+    this.store(result.room, now);
     this.broadcast(result.room);
   }
 
@@ -233,6 +251,9 @@ export class RoomService {
    *   terminate one whose last pong is PONG_TIMEOUT_MS old.
    * - Grace removal (#19): propose `expire` for every disconnected participant;
    *   the domain removes those disconnected for DISCONNECT_GRACE_MS.
+   * - Room TTL (#18): evict a room that has been empty for roomTtlMs. A room
+   *   with participants is never evicted; heartbeat and grace removal make an
+   *   abandoned room empty within about 105s.
    *
    * Every rule compares timestamps, never a count of sweeps, so changing the
    * interval changes only the lateness. The cost is precision: a deadline fires
@@ -284,13 +305,24 @@ export class RoomService {
       }
     }
 
+    const evicted: string[] = [];
+    if (!stalled) {
+      for (const [roomId, since] of this.emptySince) {
+        if (now - since >= this.roomTtlMs) evicted.push(roomId);
+      }
+    }
+
     // Mutate fully, then call out: close(), terminate() and send() may
     // re-enter the service. Silent connections are deliberately not forgotten
     // here: terminate() reaches close(), which needs the binding to dispatch
     // disconnect, exactly as for any other dropped socket.
     for (const [conn] of expired) this.pending.delete(conn);
     for (const [, beat] of due) beat.lastPingAt = now;
-    for (const room of expiredRooms) this.rooms.set(room.id, room);
+    for (const roomId of evicted) {
+      this.rooms.delete(roomId);
+      this.emptySince.delete(roomId);
+    }
+    for (const room of expiredRooms) this.store(room, now);
 
     for (const [conn, { roomId }] of expired) {
       this.log.info({ conn: conn.id, room: roomId, type: "join-timeout" });
@@ -306,10 +338,15 @@ export class RoomService {
       this.log.info({ room: room.id, type: "expire" });
       this.broadcast(room);
     }
+    for (const roomId of evicted) {
+      this.log.info({ room: roomId, type: "evict" });
+    }
   }
 
-  /** Live connection bookkeeping, so tests can prove close() leaks nothing. */
+  /** Live bookkeeping, so tests can prove nothing leaks: not sockets, not rooms. */
   bookkeeping(): {
+    rooms: number;
+    emptyRooms: number;
     pending: number;
     bindings: number;
     socketRooms: number;
@@ -320,6 +357,8 @@ export class RoomService {
     let sockets = 0;
     for (const room of this.current.values()) sockets += room.size;
     return {
+      rooms: this.rooms.size,
+      emptyRooms: this.emptySince.size,
       pending: this.pending.size,
       bindings: this.bindings.size,
       // Counted separately from sockets: an empty inner Map left in `current`
@@ -359,7 +398,7 @@ export class RoomService {
     }
 
     const next = result.room;
-    this.rooms.set(roomId, next);
+    this.store(next, now);
     this.pending.delete(conn);
     this.bindings.set(conn, { roomId, participantId });
     this.liveness.set(conn, { lastPingAt: now, lastPongAt: now });
@@ -390,14 +429,15 @@ export class RoomService {
     const room = this.rooms.get(binding.roomId);
     if (!room) return;
     const command = toCommand(message, binding.participantId);
-    const result = applyCommand(room, command, this.clock());
+    const now = this.clock();
+    const result = applyCommand(room, command, now);
     if (!result.ok) {
       this.sendError(conn, result.error, binding.roomId);
       return;
     }
     if (result.room === room) return;
 
-    this.rooms.set(binding.roomId, result.room);
+    this.store(result.room, now);
     if (command.type === "leave") {
       this.forget(conn);
       this.broadcast(result.room);
@@ -432,6 +472,16 @@ export class RoomService {
   private sendError(conn: Connection, code: ErrorCode, room?: string): void {
     this.log.info({ conn: conn.id, room, code });
     conn.send({ type: "error", code });
+  }
+
+  /** The only writer of `rooms`, so `emptySince` always matches it (#18). */
+  private store(room: Room, now: number): void {
+    this.rooms.set(room.id, room);
+    // A room only becomes empty through a write, and an empty room gets no
+    // further writes (nobody is left to send a command), so `now` is exactly
+    // when it became empty.
+    if (room.participants.size > 0) this.emptySince.delete(room.id);
+    else this.emptySince.set(room.id, now);
   }
 
   private forget(conn: Connection): void {
