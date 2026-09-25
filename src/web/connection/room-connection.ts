@@ -5,6 +5,7 @@ import {
   BACKOFF,
   backoffDelay,
   CLIENT_PING_INTERVAL_MS,
+  CONNECT_DEADLINE_MS,
   LIVENESS_TICK_MS,
   policyFor,
   PONG_DEADLINE_MS,
@@ -86,6 +87,11 @@ const JOIN_PHASE_ERRORS: Partial<Record<ErrorCode, StopReason>> = {
  * throttle timers to about once a minute) must never count as evidence
  * against the server: a late tick finds the pong already arrived, so
  * throttling can only delay detection, never cause it.
+ *
+ * Every state short of stopped has exactly one timer that can move it on:
+ * the retry timer while reconnecting, and otherwise one tick that enforces a
+ * connect deadline until the socket opens and liveness after. No state can
+ * wait forever on an event that never comes.
  */
 export class RoomConnection {
   private state: ConnectionState = {
@@ -102,7 +108,8 @@ export class RoomConnection {
   private generation = 0;
   private joined = false; // a snapshot has arrived on the current socket
   private lastVersion: number | null = null; // compared within one socket only
-  private openedAt = 0;
+  private connectStartedAt = 0;
+  private openedAt: number | null = null; // null until the socket opens
   private lastHeardAt = 0;
   private pingSentAt: number | null = null;
   private livenessTimer: number | null = null;
@@ -178,7 +185,9 @@ export class RoomConnection {
     const generation = ++this.generation;
     this.joined = false;
     this.lastVersion = null;
+    this.openedAt = null;
     this.pingSentAt = null;
+    this.connectStartedAt = this.deps.clock.now();
     this.setState({
       status: "connecting",
       attempt: this.attempt,
@@ -196,13 +205,15 @@ export class RoomConnection {
         if (current()) this.handleClose(code);
       },
     });
+    // One timer for the whole lifecycle: the connect deadline until the
+    // socket opens, liveness after.
+    this.scheduleTick();
   }
 
   private handleOpen(): void {
     const { sessionToken, name } = this.identity;
     this.socket?.send(JSON.stringify({ type: "join", sessionToken, name }));
     this.openedAt = this.lastHeardAt = this.deps.clock.now();
-    this.scheduleTick();
   }
 
   private handleMessage(data: string): void {
@@ -262,7 +273,18 @@ export class RoomConnection {
     this.livenessTimer = null;
     if (!this.socket) return;
     const now = this.deps.clock.now();
-    const { pingSentAt } = this;
+    const { openedAt, pingSentAt } = this;
+    if (openedAt === null) {
+      // Browsers have no connect timeout, and a black-holed path, a captive
+      // portal or a cell handover can leave a socket neither open nor closed.
+      if (now - this.connectStartedAt >= CONNECT_DEADLINE_MS) {
+        this.abandonSocket("connect timeout");
+        this.scheduleRetry("normal");
+        return;
+      }
+      this.scheduleTick();
+      return;
+    }
     const outstanding = pingSentAt !== null && this.lastHeardAt < pingSentAt;
     if (outstanding && now - pingSentAt >= PONG_DEADLINE_MS) {
       // No reply of any kind to our ping: the server or the path is gone.
@@ -270,7 +292,7 @@ export class RoomConnection {
       this.scheduleRetry("normal");
       return;
     }
-    const lastPing = pingSentAt ?? this.openedAt;
+    const lastPing = pingSentAt ?? openedAt;
     if (!outstanding && now - lastPing >= CLIENT_PING_INTERVAL_MS) {
       this.socket.send(JSON.stringify({ type: "ping" }));
       this.pingSentAt = now;

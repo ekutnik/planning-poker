@@ -9,6 +9,7 @@ import type { RoomSnapshot } from "../../shared/snapshot.js";
 import {
   BACKOFF,
   CLIENT_PING_INTERVAL_MS,
+  CONNECT_DEADLINE_MS,
   LIVENESS_TICK_MS,
   PONG_DEADLINE_MS,
 } from "./policy.js";
@@ -39,6 +40,9 @@ class FakeClock implements Clock {
   }
   clearTimeout(id: number): void {
     this.timers.delete(id);
+  }
+  pending(): number {
+    return this.timers.size;
   }
   /** Advances time, firing each timer at its own due time, in order. */
   advance(ms: number): void {
@@ -413,6 +417,39 @@ describe("RoomConnection — liveness", () => {
     }
     expect(latest().closedWith).toBeNull();
     expect(connection.getState()).toMatchObject({ status: "open" });
+  });
+});
+
+describe("RoomConnection — no state waits forever", () => {
+  it("retries a socket that never opens once CONNECT_DEADLINE_MS passes", () => {
+    const { connection, latest, sockets, clock } = setup(() => 0.999);
+    connection.start();
+    const hung = latest(); // neither open nor close ever arrives
+    clock.advance(CONNECT_DEADLINE_MS - 1);
+    expect(hung.closedWith).toBeNull();
+    expect(connection.getState()).toMatchObject({ status: "connecting" });
+
+    clock.advance(1); // the tick at 10s: exactly the deadline
+    expect(hung.closedWith).toEqual({ code: 1000, reason: "connect timeout" });
+    expect(connection.getState()).toMatchObject({ status: "reconnecting" });
+    clock.advance(BACKOFF.normal.baseMs);
+    expect(sockets).toHaveLength(2);
+  });
+
+  it("keeps exactly one timer pending in every state short of stopped", () => {
+    const { connection, latest, clock } = setup();
+    connection.start();
+    expect(clock.pending()).toBe(1); // connecting: the connect deadline
+    latest().open();
+    expect(clock.pending()).toBe(1); // open, not joined: liveness
+    latest().receive({ type: "snapshot", snapshot: snapshot(1) });
+    clock.advance(CLIENT_PING_INTERVAL_MS * 3);
+    latest().receive({ type: "pong" });
+    expect(clock.pending()).toBe(1); // joined: still one tick, not a second chain
+    latest().serverClose(1006);
+    expect(clock.pending()).toBe(1); // reconnecting: the retry timer
+    connection.leave();
+    expect(clock.pending()).toBe(0); // stopped: nothing left to fire
   });
 });
 

@@ -64,7 +64,12 @@ export const BACKOFF: Readonly<
 
 /** The client sends an app-level ping this often (#20). */
 export const CLIENT_PING_INTERVAL_MS = 20_000;
+/** A socket that has not opened after this long is abandoned and retried. */
+export const CONNECT_DEADLINE_MS = 10_000;
 /** A ping with no reply of any kind after this long means the server is gone. */
 export const PONG_DEADLINE_MS = 10_000;
-/** How often the liveness check runs; one timer, timestamps, like the server's sweep. */
+/**
+ * How often the connection's one timer runs. It covers the whole lifecycle,
+ * connect deadline included, by comparing timestamps, like the server's sweep.
+ */
 export const LIVENESS_TICK_MS = 5_000;
