@@ -53,6 +53,12 @@ export class RoomSession {
   readonly getSnapshot = (): SessionView => this.view;
 
   readonly subscribe = (listener: () => void): (() => void) => {
+    // Two live connections with one token would supersede each other in a
+    // loop. StrictMode's subscribe, unsubscribe, subscribe is sequential, so
+    // it never trips this; only a second concurrent subscriber does.
+    if (this.connection !== null) {
+      throw new Error("RoomSession supports one subscriber at a time");
+    }
     const connection = this.deps.connect();
     this.connection = connection;
     this.listener = listener;

@@ -99,6 +99,16 @@ describe("RoomSession", () => {
     expect(connections[1]?.started).toBe(1);
   });
 
+  it("refuses a second concurrent subscriber, keeping the first connection", () => {
+    const { session, connections } = setup();
+    session.subscribe(() => undefined);
+    expect(() => session.subscribe(() => undefined)).toThrow(
+      "one subscriber at a time",
+    );
+    expect(connections).toHaveLength(1);
+    expect(connections[0]?.disposed).toBe(false);
+  });
+
   it("returns the same snapshot object until something changes", () => {
     const { session, connections } = setup();
     let renders = 0;
