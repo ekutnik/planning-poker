@@ -1,8 +1,8 @@
-/* Interim screen styles on the tokens, until PR B lays out the screens. */
+/* Page frame and the header. The screens have their own stylesheets. */
 
 body {
   margin: 0 auto;
-  max-width: 60rem;
+  max-width: 72rem;
   padding: var(--space-3);
 }
 
@@ -26,14 +26,4 @@ body {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-button[aria-pressed="true"] {
-  color: var(--cobalt);
-  font-weight: var(--weight-bold);
-  outline: 3px solid var(--cobalt);
-}
-
-main[aria-busy="true"] button:disabled {
-  opacity: 0.5;
 }

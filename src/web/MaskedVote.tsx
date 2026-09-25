@@ -1,0 +1,68 @@
+import { useId, useState, type KeyboardEvent } from "react";
+import type { Card } from "../shared/deck.js";
+import { submitMasked } from "./masked.js";
+
+/**
+ * The leak-free way to vote on a shared screen, where the cursor moving to a
+ * card would show the vote. Typing is masked, the field always clears, and
+ * no message ever contains what was typed. Not a <form>, and marked so
+ * password managers leave it alone. Nothing here shows the vote itself.
+ */
+export function MaskedVote({
+  disabled,
+  hasVoted,
+  onVote,
+  onClear,
+}: {
+  readonly disabled: boolean;
+  readonly hasVoted: boolean;
+  readonly onVote: (card: Card) => void;
+  readonly onClear: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const id = useId();
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const { vote, message: next } = submitMasked(value);
+    setValue("");
+    setMessage(next);
+    if (vote !== null) onVote(vote);
+  };
+
+  return (
+    <div className="own-vote">
+      <label htmlFor={id}>Your vote (hidden)</label>
+      <input
+        id={id}
+        className="masked"
+        type="text"
+        value={value}
+        disabled={disabled}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        data-1p-ignore=""
+        data-lpignore="true"
+        data-form-type="other"
+        aria-describedby={`${id}-message`}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={onKeyDown}
+      />
+      <p id={`${id}-message`} role="status" className="own-vote-message">
+        {message}
+      </p>
+      {hasVoted && (
+        <>
+          <p className="own-vote-confirmation">You&apos;ve voted ✓</p>
+          <button type="button" disabled={disabled} onClick={onClear}>
+            Clear my vote
+          </button>
+        </>
+      )}
+    </div>
+  );
+}

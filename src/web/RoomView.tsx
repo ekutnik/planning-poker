@@ -1,27 +1,29 @@
-import { DECK } from "../shared/deck.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import type { RoomAction } from "./connection/room-connection.js";
-import { resultLines, voteFor } from "./view.js";
+import { resultLines } from "./view.js";
+import { VotingView } from "./VotingView.js";
 
-/** The plain room. Session 6 designs it; this only has to work. */
+/**
+ * The room: banners, then the voting screen, or the results until PR C turns
+ * the deck into the scale. The room id is never shown; Copy link in the
+ * header shares it.
+ */
 export function RoomView({
   snapshot,
+  facilitating,
   live,
   banner,
   notice,
-  link,
   persistent,
   onAction,
-  onLeave,
 }: {
   readonly snapshot: RoomSnapshot;
+  readonly facilitating: boolean;
   readonly live: boolean;
   readonly banner: string | null;
   readonly notice: string | null;
-  readonly link: string;
   readonly persistent: boolean;
   readonly onAction: (action: RoomAction) => void;
-  readonly onLeave: () => void;
 }) {
   const you = (id: string) => (id === snapshot.viewerId ? " (you)" : "");
   return (
@@ -34,56 +36,25 @@ export function RoomView({
           someone new.
         </p>
       )}
-      <h1>Planning Poker</h1>
-      <p>
-        Invite your team with this link: <code>{link}</code>
-      </p>
-
-      <h2>Participants</h2>
-      <ul>
-        {snapshot.phase === "voting"
-          ? snapshot.participants.map((p) => (
-              <li key={p.id}>
-                {p.name}
-                {you(p.id)}: {p.hasVoted ? "voted" : "thinking"}
-                {p.status === "disconnected" && " (away)"}
-              </li>
-            ))
-          : snapshot.participants.map((p) => (
+      {snapshot.phase === "voting" ? (
+        <VotingView
+          snapshot={snapshot}
+          facilitating={facilitating}
+          live={live}
+          onAction={onAction}
+        />
+      ) : (
+        <>
+          <h2>Participants</h2>
+          <ul>
+            {snapshot.participants.map((p) => (
               <li key={p.id}>
                 {p.name}
                 {you(p.id)}: {p.vote ?? "no vote"}
                 {p.status === "disconnected" && " (away)"}
               </li>
             ))}
-      </ul>
-
-      {snapshot.phase === "voting" ? (
-        <>
-          <h2>Your card</h2>
-          <div role="group" aria-label="Cards">
-            {DECK.map((card) => (
-              <button
-                key={card}
-                type="button"
-                aria-pressed={snapshot.yourVote === card}
-                disabled={!live}
-                onClick={() => onAction(voteFor(snapshot.yourVote, card))}
-              >
-                {card}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            disabled={!live}
-            onClick={() => onAction({ type: "reveal" })}
-          >
-            Reveal
-          </button>
-        </>
-      ) : (
-        <>
+          </ul>
           <h2>Results</h2>
           <ul>
             {resultLines(snapshot).map((line, index) => (
@@ -95,13 +66,10 @@ export function RoomView({
             disabled={!live}
             onClick={() => onAction({ type: "reset" })}
           >
-            New round
+            Start next round
           </button>
         </>
       )}
-      <button type="button" onClick={onLeave}>
-        Leave
-      </button>
     </main>
   );
 }

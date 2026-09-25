@@ -1,37 +1,52 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
+import { CopyLinkButton } from "./CopyLinkButton.js";
 import { createBrowserConnection } from "./connection/browser.js";
 import { retryOnReturn } from "./connection/wake.js";
+import type { FacilitateStore } from "./facilitate.js";
+import { Header } from "./Header.js";
 import type { Identity } from "./identity.js";
 import { NameForm } from "./NameForm.js";
 import { RoomSession } from "./room-session.js";
 import { RoomView } from "./RoomView.js";
 import { StoppedScreen } from "./StoppedScreen.js";
+import type { ThemeStore } from "./theme.js";
 import { bannerFor, canAct } from "./view.js";
+
+/** A direct link asks for a name first; then the room itself. */
+interface Stores {
+  readonly theme: ThemeStore;
+  readonly facilitate: FacilitateStore;
+}
 
 /** A direct link asks for a name first; then the room itself. */
 export function RoomPage({
   roomId,
   identity,
+  stores,
   onHome,
 }: {
   readonly roomId: string;
   readonly identity: Identity;
+  readonly stores: Stores;
   readonly onHome: () => void;
 }) {
   const [name, setName] = useState(() => identity.lastName());
   if (name === null) {
     return (
-      <main>
-        <h1>Join the room</h1>
-        <NameForm
-          initial={null}
-          submitLabel="Join"
-          onSubmit={(chosen) => {
-            identity.rememberName(chosen);
-            setName(chosen);
-          }}
-        />
-      </main>
+      <>
+        <Header theme={stores.theme} />
+        <main>
+          <h1>Join the room</h1>
+          <NameForm
+            initial={null}
+            submitLabel="Join"
+            onSubmit={(chosen) => {
+              identity.rememberName(chosen);
+              setName(chosen);
+            }}
+          />
+        </main>
+      </>
     );
   }
   return (
@@ -40,6 +55,7 @@ export function RoomPage({
       roomId={roomId}
       name={name}
       identity={identity}
+      stores={stores}
       onChangeName={() => setName(null)}
       onHome={onHome}
     />
@@ -50,12 +66,14 @@ function Room({
   roomId,
   name,
   identity,
+  stores,
   onChangeName,
   onHome,
 }: {
   readonly roomId: string;
   readonly name: string;
   readonly identity: Identity;
+  readonly stores: Stores;
   readonly onChangeName: () => void;
   readonly onHome: () => void;
 }) {
@@ -73,35 +91,61 @@ function Room({
     session.subscribe,
     session.getSnapshot,
   );
+  const facilitating = useSyncExternalStore(
+    stores.facilitate.subscribe,
+    stores.facilitate.isOn,
+  );
 
   if (state.status === "stopped") {
     return (
-      <StoppedScreen
-        reason={state.reason}
-        onRestart={() => session.restart()}
-        onReload={() => window.location.reload()}
-        onChangeName={onChangeName}
-        onHome={onHome}
-      />
+      <>
+        <Header theme={stores.theme} />
+        <StoppedScreen
+          reason={state.reason}
+          onRestart={() => session.restart()}
+          onReload={() => window.location.reload()}
+          onChangeName={onChangeName}
+          onHome={onHome}
+        />
+      </>
     );
   }
+  const header = (
+    <Header
+      theme={stores.theme}
+      facilitate={stores.facilitate}
+      actions={
+        <>
+          <CopyLinkButton link={window.location.href} />
+          <button type="button" onClick={() => session.leave()}>
+            Leave
+          </button>
+        </>
+      }
+    />
+  );
   if (state.snapshot === null) {
     return (
-      <main>
-        <p role="status">{bannerFor(state)}</p>
-      </main>
+      <>
+        {header}
+        <main>
+          <p role="status">{bannerFor(state)}</p>
+        </main>
+      </>
     );
   }
   return (
-    <RoomView
-      snapshot={state.snapshot}
-      live={canAct(state)}
-      banner={bannerFor(state)}
-      notice={notice}
-      link={window.location.href}
-      persistent={identity.persistent}
-      onAction={(action) => session.send(action)}
-      onLeave={() => session.leave()}
-    />
+    <>
+      {header}
+      <RoomView
+        snapshot={state.snapshot}
+        facilitating={facilitating}
+        live={canAct(state)}
+        banner={bannerFor(state)}
+        notice={notice}
+        persistent={identity.persistent}
+        onAction={(action) => session.send(action)}
+      />
+    </>
   );
 }
