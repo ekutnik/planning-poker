@@ -3,8 +3,9 @@
  * and dark value, through light-dark(): color-scheme picks one. The theme menu
  * pins color-scheme with data-theme on <html>; without it, the system decides.
  *
- * Colour is never the only signal, and nothing that carries meaning uses
- * --rule: it is too faint to survive a compressed screen share.
+ * Colour is never the only signal. --rule is for decoration only (dividers,
+ * empty states): it is too faint to survive a compressed screen share, and
+ * too faint for a control's boundary, which is what --edge is for.
  */
 
 @font-face {
@@ -39,7 +40,8 @@
   /* Colour: light-dark(light, dark). */
   --paper: light-dark(#f3f5f2, #141a20); /* background */
   --ink: light-dark(#1e2833, #e4e9ee); /* text, card numerals */
-  --rule: light-dark(#cdd5d1, #33404b); /* outlines, dividers only */
+  --rule: light-dark(#cdd5d1, #33404b); /* dividers, empty states */
+  --edge: light-dark(#7d8a92, #606b72); /* card outlines: 3:1 on paper */
   --cobalt: light-dark(#2d5bd8, #7fa2ff); /* your selection, focus, primary */
   --agree: light-dark(#2f7d5b, #5fbf93); /* consensus */
   --discuss: light-dark(#966319, #e0a84a); /* wide spread, outliers */

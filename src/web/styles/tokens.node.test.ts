@@ -33,22 +33,51 @@ describe("colour tokens", () => {
 
   it("defines every colour for both themes", () => {
     expect(Object.keys(palette).sort()).toEqual(
-      ["agree", "cobalt", "discuss", "ink", "paper", "rule"].sort(),
+      ["agree", "cobalt", "discuss", "edge", "ink", "paper", "rule"].sort(),
     );
   });
 
-  // Everything that carries meaning must read over a compressed screen share:
-  // WCAG AA for normal text, on Paper, in both themes. Rule carries no
-  // meaning (outlines and dividers only), so it is not held to this.
+  const onPaper = (name: string): [number, number] => {
+    const [light, dark] = palette[name] ?? ["", ""];
+    const [paperLight, paperDark] = palette.paper ?? ["", ""];
+    return [contrast(light, paperLight), contrast(dark, paperDark)];
+  };
+
+  // Tier 1, meaning: everything that carries meaning must read over a
+  // compressed screen share, so WCAG AA for normal text, in both themes.
   it.each(["ink", "cobalt", "agree", "discuss"])(
     "%s is at least 4.5:1 on paper in both themes",
     (name) => {
-      const [light, dark] = palette[name] ?? ["", ""];
-      const [paperLight, paperDark] = palette.paper ?? ["", ""];
-      expect(contrast(light, paperLight)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(dark, paperDark)).toBeGreaterThanOrEqual(4.5);
+      for (const ratio of onPaper(name)) {
+        expect(ratio).toBeGreaterThanOrEqual(4.5);
+      }
     },
   );
+
+  // Tier 2, control boundaries: WCAG 1.4.11 needs 3:1 for what identifies a
+  // control, such as a card's outline (Edge) and the focus ring (Cobalt).
+  it.each(["edge", "cobalt"])(
+    "%s is at least 3:1 on paper in both themes",
+    (name) => {
+      for (const ratio of onPaper(name)) {
+        expect(ratio).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+
+  // Rule is decoration only (dividers, empty states); it is too faint for
+  // either tier, which is why cards have Edge.
+  it("keeps rule below the control tier, so it cannot stand in for edge", () => {
+    for (const ratio of onPaper("rule")) expect(ratio).toBeLessThan(3);
+  });
+
+  // A selected card is a Cobalt fill with a Paper numeral.
+  it("reads a paper numeral on a cobalt fill at 4.5:1 in both themes", () => {
+    const [cobaltLight, cobaltDark] = palette.cobalt ?? ["", ""];
+    const [paperLight, paperDark] = palette.paper ?? ["", ""];
+    expect(contrast(paperLight, cobaltLight)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(paperDark, cobaltDark)).toBeGreaterThanOrEqual(4.5);
+  });
 });
 
 describe("type scale", () => {
