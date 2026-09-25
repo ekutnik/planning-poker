@@ -69,6 +69,10 @@ See [docs/decisions](docs/decisions).
 
 ## Roadmap
 
+## Credits
+
+The typeface is [Atkinson Hyperlegible Next](https://github.com/googlefonts/atkinson-hyperlegible-next), created for the Braille Institute of America, used under the SIL Open Font License 1.1 ([`src/web/fonts/OFL.txt`](src/web/fonts/OFL.txt)).
+
 ## License
 
 MIT

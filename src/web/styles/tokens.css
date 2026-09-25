@@ -1,0 +1,95 @@
+/*
+ * Design tokens (docs/design.md). Each colour is defined once, with its light
+ * and dark value, through light-dark(): color-scheme picks one. The theme menu
+ * pins color-scheme with data-theme on <html>; without it, the system decides.
+ *
+ * Colour is never the only signal, and nothing that carries meaning uses
+ * --rule: it is too faint to survive a compressed screen share.
+ */
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("../fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("../fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* Colour: light-dark(light, dark). */
+  --paper: light-dark(#f3f5f2, #141a20); /* background */
+  --ink: light-dark(#1e2833, #e4e9ee); /* text, card numerals */
+  --rule: light-dark(#cdd5d1, #33404b); /* outlines, dividers only */
+  --cobalt: light-dark(#2d5bd8, #7fa2ff); /* your selection, focus, primary */
+  --agree: light-dark(#2f7d5b, #5fbf93); /* consensus */
+  --discuss: light-dark(#966319, #e0a84a); /* wide spread, outliers */
+
+  /* Type: one family, weights 400 and 700, sentence case everywhere. */
+  --font:
+    "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --weight-regular: 400;
+  --weight-bold: 700;
+
+  /* Compact sizes; wide sizes below. rem, so browser zoom scales them. */
+  --text-body: 1rem; /* 16px */
+  --text-status: 1.125rem; /* 18px, bold */
+  --text-card: 1.75rem; /* 28px, bold */
+  --text-name: 1rem; /* 16px, bold */
+  --text-heading: 1.25rem; /* 20px, bold */
+
+  /* Space separates sections; only the cards have outlines. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-5: 2.5rem;
+  --card-radius: 0.375rem;
+
+  /* The only motion: names settle onto the scale at reveal. */
+  --settle: 180ms;
+}
+
+/* Wide: sized for a 1080p screen share seen as a video thumbnail. */
+@media (min-width: 55em) {
+  :root {
+    --text-body: 1.125rem; /* 18px */
+    --text-status: 1.375rem; /* 22px */
+    --text-card: 2.5rem; /* 40px */
+    --text-name: 1.125rem; /* 18px */
+    --text-heading: 1.5rem; /* 24px */
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --settle: 0ms;
+  }
+}
