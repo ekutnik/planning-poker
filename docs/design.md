@@ -91,8 +91,9 @@ Compact, participant view, voting:
 
 ```
 ┌──────────────────────────────────┐
-│ Planning poker   Copy link  Leave│
-│ Facilitate ○   Theme             │
+│ Planning poker                   │
+│ Facilitate ○  Theme              │
+│ Copy link  Leave                 │
 │                                  │
 │ 4 of 5 have voted                │
 │ ● Ada  ● Ben  ○ Cy  ● Dee        │
@@ -153,6 +154,7 @@ A per-person view, not a role, so the server does not change and anyone can stil
 
 - **The toggle.** A "Facilitate" switch in the header with `aria-pressed`, remembered per browser in `localStorage`, because the same person usually runs every session. Its description reads: "Shows the round controls up front and hides your own vote, so you can share your screen."
 - **Controls up front.** "Reveal votes", then "Start next round", as the primary action, always in the same place: top of the main area in wide, pinned to the bottom in compact. In the participant view the same controls are quieter secondary buttons.
+- **The controls come last in the DOM,** after the hidden vote. In compact that matches the pinned bar; in wide they sit top right but come last in keyboard order, which still follows the task (read the status, see who is in, vote, then reveal): WCAG asks for a meaningful focus order, not a strictly visual one.
 - **The status line names who is missing** ("Waiting for Cy. Fay is away.") rather than counting, because that is what the facilitator says aloud. When everyone counted has voted it reads "Everyone has voted", with any away non-voters after it ("Everyone has voted. Fay is away.").
 - **No confirmation on reveal.** "1 hasn't voted" sits beside the button instead. A calm, fast tool does not add friction.
 - **Per browser, so design for the surprise.** Someone who facilitated yesterday may join as a participant today, click a card, and see no selection. The toggle's visible state in the header and the "You've voted ✓" line must make it obvious they are in the facilitator view.
@@ -201,7 +203,7 @@ Each action keeps one name through the whole flow.
 Session 7 audits what is built in; it is not a retrofit. It needs a browser, and covers:
 
 - A screen reader pass, and keyboard only, in both layouts and both themes.
-- **Focus order follows visual order in both layouts.** One component tree keeps the DOM order identical by construction; the real risk is CSS grid areas reordering the picture without reordering the DOM, so focus jumps around the screen.
+- **Focus order is meaningful in both layouts.** One component tree keeps the DOM order identical by construction; the real risk is CSS grid areas reordering the picture without reordering the DOM, so focus jumps around the screen. The one deliberate difference is the wide facilitator controls (see the facilitator view).
 - **200% zoom,** including that the pinned facilitator bar in the compact layout never covers the deck: a sticky bar is a common way for a zoomed page to become unusable.
 
 ## Reviewed against the brief

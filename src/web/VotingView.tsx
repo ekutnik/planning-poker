@@ -51,14 +51,6 @@ export function VotingView({
       <p className="status">
         {facilitating ? status.facilitatorLine : status.participantLine}
       </p>
-      {facilitating && (
-        <div className="controls">
-          {reveal}
-          {status.notVotedLine && (
-            <p className="not-voted">{status.notVotedLine}</p>
-          )}
-        </div>
-      )}
       <ul className="people" aria-label="Participants">
         {snapshot.participants.map((p) => (
           <li key={p.id}>
@@ -84,16 +76,23 @@ export function VotingView({
           )
         }
       />
-      {facilitating ? (
+      {facilitating && (
         <MaskedVote
           disabled={!live}
           hasVoted={hasVoted}
           onVote={(card) => onAction({ type: "castVote", card })}
           onClear={() => onAction({ type: "clearVote" })}
         />
-      ) : (
-        <div className="controls">{reveal}</div>
       )}
+      {/* Last in the DOM, so keyboard order follows the task: read the
+          status, see who is in, vote, then reveal. Wide shows the controls
+          top right; grid areas move them without reordering (design.md). */}
+      <div className="controls">
+        {reveal}
+        {facilitating && status.notVotedLine && (
+          <p className="not-voted">{status.notVotedLine}</p>
+        )}
+      </div>
     </div>
   );
 }

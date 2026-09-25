@@ -112,6 +112,14 @@ describe.each([
       expect(input).toContain('data-1p-ignore=""');
       expect(html).not.toContain("<form");
     });
+
+    it("puts the round controls last, after the hidden vote", () => {
+      // Keyboard order follows the task: status, people, vote, then reveal.
+      const html = render("13", true);
+      const controls = html.indexOf('<div class="controls">');
+      expect(controls).toBeGreaterThan(html.indexOf('class="own-vote"'));
+      expect(controls).toBeGreaterThan(html.indexOf('role="toolbar"'));
+    });
   },
 );
 
