@@ -13,5 +13,7 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  "files": ["src/web/vite.config.ts"],
+  "include": ["src"],
+  "exclude": ["src/web"]
 }
