@@ -1,5 +1,6 @@
-import { spawnSync } from "node:child_process";
-import { describe, expect, it } from "vitest";
+import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:net";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { DEFAULT_LIMITS } from "./app.js";
 import { parseConfig } from "./config.js";
 import {
@@ -103,4 +104,66 @@ describe("main", () => {
     expect(run.stderr).toContain("Invalid configuration");
     expect(run.stderr).toContain("MAX_ROOMS");
   });
+
+  it("logs the effective config at startup, so a misspelled variable shows", async () => {
+    const port = await freePort();
+    const child = spawn(
+      process.execPath,
+      ["--import", "tsx", "src/server/main.ts"],
+      {
+        env: {
+          ...process.env,
+          PORT: String(port),
+          LOG_LEVEL: "info",
+          MAX_ROOM: "7", // typo for MAX_ROOMS: ignored, so the default applies
+        },
+      },
+    );
+    // Runs even if the test times out, so a failure never leaks a server.
+    onTestFinished(() => {
+      child.kill();
+    });
+
+    const line = await firstLine(child.stdout, '"configuration"', 4_000);
+    const logged = JSON.parse(line) as { config: { limits: unknown } };
+    expect(logged.config.limits).toEqual(DEFAULT_LIMITS);
+  });
 });
+
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+function firstLine(
+  stream: NodeJS.ReadableStream,
+  containing: string,
+  timeoutMs: number,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () =>
+        reject(new Error(`no line containing ${containing} in ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    let buffered = "";
+    stream.setEncoding("utf8");
+    stream.on("data", (chunk: string) => {
+      buffered += chunk;
+      const line = buffered.split("\n").find((l) => l.includes(containing));
+      if (line) {
+        clearTimeout(timer);
+        resolve(line);
+      }
+    });
+    stream.on("end", () =>
+      reject(new Error(`no line containing ${containing}`)),
+    );
+  });
+}

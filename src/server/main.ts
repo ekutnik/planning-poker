@@ -15,6 +15,10 @@ const app = buildServer({
   sweepIntervalMs: config.sweepIntervalMs,
   roomTtlMs: config.roomTtlMs,
 });
+// A misspelled variable (MAX_ROOM=5) is simply absent, so its default
+// applies; logging the effective config once is how an operator notices.
+// Nothing in it is secret.
+app.log.info({ config }, "configuration");
 
 try {
   await app.listen({ port: config.port });

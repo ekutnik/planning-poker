@@ -24,7 +24,7 @@ npm run check   # typecheck, lint, format check and tests, as CI runs them
 
 ### Configuration
 
-The server reads its settings from environment variables. Unset means the default. A set but invalid value, including an empty string, stops it from starting, with a message that names every bad variable. Numbers must be plain decimal digits (`0x10`, `1e4` and ` 5` are refused).
+The server reads its settings from environment variables. Unset means the default. A set but invalid value, including an empty string, stops it from starting, with a message that names every bad variable. Numbers must be plain decimal digits (`0x10`, `1e4` and ` 5` are refused). The effective configuration is logged once at startup, so a misspelled variable, which is simply ignored, shows up as its default.
 
 | Variable            | Default  | Meaning                                                                                              |
 | ------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
