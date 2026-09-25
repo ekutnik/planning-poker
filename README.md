@@ -47,6 +47,7 @@ Every timeout runs in one periodic sweep that compares timestamps (no per-connec
 | Heartbeat ping    | every 15s               | answered by the browser itself |
 | Heartbeat timeout | 35s since the last pong | terminated after 35–40s        |
 | Disconnect grace  | 60s after disconnecting | removed after 60–65s           |
+| Room TTL          | 10 min empty            | evicted after 10 min–10 min 5s |
 
 **Worst case:** a laptop whose lid closes (no FIN is ever sent) shows as disconnected 35–40s after its last pong and, absent a server stall, leaves the room at most **105s** after it (35s + 60s + two sweep intervals). Reconnecting before then reclaims the seat with the vote. A test asserts this bound.
 
