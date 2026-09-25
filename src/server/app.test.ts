@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type WebSocket from "ws";
-import type { ClientMessage, ServerMessage } from "../shared/protocol.js";
+import {
+  PROTOCOL_VERSION,
+  socketPath,
+  type ClientMessage,
+  type ServerMessage,
+} from "../shared/protocol.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import { buildServer, toConnection, type ServerOptions } from "./app.js";
 import { CloseCode } from "../shared/close-codes.js";
@@ -64,7 +69,7 @@ let app: App;
 const clients: TestClient[] = [];
 
 async function connect(roomId: string): Promise<TestClient> {
-  const client = new TestClient(await app.injectWS(`/ws/${roomId}`));
+  const client = new TestClient(await app.injectWS(socketPath(roomId)));
   clients.push(client);
   return client;
 }
@@ -204,6 +209,44 @@ describe("websocket route", () => {
     const readsAtClose = reads;
     await sleep(25);
     expect(reads).toBe(readsAtClose);
+  });
+
+  it.each(["", "?v=0", "?v=2", "?v=1.0", "?v=1&v=1", "?version=1"])(
+    "closes a client with protocol %j as OUTDATED_CLIENT, before any room state",
+    async (query) => {
+      const lines: { type?: string }[] = [];
+      await restart({
+        logger: {
+          stream: {
+            write: (line: string) =>
+              lines.push(JSON.parse(line) as { type?: string }),
+          },
+        },
+      });
+      const roomId = await createRoom();
+      const client = new TestClient(
+        await app.injectWS(`/ws/${roomId}${query}`),
+      );
+      clients.push(client);
+
+      // The upgrade succeeds, so the client can read why it was closed.
+      expect(await client.closed).toEqual({
+        code: CloseCode.OUTDATED_CLIENT,
+        reason: "outdated client",
+      });
+      const types = lines.map((line) => line.type);
+      expect(types).toContain("outdated-client");
+      expect(types).not.toContain("open"); // RoomService never saw it
+    },
+  );
+
+  it("lets a client on the current protocol version join", async () => {
+    expect(socketPath("abcdefghijk")).toBe(
+      `/ws/abcdefghijk?v=${PROTOCOL_VERSION}`,
+    );
+    const alice = await connect(await createRoom());
+    alice.send({ type: "join", sessionToken: randomUUID(), name: "Alice" });
+    expect((await alice.snapshot()).participants).toHaveLength(1);
   });
 
   it("closes the socket with 1009 when a frame exceeds maxPayload", async () => {

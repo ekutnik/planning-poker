@@ -5,6 +5,8 @@ import Fastify, {
   type FastifyRequest,
 } from "fastify";
 import type { WebSocket } from "ws";
+import { CloseCode } from "../shared/close-codes.js";
+import { PROTOCOL_VERSION } from "../shared/protocol.js";
 import { generateRoomId, ROOM_ID_PATTERN } from "./identity.js";
 import {
   RoomService,
@@ -139,11 +141,22 @@ export function buildServer(options: ServerOptions = {}) {
   // A child plugin loads after the websocket plugin, so its onRoute hook sees
   // this route. The params schema rejects a malformed room id with 400 before upgrade.
   void app.register((scope, _opts, done) => {
-    scope.get<{ Params: { roomId: string } }>(
+    scope.get<{ Params: { roomId: string }; Querystring: { v?: unknown } }>(
       "/ws/:roomId",
       { websocket: true, schema: { params: roomParams } },
       (socket, request) => {
         const conn = toConnection(socket, request.id, request.log);
+        // Checked after upgrade, not in the schema: a browser cannot read the
+        // HTTP status of a failed upgrade, only a close code (#17). An outdated
+        // client never reaches the service, so no room state is touched.
+        const version = request.query.v;
+        if (version !== String(PROTOCOL_VERSION)) {
+          const seen =
+            typeof version === "string" ? version.slice(0, 16) : version;
+          request.log.info({ type: "outdated-client", version: seen });
+          conn.close(CloseCode.OUTDATED_CLIENT, "outdated client");
+          return;
+        }
         rooms.open(conn, request.params.roomId);
         // Never log `data`: a join frame carries the session token.
         socket.on("message", (data: Buffer) =>

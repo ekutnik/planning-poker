@@ -12,6 +12,20 @@ import type { RoomSnapshot } from "./snapshot.js";
 // 22–64 url-safe chars covers a base64url randomUUID token without over-fitting.
 const SessionToken = z.string().regex(/^[A-Za-z0-9_-]{22,64}$/);
 
+/**
+ * The wire protocol's version (#17). The client sends it in the socket URL;
+ * the server closes any other value with CloseCode.OUTDATED_CLIENT, so a tab
+ * left open across a deploy is told to reload instead of failing validation.
+ * Bump it for any change an old client could not handle: a message renamed,
+ * removed or given a new required field, or a field whose meaning changes.
+ */
+export const PROTOCOL_VERSION = 1;
+
+/** The socket path for a room, carrying the protocol version. */
+export function socketPath(roomId: string): string {
+  return `/ws/${roomId}?v=${PROTOCOL_VERSION}`;
+}
+
 export const ClientMessage = z.discriminatedUnion("type", [
   // Only `join` carries identity (the session token). After join the socket *is*
   // the identity, so no other message has an actor field to forge. `roomId` is
