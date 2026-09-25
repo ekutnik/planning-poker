@@ -190,7 +190,7 @@ The landing page, the name form for a room link, the stopped screens and "no roo
 Each action keeps one name through the whole flow. The rules, checked by `copy.test.ts` for every message outside the round's own lines:
 
 - Say what happened and what to do, without apologising.
-- Sentences end with a full stop; headings and button labels do not.
+- Sentences end with a full stop, including a heading that is one ("You left the room."). Labels do not: buttons, and headings that name a place ("Join the room").
 - Contractions, as in "You've voted" and "hasn't voted": "couldn't", never "could not".
 - One name per thing: it is a room, not a game; you choose a card, not pick one; "Create a room" everywhere; "Start next round", never "new round"; and anyone can reveal, so nothing says "until everyone reveals".
 
