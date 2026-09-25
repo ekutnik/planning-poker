@@ -240,6 +240,42 @@ describe("websocket route", () => {
     },
   );
 
+  it("logs a bounded summary of a client-supplied version, however large", async () => {
+    const lines: { type?: string; version?: unknown }[] = [];
+    const raw: string[] = [];
+    await restart({
+      logger: {
+        stream: {
+          write: (line: string) => {
+            raw.push(line);
+            lines.push(
+              JSON.parse(line) as { type?: string; version?: unknown },
+            );
+          },
+        },
+      },
+    });
+    const roomId = await createRoom();
+    const long = "x".repeat(2_000);
+    const repeated = Array.from({ length: 100 }, () => `v=${"y".repeat(100)}`);
+    for (const query of [`?v=${long}`, `?${repeated.join("&")}`]) {
+      const client = new TestClient(
+        await app.injectWS(`/ws/${roomId}${query}`),
+      );
+      clients.push(client);
+      await client.closed;
+    }
+
+    const outdated = lines.filter((line) => line.type === "outdated-client");
+    expect(outdated.map((line) => line.version)).toEqual([
+      "x".repeat(16),
+      "[repeated]",
+    ]);
+    for (const line of raw.filter((l) => l.includes("outdated-client"))) {
+      expect(line.length).toBeLessThan(300);
+    }
+  });
+
   it("lets a client on the current protocol version join", async () => {
     expect(socketPath("abcdefghijk")).toBe(
       `/ws/abcdefghijk?v=${PROTOCOL_VERSION}`,

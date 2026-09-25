@@ -151,8 +151,14 @@ export function buildServer(options: ServerOptions = {}) {
         // client never reaches the service, so no room state is touched.
         const version = request.query.v;
         if (version !== String(PROTOCOL_VERSION)) {
+          // Client-supplied, so log a bounded summary: a repeated parameter
+          // arrives as an array and could otherwise put ~16 KB in the log.
           const seen =
-            typeof version === "string" ? version.slice(0, 16) : version;
+            typeof version === "string"
+              ? version.slice(0, 16)
+              : Array.isArray(version)
+                ? "[repeated]"
+                : typeof version;
           request.log.info({ type: "outdated-client", version: seen });
           conn.close(CloseCode.OUTDATED_CLIENT, "outdated client");
           return;
