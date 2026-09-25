@@ -65,7 +65,7 @@ Every timeout runs in one periodic sweep that compares timestamps (no per-connec
 
 ## Design decisions
 
-See [docs/decisions](docs/decisions).
+See [docs/decisions](docs/decisions) for the architecture decisions and [docs/design.md](docs/design.md) for the visual and interaction design.
 
 ## Roadmap
 
