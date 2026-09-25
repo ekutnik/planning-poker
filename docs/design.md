@@ -91,8 +91,9 @@ Compact, participant view, voting:
 
 ```
 ┌──────────────────────────────────┐
-│ Planning poker   Copy link  Leave│
-│ Facilitate ○   Theme             │
+│ Planning poker                   │
+│ Facilitate ○  Theme              │
+│ Copy link  Leave                 │
 │                                  │
 │ 4 of 5 have voted                │
 │ ● Ada  ● Ben  ○ Cy  ● Dee        │
@@ -112,7 +113,7 @@ Wide, facilitator view, voting (what the team sees on the shared screen):
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Planning poker       Facilitate ●   Theme   Copy link   Leave │
+│ Planning poker      Facilitate ●   Theme   Copy link   Leave │
 │                                                              │
 │ Waiting for Cy. Fay is away.            [ Reveal votes ]     │
 │                                         1 hasn't voted       │
@@ -123,7 +124,10 @@ Wide, facilitator view, voting (what the team sees on the shared screen):
 │ ● Eli           │ ? ││ ☕│    no card shown as selected       │
 │ ○ Fay (away)    └───┘└───┘                                   │
 │                                                              │
-│                 Your vote (hidden)  [ •• ]   You've voted ✓   │
+│                 Your vote (hidden)                           │
+│                 [ •• ]                                       │
+│                 You've voted ✓                               │
+│                 [ Clear my vote ]                            │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -153,6 +157,7 @@ A per-person view, not a role, so the server does not change and anyone can stil
 
 - **The toggle.** A "Facilitate" switch in the header with `aria-pressed`, remembered per browser in `localStorage`, because the same person usually runs every session. Its description reads: "Shows the round controls up front and hides your own vote, so you can share your screen."
 - **Controls up front.** "Reveal votes", then "Start next round", as the primary action, always in the same place: top of the main area in wide, pinned to the bottom in compact. In the participant view the same controls are quieter secondary buttons.
+- **The controls come last in the DOM,** after the hidden vote. In compact that matches the pinned bar; in wide they sit top right but come last in keyboard order, which still follows the task (read the status, see who is in, vote, then reveal): WCAG asks for a meaningful focus order, not a strictly visual one.
 - **The status line names who is missing** ("Waiting for Cy. Fay is away.") rather than counting, because that is what the facilitator says aloud. When everyone counted has voted it reads "Everyone has voted", with any away non-voters after it ("Everyone has voted. Fay is away.").
 - **No confirmation on reveal.** "1 hasn't voted" sits beside the button instead. A calm, fast tool does not add friction.
 - **Per browser, so design for the surprise.** Someone who facilitated yesterday may join as a participant today, click a card, and see no selection. The toggle's visible state in the header and the "You've voted ✓" line must make it obvious they are in the facilitator view.
@@ -167,7 +172,8 @@ A per-person view, not a role, so the server does not change and anyone can stil
 
 - Labelled "Your vote (hidden)". Type 13 and press Enter. It accepts every deck value, plus `?`, and `c` for ☕. The field clears after each vote, and the confirmation is "Vote recorded".
 - Errors never echo the input: "Not a card on the deck", never "4 is not a card".
-- Keep password managers out: no `<form>` (Enter is handled directly), `autocomplete="off"`, `spellcheck="false"`, and a manual check in Chrome and Safari for "Save password?" prompts.
+- Masked with `-webkit-text-security` on a text field, because a password field invites password managers. That property is non-standard, and where it is missing the field would show "13" on the shared screen with no error, so the app checks `CSS.supports("-webkit-text-security", "disc")` once and falls back to `type="password"`.
+- Keep password managers out: no `<form>` (Enter is handled directly), `autocomplete="off"`, `spellcheck="false"`, and a manual check in Chrome, Safari and Firefox for "Save password?" prompts.
 - Clicking a card still works in the facilitator view, for anyone who does not mind the cursor being seen.
 
 ## Copy
@@ -190,7 +196,7 @@ Each action keeps one name through the whole flow.
 
 ## Accessibility, built in
 
-- **The deck is a radiogroup.** Arrow keys move between cards, Space or Enter selects, and Tab moves past the whole deck in one step.
+- **The deck is a toolbar of toggle buttons** (`aria-pressed`), not a radiogroup: a radiogroup selects on arrow keys, which here would cast and broadcast a vote on every keypress. Arrow keys move between cards, Space or Enter chooses, and Tab moves past the whole deck in one step.
 - **Reveal is announced** through a polite live region: "Votes revealed. Everyone chose 5", or "Spread of 3 steps. Ada and Eli, talk through your estimates."
 - **The voted count is visible but not announced** on every change, which would make a screen reader chatter through the whole discussion.
 - **Selection and focus look different,** so a keyboard user can tell "this is my vote" from "this is where I am". Selected: a Cobalt fill with the numeral in Paper (5.3:1 light, 7.1:1 dark). Focused: the 3 px Cobalt ring, 2 px outside the card's edge. A selected card with focus shows both. In the facilitator view before reveal, "selected" never appears, so only focus does.
@@ -200,8 +206,9 @@ Each action keeps one name through the whole flow.
 Session 7 audits what is built in; it is not a retrofit. It needs a browser, and covers:
 
 - A screen reader pass, and keyboard only, in both layouts and both themes.
-- **Focus order follows visual order in both layouts.** One component tree keeps the DOM order identical by construction; the real risk is CSS grid areas reordering the picture without reordering the DOM, so focus jumps around the screen.
-- **200% zoom,** including that the pinned facilitator bar in the compact layout never covers the deck: a sticky bar is a common way for a zoomed page to become unusable.
+- **Focus order is meaningful in both layouts.** One component tree keeps the DOM order identical by construction; the real risk is CSS grid areas reordering the picture without reordering the DOM, so focus jumps around the screen. The one deliberate difference is the wide facilitator controls (see the facilitator view).
+- **200% zoom,** including that the pinned facilitator bar in the compact layout never covers the deck: a sticky bar is a common way for a zoomed page to become unusable. At 100%, focus already scrolls clear of the bar (`scroll-padding-block-end`, from the same `--controls-bar-height` as the bar).
+- **Firefox: the masked field and password prompts.** Whichever way `CSS.supports` answers there, the field is masked; the open question is whether the `type="password"` fallback invites a password prompt.
 
 ## Reviewed against the brief
 
@@ -219,6 +226,8 @@ Session 7 audits what is built in; it is not a retrofit. It needs a browser, and
 
 - **Screen-level no-leak test,** mirroring the wire-level vote-privacy test: in the facilitator view before reveal, no element shows the viewer's own card (no selected state on any deck card, no card value in any visible text, and the masked field empty after submit). Removing the hiding once must fail it.
 - **Invalid masked input** produces the fixed error copy, never containing the typed value.
+- **Masking fallback:** the no-leak test runs in a browser with and without `-webkit-text-security`, and expects a text field or a password field accordingly.
 - **Theme:** the no-flash script applies exactly what the app would, for every stored value (unit test); the stored choice is applied before first paint (the Session 8 end-to-end suite).
 - **Contrast, two tiers, both themes:** meaning (Ink, Cobalt, Agree, Discuss) at least 4.5:1 on Paper; control boundaries (Edge, Cobalt) at least 3:1; Rule below 3:1, so it cannot stand in for Edge; and a Paper numeral on a Cobalt fill at least 4.5:1.
 - Focus order and 200% zoom need a browser, so they belong to the Session 7 audit above.
+- **The Session 8 end-to-end suite** also covers what static markup cannot: "Clear my vote" clears the "Vote recorded" message and returns focus to the masked field; and in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked.
