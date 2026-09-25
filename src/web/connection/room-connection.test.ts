@@ -179,6 +179,7 @@ describe("RoomConnection — joining", () => {
     ["ROOM_FULL", "room-full"],
     ["SERVER_FULL", "server-full"],
     ["INVALID_NAME", "invalid-name"],
+    ["INVALID_MESSAGE", "join-rejected"],
   ])(
     "stops on %s during join, closes its socket, and never retries",
     (code, reason) => {
@@ -205,6 +206,18 @@ describe("RoomConnection — joining", () => {
     latest().receive({ type: "error", code: "ROOM_FULL" });
     expect(connection.getState()).toMatchObject({ status: "open" });
     expect(errors).toEqual(["ROOM_FULL"]);
+  });
+
+  it("reports a rejected join through warn, as a bug to fix", () => {
+    const { connection, latest, warnings } = setup();
+    connection.start();
+    latest().open();
+    latest().receive({ type: "error", code: "INVALID_MESSAGE" });
+    expect(warnings).toEqual([{ code: "INVALID_MESSAGE" }]);
+    expect(connection.getState()).toEqual({
+      status: "stopped",
+      reason: "join-rejected",
+    });
   });
 
   it("passes other errors to listeners without changing state", () => {
@@ -521,6 +534,67 @@ describe("RoomConnection — sending and leaving", () => {
       status: "stopped",
       reason: "left",
     });
+  });
+
+  it("dispose() closes without leave, clears every timer and listener, and stays dead", () => {
+    const { connection, latest, sockets, clock, joined } = setup();
+    let notified = 0;
+    connection.subscribe(() => (notified += 1));
+    joined();
+    const before = notified;
+
+    connection.dispose();
+    expect(latest().sent).not.toContainEqual({ type: "leave" });
+    expect(latest().closedWith).toEqual({ code: 1000, reason: "dispose" });
+    expect(clock.pending()).toBe(0);
+
+    latest().serverClose(1006); // ignored: the socket was abandoned first
+    connection.start();
+    connection.restart();
+    clock.advance(10 * 60_000);
+    expect(sockets).toHaveLength(1);
+    expect(notified).toBe(before);
+  });
+
+  it("dispose() while reconnecting cancels the pending retry", () => {
+    const { connection, latest, sockets, clock, joined } = setup();
+    joined();
+    latest().serverClose(1006);
+    connection.dispose();
+    expect(clock.pending()).toBe(0);
+    clock.advance(10 * 60_000);
+    expect(sockets).toHaveLength(1);
+  });
+
+  it("survives StrictMode's mount, dispose, mount with one live socket", () => {
+    const clock = new FakeClock();
+    const sockets: FakeSocket[] = [];
+    const make = () =>
+      new RoomConnection(
+        ROOM,
+        { sessionToken: TOKEN, name: "Alice" },
+        {
+          openSocket: (path, events) => {
+            const socket = new FakeSocket(path, events);
+            sockets.push(socket);
+            return socket;
+          },
+          clock,
+          random: () => 0.5,
+        },
+      );
+    const first = make();
+    first.start();
+    first.dispose(); // StrictMode's simulated unmount
+    const second = make();
+    second.start();
+
+    const [firstSocket, secondSocket] = sockets;
+    firstSocket?.open(); // a late open on the disposed socket
+    secondSocket?.open();
+    expect(firstSocket?.sent).toEqual([]); // no join from the disposed one
+    expect(secondSocket?.sent).toHaveLength(1);
+    expect(clock.pending()).toBe(1); // only the live connection's tick
   });
 
   it("restart() reconnects from a stopped state, for 'Use this tab'", () => {

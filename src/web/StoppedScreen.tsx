@@ -1,0 +1,45 @@
+import type { StopReason } from "./connection/policy.js";
+import { STOP_COPY } from "./copy.js";
+import { STOP_ACTIONS } from "./view.js";
+
+const LABELS = {
+  "use-this-tab": "Use this tab",
+  reload: "Reload",
+  "try-again": "Try again",
+  "change-name": "Change name",
+  home: "Back to start",
+} as const;
+
+/** Nothing here retries on its own; every way on is a button. */
+export function StoppedScreen({
+  reason,
+  onRestart,
+  onReload,
+  onChangeName,
+  onHome,
+}: {
+  readonly reason: StopReason;
+  readonly onRestart: () => void;
+  readonly onReload: () => void;
+  readonly onChangeName: () => void;
+  readonly onHome: () => void;
+}) {
+  const { title, body } = STOP_COPY[reason];
+  const action = STOP_ACTIONS[reason];
+  const handlers = {
+    "use-this-tab": onRestart,
+    reload: onReload,
+    "try-again": onRestart,
+    "change-name": onChangeName,
+    home: onHome,
+  };
+  return (
+    <main>
+      <h1>{title}</h1>
+      <p>{body}</p>
+      <button type="button" onClick={handlers[action]}>
+        {LABELS[action]}
+      </button>
+    </main>
+  );
+}

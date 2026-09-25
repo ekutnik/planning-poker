@@ -10,7 +10,8 @@ import {
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import { buildServer, toConnection, type ServerOptions } from "./app.js";
 import { CloseCode } from "../shared/close-codes.js";
-import { ROOM_ID_PATTERN, roomLogId } from "./identity.js";
+import { ROOM_ID_PATTERN } from "../shared/rules.js";
+import { roomLogId } from "./identity.js";
 import {
   JOIN_TIMEOUT_MS,
   PING_INTERVAL_MS,

@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  derivePublicId,
-  generateRoomId,
-  ROOM_ID_PATTERN,
-  roomLogId,
-} from "./identity.js";
+import { derivePublicId, generateRoomId, roomLogId } from "./identity.js";
+import { ROOM_ID_PATTERN } from "../shared/rules.js";
 
 describe("derivePublicId", () => {
   it("is deterministic", () => {

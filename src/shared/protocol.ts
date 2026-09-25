@@ -1,6 +1,7 @@
 import * as z from "zod";
 import { DECK } from "./deck.js";
 import type { DomainError } from "./errors.js";
+import { SESSION_TOKEN_PATTERN } from "./rules.js";
 import type { RoomSnapshot } from "./snapshot.js";
 
 /**
@@ -9,8 +10,7 @@ import type { RoomSnapshot } from "./snapshot.js";
  * because it is our own code deployed together. Validate where trust changes.
  */
 
-// 22–64 url-safe chars covers a base64url randomUUID token without over-fitting.
-const SessionToken = z.string().regex(/^[A-Za-z0-9_-]{22,64}$/);
+const SessionToken = z.string().regex(SESSION_TOKEN_PATTERN);
 
 /**
  * The wire protocol's version (#17). The client sends it in the socket URL;

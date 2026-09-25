@@ -65,11 +65,18 @@ export type RoomAction = Exclude<
   { type: "join" | "ping" | "leave" }
 >;
 
-/** Errors that mean the join itself failed: stop, never retry into a loop. */
+/**
+ * Errors that mean the join itself failed: stop, never retry into a loop. An
+ * unjoined socket would otherwise sit until JOIN_TIMEOUT, which retries the
+ * same join forever. INVALID_MESSAGE covers every cause of a join frame the
+ * server cannot parse (a malformed token, an over-long name, an outdated
+ * shape), not only the ones we have thought of.
+ */
 const JOIN_PHASE_ERRORS: Partial<Record<ErrorCode, StopReason>> = {
   ROOM_FULL: "room-full",
   SERVER_FULL: "server-full",
   INVALID_NAME: "invalid-name",
+  INVALID_MESSAGE: "join-rejected",
 };
 
 /**
@@ -119,6 +126,7 @@ export class RoomConnection {
   private attempt = 0; // consecutive failed connections since the last snapshot
   private backoff: Backoff = "normal"; // of the pending retry
   private retryTimer: number | null = null;
+  private disposed = false;
 
   constructor(
     private readonly roomId: string,
@@ -141,14 +149,14 @@ export class RoomConnection {
   }
 
   start(): void {
-    if (this.socket || this.retryTimer !== null) return;
+    if (this.disposed || this.socket || this.retryTimer !== null) return;
     if (this.state.status === "stopped") return;
     this.connect();
   }
 
   /** From a stopped state, for "Use this tab" and "Try again". */
   restart(): void {
-    if (this.state.status !== "stopped") return;
+    if (this.disposed || this.state.status !== "stopped") return;
     this.attempt = 0;
     this.connect();
   }
@@ -158,6 +166,20 @@ export class RoomConnection {
     if (this.state.status !== "open" || !this.socket) return false;
     this.socket.send(JSON.stringify(action));
     return true;
+  }
+
+  /**
+   * Tears down without telling the server, for unmount and navigation: the
+   * server sees the socket close and starts the grace period, so coming back
+   * soon reclaims the seat. Clears every timer and listener; the connection
+   * cannot be used again. React's StrictMode runs this on every mount in
+   * development, so a leaked timer or socket shows up as a duplicate join.
+   */
+  dispose(): void {
+    this.disposed = true;
+    this.abandonSocket("dispose");
+    this.listeners.clear();
+    this.errorListeners.clear();
   }
 
   leave(): void {
@@ -260,6 +282,10 @@ export class RoomConnection {
   private handleError(code: ErrorCode): void {
     const reason = this.joined ? undefined : JOIN_PHASE_ERRORS[code];
     if (reason) {
+      // A rejected join frame is our bug, not the person's: report it.
+      if (reason === "join-rejected") {
+        this.deps.warn?.("the server rejected our join message", { code });
+      }
       // Staying unjoined would end in JOIN_TIMEOUT, which retries: a loop.
       this.stop(reason);
       return;
