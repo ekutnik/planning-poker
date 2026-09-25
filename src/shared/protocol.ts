@@ -46,6 +46,10 @@ export const ClientMessage = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("reveal") }),
   z.strictObject({ type: z.literal("reset") }),
   z.strictObject({ type: z.literal("leave") }),
+  // App-level liveness (#20). Browser JavaScript cannot see protocol pings,
+  // so the client sends this about every 20s and reconnects if no reply
+  // comes. It carries no state, so it is answered in any connection state.
+  z.strictObject({ type: z.literal("ping") }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
@@ -59,7 +63,9 @@ export type ErrorCode =
 
 export type ServerMessage =
   | { readonly type: "snapshot"; readonly snapshot: RoomSnapshot }
-  | { readonly type: "error"; readonly code: ErrorCode };
+  | { readonly type: "error"; readonly code: ErrorCode }
+  /** The answer to a client `ping`. Any message proves the server is alive. */
+  | { readonly type: "pong" };
 
 /**
  * Parse and validate a raw inbound frame. Never throws: malformed JSON or any

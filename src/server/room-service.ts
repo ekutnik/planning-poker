@@ -133,6 +133,9 @@ export interface ServiceOptions {
   readonly roomTtlMs?: number;
 }
 
+/** A message that acts on a room: everything except joining and liveness. */
+type RoomMessage = Exclude<ClientMessage, { type: "join" | "ping" }>;
+
 interface Pending {
   readonly roomId: string;
   readonly openedAt: number;
@@ -208,6 +211,12 @@ export class RoomService {
     const message = parseClientMessage(raw);
     if (!message) {
       this.sendError(conn, "INVALID_MESSAGE", roomId ?? binding?.roomId);
+      return;
+    }
+    // App-level liveness (#20): answered before join as well as after, since
+    // it carries no state. Not logged: every client sends one every ~20s.
+    if (message.type === "ping") {
+      conn.send({ type: "pong" });
       return;
     }
     this.log.info({
@@ -442,7 +451,7 @@ export class RoomService {
   private dispatch(
     conn: Connection,
     binding: Binding,
-    message: Exclude<ClientMessage, { type: "join" }>,
+    message: RoomMessage,
   ): void {
     const room = this.rooms.get(binding.roomId);
     if (!room) return;
@@ -526,7 +535,7 @@ export class RoomService {
 }
 
 function toCommand(
-  message: Exclude<ClientMessage, { type: "join" }>,
+  message: RoomMessage,
   participantId: ParticipantId,
 ): Command {
   switch (message.type) {
