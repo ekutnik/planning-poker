@@ -1,4 +1,8 @@
-import { safeStorage, type KeyValueStore } from "./storage.js";
+import {
+  safeStorage,
+  type KeyValueStore,
+  type StorageWatch,
+} from "./storage.js";
 
 /** Must match src/web/public/theme-init.js, which runs before React loads. */
 export const THEME_KEY = "planning-poker:theme";
@@ -39,27 +43,52 @@ export interface ThemeStore {
   readonly setTheme: (theme: Theme) => void;
 }
 
-/** The stored choice, applied now and on every change, remembered when storage allows. */
+/**
+ * The stored choice, applied now and on every change, remembered when
+ * storage allows. A choice made in another tab applies here too (#41):
+ * while anyone is subscribed, the store watches storage for the theme key.
+ */
 export function createThemeStore(
   getStorage: () => KeyValueStore,
   root: ThemeRoot,
+  watch: StorageWatch = () => () => undefined,
 ): ThemeStore {
   const storage = safeStorage(getStorage);
   const listeners = new Set<() => void>();
   let theme = parseTheme(storage.read(THEME_KEY));
   applyTheme(root, theme);
+
+  const show = (next: Theme) => {
+    if (next === theme) return;
+    theme = next;
+    applyTheme(root, next);
+    for (const listener of listeners) listener();
+  };
+
+  // Another tab chose a theme, or cleared storage (key null): show it here,
+  // parsed the same way as at load, without writing it back.
+  const onStorage = (key: string | null, value: string | null) => {
+    if (key === THEME_KEY || key === null) show(parseTheme(value));
+  };
+  let unwatch: (() => void) | null = null;
+
   return {
     getTheme: () => theme,
     subscribe: (listener) => {
       listeners.add(listener);
-      return () => listeners.delete(listener);
+      unwatch ??= watch(onStorage);
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) {
+          unwatch?.();
+          unwatch = null;
+        }
+      };
     },
     setTheme: (next) => {
       if (next === theme) return;
-      theme = next;
       storage.write(THEME_KEY, next);
-      applyTheme(root, next);
-      for (const listener of listeners) listener();
+      show(next);
     },
   };
 }

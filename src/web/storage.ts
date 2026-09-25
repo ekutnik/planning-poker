@@ -41,3 +41,25 @@ export function safeStorage(getStorage: () => KeyValueStore): SafeStorage {
     },
   };
 }
+
+/**
+ * Calls onChange when another tab changes storage, and returns a function
+ * that stops watching. The storage event never fires in the tab that wrote,
+ * so a store never hears its own writes. key is null when storage was
+ * cleared.
+ */
+export type StorageWatch = (
+  onChange: (key: string | null, value: string | null) => void,
+) => () => void;
+
+/** A StorageWatch on the window's storage event. */
+export function watchStorage(target: EventTarget): StorageWatch {
+  return (onChange) => {
+    const handler = (event: Event) => {
+      const { key, newValue } = event as StorageEvent;
+      onChange(key, newValue);
+    };
+    target.addEventListener("storage", handler);
+    return () => target.removeEventListener("storage", handler);
+  };
+}

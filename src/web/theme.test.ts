@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import themeInit from "./public/theme-init.js?raw";
-import type { KeyValueStore } from "./storage.js";
+import {
+  watchStorage,
+  type KeyValueStore,
+  type StorageWatch,
+} from "./storage.js";
 import {
   applyTheme,
   createThemeStore,
@@ -81,6 +85,89 @@ describe("createThemeStore", () => {
     store.setTheme("dark");
     expect(store.getTheme()).toBe("dark");
     expect(root.snapshot().theme).toBe("dark");
+  });
+});
+
+describe("createThemeStore across tabs (#41)", () => {
+  /** A StorageWatch the test drives, counting starts and stops. */
+  function fakeWatch() {
+    let onChange: Parameters<StorageWatch>[0] | null = null;
+    const counts = { started: 0, stopped: 0 };
+    const watch: StorageWatch = (callback) => {
+      counts.started += 1;
+      onChange = callback;
+      return () => {
+        counts.stopped += 1;
+        onChange = null;
+      };
+    };
+    const fire = (key: string | null, value: string | null) =>
+      onChange?.(key, value);
+    return { watch, fire, counts };
+  }
+
+  function setUp() {
+    const storage = new MemoryStore();
+    const root = new FakeRoot();
+    const tabs = fakeWatch();
+    const store = createThemeStore(() => storage, root, tabs.watch);
+    let calls = 0;
+    const unsubscribe = store.subscribe(() => (calls += 1));
+    return { storage, root, tabs, store, unsubscribe, calls: () => calls };
+  }
+
+  it("shows a theme chosen in another tab, without writing it back", () => {
+    const { storage, root, tabs, store, calls } = setUp();
+    tabs.fire(THEME_KEY, "dark");
+    expect(store.getTheme()).toBe("dark");
+    expect(root.snapshot()).toEqual({ theme: "dark", colorScheme: "dark" });
+    expect(calls()).toBe(1);
+    expect(storage.data.size).toBe(0); // the other tab already stored it
+  });
+
+  it("ignores changes to other keys", () => {
+    const { tabs, store, calls } = setUp();
+    tabs.fire(THEME_KEY, "dark");
+    // Parsed as a theme, "Ada" would mean system: a change the test can see.
+    tabs.fire("planning-poker:name", "Ada");
+    expect(store.getTheme()).toBe("dark");
+    expect(calls()).toBe(1);
+  });
+
+  it("parses an unknown value, or cleared storage, as it does at load", () => {
+    const { tabs, store } = setUp();
+    tabs.fire(THEME_KEY, "dark");
+    tabs.fire(THEME_KEY, "purple");
+    expect(store.getTheme()).toBe("system");
+    tabs.fire(THEME_KEY, "light");
+    tabs.fire(null, null); // localStorage.clear() in another tab
+    expect(store.getTheme()).toBe("system");
+  });
+
+  it("watches only while someone is subscribed", () => {
+    const { tabs, store, unsubscribe } = setUp();
+    const second = store.subscribe(() => undefined);
+    expect(tabs.counts).toEqual({ started: 1, stopped: 0 });
+    unsubscribe();
+    expect(tabs.counts.stopped).toBe(0);
+    second();
+    expect(tabs.counts).toEqual({ started: 1, stopped: 1 });
+    store.subscribe(() => undefined);
+    expect(tabs.counts.started).toBe(2);
+  });
+});
+
+describe("watchStorage", () => {
+  it("passes the storage event's key and new value, until stopped", () => {
+    const target = new EventTarget();
+    const seen: [string | null, string | null][] = [];
+    const stop = watchStorage(target)((key, value) => seen.push([key, value]));
+    const storageEvent = (key: string | null, newValue: string | null) =>
+      Object.assign(new Event("storage"), { key, newValue });
+    target.dispatchEvent(storageEvent(THEME_KEY, "dark"));
+    stop();
+    target.dispatchEvent(storageEvent(THEME_KEY, "light"));
+    expect(seen).toEqual([[THEME_KEY, "dark"]]);
   });
 });
 
