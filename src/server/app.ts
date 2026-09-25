@@ -92,7 +92,13 @@ export function buildServer(options: ServerOptions = {}) {
   const rooms = new RoomService(
     options.clock ?? Date.now,
     { ...DEFAULT_LIMITS, ...options.limits },
-    { log: { info: (fields) => app.log.info(fields) }, sweepIntervalMs },
+    {
+      log: {
+        info: (fields) => app.log.info(fields),
+        warn: (fields) => app.log.warn(fields),
+      },
+      sweepIntervalMs,
+    },
   );
 
   // One interval drives every timeout; there are no per-connection timers.

@@ -78,7 +78,24 @@ interface LogFields {
  * and `room` is always a roomLogId, never the room id itself (#21).
  */
 export interface RoomLog {
+  /** Client behaviour: opens, joins, timeouts, errors sent to a client. */
   info(fields: LogFields): void;
+  /** Server health: something about this process needs attention. */
+  warn(fields: LogFields): void;
+}
+
+const NO_LOG: RoomLog = { info() {}, warn() {} };
+
+/** Wraps a RoomLog so that no level can receive a raw room id (#21). */
+export function redactRoomIds(log: RoomLog): RoomLog {
+  const scrub = (fields: LogFields): LogFields =>
+    fields.room === undefined
+      ? fields
+      : { ...fields, room: roomLogId(fields.room) };
+  return {
+    info: (fields) => log.info(scrub(fields)),
+    warn: (fields) => log.warn(scrub(fields)),
+  };
 }
 
 export interface ServiceOptions {
@@ -118,39 +135,31 @@ export class RoomService {
   // alive, so it cannot leak. A WeakSet can't be sized, which is why
   // bookkeeping() doesn't report it.
   private readonly closed = new WeakSet<Connection>();
-  // The only way to the log. The raw RoomLog is captured here and never stored,
-  // so no method can bypass this and log a room id (#21).
-  private readonly info: (fields: LogFields) => void;
+  // Only the redacted logger is stored. The raw RoomLog never becomes a field,
+  // so no method can bypass the redaction and log a room id (#21).
+  private readonly log: RoomLog;
   private readonly stallAfterMs: number;
   private lastSweepAt: number | undefined;
 
   constructor(
     private readonly clock: () => number,
     private readonly limits: Limits,
-    {
-      log = { info() {} },
-      sweepIntervalMs = SWEEP_INTERVAL_MS,
-    }: ServiceOptions = {},
+    { log = NO_LOG, sweepIntervalMs = SWEEP_INTERVAL_MS }: ServiceOptions = {},
   ) {
     this.stallAfterMs = sweepIntervalMs * STALL_INTERVALS;
-    this.info = (fields) =>
-      log.info(
-        fields.room === undefined
-          ? fields
-          : { ...fields, room: roomLogId(fields.room) },
-      );
+    this.log = redactRoomIds(log);
   }
 
   open(conn: Connection, roomId: string): void {
     if (this.closed.has(conn) || this.pending.has(conn)) return;
     if (this.bindings.has(conn)) return;
     if (this.pending.size >= this.limits.maxPending) {
-      this.info({ conn: conn.id, room: roomId, code: "PENDING_FULL" });
+      this.log.info({ conn: conn.id, room: roomId, code: "PENDING_FULL" });
       conn.close(1013, "try again later"); // standard: Try Again Later
       return;
     }
     this.pending.set(conn, { roomId, openedAt: this.clock() });
-    this.info({ conn: conn.id, room: roomId, type: "open" });
+    this.log.info({ conn: conn.id, room: roomId, type: "open" });
   }
 
   message(conn: Connection, raw: string): void {
@@ -163,7 +172,7 @@ export class RoomService {
       this.sendError(conn, "INVALID_MESSAGE", roomId ?? binding?.roomId);
       return;
     }
-    this.info({
+    this.log.info({
       conn: conn.id,
       room: roomId ?? binding?.roomId,
       type: message.type,
@@ -193,7 +202,7 @@ export class RoomService {
       binding !== undefined &&
       this.current.get(binding.roomId)?.get(binding.participantId) === conn;
     this.forget(conn);
-    this.info({ conn: conn.id, room: binding?.roomId, type: "close" });
+    this.log.info({ conn: conn.id, room: binding?.roomId, type: "close" });
     if (!stillCurrent || !binding) return;
 
     const room = this.rooms.get(binding.roomId);
@@ -242,7 +251,8 @@ export class RoomService {
     const gapMs = now - (this.lastSweepAt ?? now);
     const stalled = gapMs > this.stallAfterMs;
     this.lastSweepAt = now;
-    if (stalled) this.info({ type: "sweep-stalled", gapMs });
+    // A stall is about this server's health, not a client's behaviour.
+    if (stalled) this.log.warn({ type: "sweep-stalled", gapMs });
 
     const expired: [Connection, Pending][] = [];
     if (!stalled) {
@@ -283,17 +293,17 @@ export class RoomService {
     for (const room of expiredRooms) this.rooms.set(room.id, room);
 
     for (const [conn, { roomId }] of expired) {
-      this.info({ conn: conn.id, room: roomId, type: "join-timeout" });
+      this.log.info({ conn: conn.id, room: roomId, type: "join-timeout" });
       conn.close(CloseCode.JOIN_TIMEOUT, "join timeout");
     }
     for (const [conn] of due) conn.ping();
     for (const conn of silent) {
       const room = this.bindings.get(conn)?.roomId;
-      this.info({ conn: conn.id, room, type: "heartbeat-timeout" });
+      this.log.info({ conn: conn.id, room, type: "heartbeat-timeout" });
       conn.terminate();
     }
     for (const room of expiredRooms) {
-      this.info({ room: room.id, type: "expire" });
+      this.log.info({ room: room.id, type: "expire" });
       this.broadcast(room);
     }
   }
@@ -364,7 +374,7 @@ export class RoomService {
       // current and cannot dispatch disconnect (ADR 0006). forget() leaves
       // `current` alone here, because it already points at the new socket.
       this.forget(previous);
-      this.info({ conn: previous.id, room: roomId, type: "supersede" });
+      this.log.info({ conn: previous.id, room: roomId, type: "supersede" });
       previous.close(CloseCode.SUPERSEDED, "superseded");
     }
 
@@ -420,7 +430,7 @@ export class RoomService {
   }
 
   private sendError(conn: Connection, code: ErrorCode, room?: string): void {
-    this.info({ conn: conn.id, room, code });
+    this.log.info({ conn: conn.id, room, code });
     conn.send({ type: "error", code });
   }
 

@@ -8,6 +8,7 @@ import {
   JOIN_TIMEOUT_MS,
   PING_INTERVAL_MS,
   PONG_TIMEOUT_MS,
+  redactRoomIds,
   RoomService,
   STALL_INTERVALS,
   SWEEP_INTERVAL_MS,
@@ -46,7 +47,11 @@ function setup(
 ) {
   let now = 1_000;
   const logs: Parameters<RoomLog["info"]>[0][] = [];
-  const log: RoomLog = { info: (fields) => logs.push(fields) };
+  const warns: Parameters<RoomLog["warn"]>[0][] = [];
+  const log: RoomLog = {
+    info: (fields) => logs.push(fields),
+    warn: (fields) => warns.push(fields),
+  };
   const service = new RoomService(
     () => now,
     { maxRooms: 10, maxPending: 10, ...limits },
@@ -74,7 +79,7 @@ function setup(
       JSON.stringify({ type: "join", sessionToken: token, name }),
     );
   };
-  return { service, connect, join, logs, log, advance, tick };
+  return { service, connect, join, logs, warns, log, advance, tick };
 }
 
 function snapshots(conn: FakeConnection) {
@@ -378,6 +383,23 @@ describe("RoomService", () => {
     for (const secret of [ROOM, ALICE, BOB]) expect(text).not.toContain(secret);
   });
 
+  it("scrubs room ids at every log level, including warn", () => {
+    const lines: { level: string; room?: string }[] = [];
+    const log = redactRoomIds({
+      info: (fields) => lines.push({ level: "info", room: fields.room }),
+      warn: (fields) => lines.push({ level: "warn", room: fields.room }),
+    });
+    log.info({ room: ROOM, type: "open" });
+    log.warn({ room: ROOM, type: "anything" });
+    log.warn({ type: "sweep-stalled", gapMs: 1 });
+
+    expect(lines).toEqual([
+      { level: "info", room: roomLogId(ROOM) },
+      { level: "warn", room: roomLogId(ROOM) },
+      { level: "warn", room: undefined },
+    ]);
+  });
+
   it("ignores a message from a connection that was never opened", () => {
     const { service } = setup();
     const stray = new FakeConnection("stray");
@@ -611,7 +633,7 @@ describe("RoomService — sweep: stall guard (#26)", () => {
   }
 
   it("enforces no deadline in the sweep right after a pause, but still pings", () => {
-    const { service, alice, bob, lurker, advance, logs } = scene();
+    const { service, alice, bob, lurker, advance, logs, warns } = scene();
     advance(60_000); // the process was paused; every deadline looks missed
     service.sweep();
 
@@ -619,7 +641,9 @@ describe("RoomService — sweep: stall guard (#26)", () => {
     expect(bob.terminated).toBe(false);
     expect(lurker.closedWith).toBeNull();
     expect([alice.pings, bob.pings]).toEqual([1, 1]);
-    expect(logs).toContainEqual({ type: "sweep-stalled", gapMs: 60_000 });
+    // Server health, so warn; not routine client behaviour at info.
+    expect(warns).toEqual([{ type: "sweep-stalled", gapMs: 60_000 }]);
+    expect(logs.map((line) => line.type)).not.toContain("sweep-stalled");
   });
 
   it("resumes on the next sweep, once the queued evidence has been read", () => {
