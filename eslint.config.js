@@ -50,8 +50,9 @@ export default defineConfig([
     // no Node types). The project service only discovers files named
     // tsconfig.json, so point the parser at it explicitly.
     files: ["src/web/**/*.{ts,tsx}"],
-    // Vite's config runs in Node and belongs to the root (Node) project.
-    ignores: ["src/web/vite.config.ts"],
+    // These run in Node and belong to the root (Node) project: Vite's config,
+    // and tests that read web assets from disk.
+    ignores: ["src/web/vite.config.ts", "src/web/**/*.node.test.ts"],
     languageOptions: {
       globals: globals.browser,
       parserOptions: {
@@ -79,6 +80,18 @@ export default defineConfig([
           ],
         },
       ],
+    },
+  },
+  {
+    // Classic scripts served as is from Vite's public directory, such as the
+    // blocking no-flash theme script: browser globals, script mode, and no
+    // type information, since no tsconfig covers them.
+    files: ["src/web/public/**/*.js"],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      globals: globals.browser,
+      sourceType: "script",
+      parserOptions: { projectService: false, project: null },
     },
   },
   prettier,

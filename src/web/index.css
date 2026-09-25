@@ -1,15 +1,37 @@
-/* Just enough to be usable. Session 6 designs the real thing. */
+/* Interim screen styles on the tokens, until PR B lays out the screens. */
+
 body {
-  font-family: system-ui, sans-serif;
-  line-height: 1.5;
   margin: 0 auto;
-  max-width: 40rem;
-  padding: 1rem;
+  max-width: 60rem;
+  padding: var(--space-3);
+}
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--rule);
+}
+
+.app-title {
+  margin: 0;
+  font-size: var(--text-heading);
+  font-weight: var(--weight-bold);
+}
+
+.theme-menu {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 button[aria-pressed="true"] {
-  font-weight: bold;
-  outline: 3px solid currentColor;
+  color: var(--cobalt);
+  font-weight: var(--weight-bold);
+  outline: 3px solid var(--cobalt);
 }
 
 main[aria-busy="true"] button:disabled {

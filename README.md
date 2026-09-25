@@ -65,9 +65,13 @@ Every timeout runs in one periodic sweep that compares timestamps (no per-connec
 
 ## Design decisions
 
-See [docs/decisions](docs/decisions).
+See [docs/decisions](docs/decisions) for the architecture decisions and [docs/design.md](docs/design.md) for the visual and interaction design.
 
 ## Roadmap
+
+## Credits
+
+The typeface is [Atkinson Hyperlegible Next](https://github.com/googlefonts/atkinson-hyperlegible-next), created for the Braille Institute of America, used under the SIL Open Font License 1.1 ([`src/web/fonts/OFL.txt`](src/web/fonts/OFL.txt)).
 
 ## License
 

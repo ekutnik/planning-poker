@@ -1,10 +1,29 @@
 import { useSyncExternalStore } from "react";
+import { Header } from "./Header.js";
 import type { Identity } from "./identity.js";
 import { HomePage } from "./HomePage.js";
 import { RoomPage } from "./RoomPage.js";
 import { roomPath, type Router } from "./router.js";
+import type { ThemeStore } from "./theme.js";
 
 export function App({
+  router,
+  identity,
+  theme,
+}: {
+  readonly router: Router;
+  readonly identity: Identity;
+  readonly theme: ThemeStore;
+}) {
+  return (
+    <>
+      <Header theme={theme} />
+      <Screen router={router} identity={identity} />
+    </>
+  );
+}
+
+function Screen({
   router,
   identity,
 }: {
