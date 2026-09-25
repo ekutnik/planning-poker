@@ -46,10 +46,10 @@ export function App({
       return (
         <>
           <Header theme={theme} />
-          <main>
+          <main className="page">
             <h1>{NOT_FOUND_COPY.title}</h1>
             <p>{NOT_FOUND_COPY.body}</p>
-            <button type="button" onClick={home}>
+            <button type="button" className="primary" onClick={home}>
               {NOT_FOUND_COPY.action}
             </button>
           </main>

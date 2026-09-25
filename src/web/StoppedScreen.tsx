@@ -29,10 +29,10 @@ export function StoppedScreen({
     home: onHome,
   };
   return (
-    <main>
+    <main className="page">
       <h1>{title}</h1>
       <p>{body}</p>
-      <button type="button" onClick={handlers[action]}>
+      <button type="button" className="primary" onClick={handlers[action]}>
         {STOP_ACTION_LABELS[action]}
       </button>
     </main>

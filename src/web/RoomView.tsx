@@ -44,9 +44,17 @@ export function RoomView({
       <p role="status" className="visually-hidden">
         {announcement}
       </p>
-      {banner && <p role="status">{banner}</p>}
-      {notice && <p role="alert">{notice}</p>}
-      {!persistent && <p>{NOT_SAVED_COPY}</p>}
+      {banner && (
+        <p role="status" className="room-message">
+          {banner}
+        </p>
+      )}
+      {notice && (
+        <p role="alert" className="room-message">
+          {notice}
+        </p>
+      )}
+      {!persistent && <p className="room-message">{NOT_SAVED_COPY}</p>}
       {snapshot.phase === "voting" ? (
         <VotingView
           snapshot={snapshot}

@@ -31,7 +31,7 @@ export function HomePage({
   };
 
   return (
-    <main>
+    <main className="page">
       <h1>{HOME_COPY.heading}</h1>
       <p>{HOME_COPY.intro}</p>
       <NameForm

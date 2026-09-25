@@ -35,7 +35,7 @@ export function RoomPage({
     return (
       <>
         <Header theme={stores.theme} />
-        <main>
+        <main className="page">
           <h1>{JOIN_COPY.heading}</h1>
           <p>{JOIN_COPY.intro}</p>
           <NameForm
@@ -129,7 +129,7 @@ function Room({
     return (
       <>
         {header}
-        <main>
+        <main className="page">
           <p role="status">{bannerFor(state)}</p>
         </main>
       </>
