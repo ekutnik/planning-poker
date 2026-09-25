@@ -9,6 +9,7 @@ import "./index.css";
 import "./styles/room.css";
 import "./styles/pages.css";
 import { createRouter } from "./router.js";
+import { watchStorage } from "./storage.js";
 import { createThemeStore } from "./theme.js";
 
 const root = document.getElementById("root");
@@ -23,6 +24,7 @@ const facilitate = createFacilitateStore(() => window.localStorage);
 const theme = createThemeStore(
   () => window.localStorage,
   document.documentElement,
+  watchStorage(window),
 );
 
 createRoot(root).render(
