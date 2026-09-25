@@ -15,10 +15,20 @@ Real-time scrum estimation for distributed teams. Votes stay hidden until reveal
 Requires Node 24 (see `.nvmrc`).
 
 ```bash
-npm install     # also installs the git hooks
-npm run dev     # server on http://localhost:3000, restarts on change
-npm run check   # typecheck, lint, format check and tests, as CI runs them
+npm install       # also installs the git hooks
+npm run check     # typecheck (server and client), lint, format check and tests, as CI runs them
 ```
+
+Run the server and the client in two terminals, then open http://localhost:5173:
+
+```bash
+npm run dev       # terminal 1: the server on http://localhost:3000, restarts on change
+npm run dev:web   # terminal 2: the client on http://localhost:5173, reloads on change
+```
+
+The client's dev server proxies `/api` and `/ws` to the server, so the browser talks to one origin. Two terminals keep each process's output readable and avoid a process-runner dependency. `npm run build:web` builds the client into `dist/web`.
+
+The server (`src/server`) and the client (`src/web`) have separate TypeScript configs: `tsconfig.json` is Node, and `tsconfig.web.json` is the browser, with DOM types and no Node types. Both include `src/shared`, so shared code is checked against both, and the client cannot import server code (a lint rule enforces it).
 
 `npm install` points git at [`.githooks/`](.githooks). Its `pre-push` hook runs `npm run check`, so a push that would fail CI fails locally first. Commits are not gated, so work-in-progress commits stay cheap, and CI remains the real gate. Skip the hook once with `git push --no-verify`.
 
