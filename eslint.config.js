@@ -12,7 +12,9 @@ export default defineConfig([
   {
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ["eslint.config.js"] },
+        projectService: {
+          allowDefaultProject: ["eslint.config.js", "scripts/*.mjs"],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -64,11 +66,13 @@ export default defineConfig([
   },
   { files: ["src/web/**/*.{ts,tsx}"], ...reactHooks.configs.flat.recommended },
   {
-    // Architecture guard: the client talks to the server only over HTTP and
-    // the wire protocol in src/shared, never by importing server code.
+    // Architecture guards for the client: it talks to the server only over
+    // HTTP and the wire protocol in src/shared, never by importing server
+    // code; and it may import only types from shared/protocol, which builds
+    // Zod schemas as it loads and would put Zod in the browser bundle.
     files: ["src/web/**/*.{ts,tsx}"],
     rules: {
-      "no-restricted-imports": [
+      "@typescript-eslint/no-restricted-imports": [
         "error",
         {
           patterns: [
@@ -76,6 +80,13 @@ export default defineConfig([
               group: ["**/server/**"],
               message:
                 "src/web must not import from src/server; share types through src/shared.",
+            },
+            {
+              // Both forms: bundler resolution also accepts the bare path.
+              group: ["**/shared/protocol", "**/shared/protocol.js"],
+              allowTypeImports: true,
+              message:
+                "Import only types from shared/protocol (it loads Zod); runtime values such as socketPath live in shared/socket.",
             },
           ],
         },
@@ -93,6 +104,11 @@ export default defineConfig([
       sourceType: "script",
       parserOptions: { projectService: false, project: null },
     },
+  },
+  {
+    // Build and check scripts run in Node.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: globals.node },
   },
   prettier,
 ]);

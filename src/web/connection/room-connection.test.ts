@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CloseCode } from "../../shared/close-codes.js";
-import {
-  PROTOCOL_VERSION,
-  type ErrorCode,
-  type ServerMessage,
-} from "../../shared/protocol.js";
+import type { ErrorCode, ServerMessage } from "../../shared/protocol.js";
+import { PROTOCOL_VERSION } from "../../shared/socket.js";
 import type { RoomSnapshot } from "../../shared/snapshot.js";
 import {
   BACKOFF,
