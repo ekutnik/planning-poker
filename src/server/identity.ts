@@ -13,8 +13,6 @@ export function generateRoomId(): string {
   return randomBytes(8).toString("base64url");
 }
 
-export const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
-
 /**
  * Log-safe stand-in for a room id. With no authentication (ADR 0005) a room id
  * is a join link, so it stays out of logs like a token. 32 bits of hash are

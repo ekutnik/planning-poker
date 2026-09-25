@@ -7,7 +7,8 @@ import Fastify, {
 import type { WebSocket } from "ws";
 import { CloseCode } from "../shared/close-codes.js";
 import { PROTOCOL_VERSION } from "../shared/protocol.js";
-import { generateRoomId, ROOM_ID_PATTERN } from "./identity.js";
+import { ROOM_ID_PATTERN } from "../shared/rules.js";
+import { generateRoomId } from "./identity.js";
 import {
   RoomService,
   SWEEP_INTERVAL_MS,

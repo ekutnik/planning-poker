@@ -2,8 +2,10 @@ import type { Card } from "../../shared/deck.js";
 import type { ParticipantId } from "../../shared/ids.js";
 import type { DomainError } from "../../shared/errors.js";
 
-export const MAX_PARTICIPANTS = 30;
-export const MAX_NAME_LENGTH = 32;
+import { MAX_PARTICIPANTS, validName } from "../../shared/rules.js";
+
+// Defined in src/shared so the client validates exactly as the domain does.
+export { MAX_NAME_LENGTH, MAX_PARTICIPANTS } from "../../shared/rules.js";
 
 /**
  * How long a disconnected participant keeps their seat and vote (#19). 60s
@@ -126,13 +128,9 @@ function hasAnyVote(room: Room): boolean {
 // --- commands ---
 
 function join(room: Room, cmd: CommandOf<"join">): Result {
-  // Normalise whitespace: trim the ends and collapse internal runs of spaces,
-  // tabs, and newlines to a single space so the participant list can't be broken
-  // by a pasted name. Note: length is measured in UTF-16 code units, so an emoji
-  // counts as two toward MAX_NAME_LENGTH — a known, acceptable simplification.
-  const name = cmd.name.trim().replace(/\s+/g, " ");
-  if (name.length === 0 || name.length > MAX_NAME_LENGTH)
-    return fail("INVALID_NAME");
+  // Normalised and validated by the rule the client shares (src/shared/rules).
+  const name = validName(cmd.name);
+  if (name === null) return fail("INVALID_NAME");
 
   const existing = room.participants.get(cmd.participantId);
   if (existing) {
