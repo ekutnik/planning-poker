@@ -118,7 +118,7 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-.card[aria-checked="true"] {
+.card[aria-pressed="true"] {
   border-color: var(--cobalt);
   background: var(--cobalt);
   color: var(--paper);

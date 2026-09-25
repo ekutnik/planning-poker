@@ -190,7 +190,7 @@ Each action keeps one name through the whole flow.
 
 ## Accessibility, built in
 
-- **The deck is a radiogroup.** Arrow keys move between cards, Space or Enter selects, and Tab moves past the whole deck in one step.
+- **The deck is a toolbar of toggle buttons** (`aria-pressed`), not a radiogroup: a radiogroup selects on arrow keys, which here would cast and broadcast a vote on every keypress. Arrow keys move between cards, Space or Enter chooses, and Tab moves past the whole deck in one step.
 - **Reveal is announced** through a polite live region: "Votes revealed. Everyone chose 5", or "Spread of 3 steps. Ada and Eli, talk through your estimates."
 - **The voted count is visible but not announced** on every change, which would make a screen reader chatter through the whole discussion.
 - **Selection and focus look different,** so a keyboard user can tell "this is my vote" from "this is where I am". Selected: a Cobalt fill with the numeral in Paper (5.3:1 light, 7.1:1 dark). Focused: the 3 px Cobalt ring, 2 px outside the card's edge. A selected card with focus shows both. In the facilitator view before reveal, "selected" never appears, so only focus does.

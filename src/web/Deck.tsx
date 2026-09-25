@@ -3,10 +3,12 @@ import { DECK, type Card } from "../shared/deck.js";
 import { moveFocus, tabStop } from "./deck-keys.js";
 
 /**
- * The deck as a radiogroup: one Tab stop, arrow keys move focus without
- * voting, Space or Enter votes (they are the buttons' own keys). `shown` is
- * the card to show as chosen; pass null when the vote is hidden, and the deck
- * renders identically whatever the vote.
+ * The deck as a toolbar of toggle buttons: one Tab stop, arrow keys move
+ * focus without voting, Space or Enter votes (they are the buttons' own
+ * keys). Not a radiogroup: that pattern selects on arrow keys, which here
+ * would cast and broadcast a vote on every keypress. `shown` is the card to
+ * show as chosen; pass null when the vote is hidden, and the deck renders
+ * identically whatever the vote.
  */
 export function Deck({
   shown,
@@ -33,7 +35,7 @@ export function Deck({
 
   return (
     <div
-      role="radiogroup"
+      role="toolbar"
       aria-label="Your card"
       className="deck"
       onKeyDown={onKeyDown}
@@ -48,9 +50,8 @@ export function Deck({
             cards.current[index] = element;
           }}
           type="button"
-          role="radio"
           className="card"
-          aria-checked={card === shown}
+          aria-pressed={card === shown}
           tabIndex={index === stop ? 0 : -1}
           disabled={disabled}
           onClick={() => {

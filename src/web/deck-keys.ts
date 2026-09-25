@@ -27,8 +27,8 @@ export function moveFocus(
 }
 
 /**
- * The card that takes the one Tab stop in the deck: the chosen card, as a
- * radiogroup expects, or the first. When the vote is hidden, pass null: the
+ * The card that takes the one Tab stop in the deck: the chosen card, so Tab
+ * lands on your vote, or the first. When the vote is hidden, pass null: the
  * Tab stop must not depend on the vote, or tabbing into the deck would land
  * on the chosen card and show it on a shared screen.
  */

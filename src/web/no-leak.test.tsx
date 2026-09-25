@@ -56,8 +56,8 @@ describe("the facilitator view before reveal", () => {
 
   it("marks no card as chosen, in looks or accessibility state", () => {
     const html = render("13", true);
-    expect(html).not.toContain('aria-checked="true"');
-    expect(html.match(/aria-checked="false"/g)).toHaveLength(DECK.length);
+    expect(html).not.toContain('aria-pressed="true"');
+    expect(html.match(/aria-pressed="false"/g)).toHaveLength(DECK.length);
   });
 
   it("differs from not having voted only by the confirmation", () => {
@@ -92,8 +92,8 @@ describe("the facilitator view before reveal", () => {
 describe("the participant view, for contrast", () => {
   it("does show the chosen card, so the checks above can see a selection", () => {
     const html = render("13", false);
-    expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
-    expect(html).toMatch(/aria-checked="true"[^>]*>13</);
+    expect(html.match(/aria-pressed="true"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>13</);
     expect(render("13", false)).not.toBe(render("0", false));
   });
 });
