@@ -10,13 +10,14 @@
     "dev": "tsx watch src/server/main.ts",
     "dev:web": "vite src/web",
     "build:web": "vite build src/web",
+    "check:bundle": "node scripts/check-bundle-size.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm test && npm run build:web",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test && npm run build:web && npm run check:bundle",
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {

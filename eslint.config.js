@@ -12,7 +12,9 @@ export default defineConfig([
   {
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ["eslint.config.js"] },
+        projectService: {
+          allowDefaultProject: ["eslint.config.js", "scripts/*.mjs"],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -79,6 +81,12 @@ export default defineConfig([
               message:
                 "src/web must not import from src/server; share types through src/shared.",
             },
+            {
+              group: ["**/shared/protocol.js"],
+              allowTypeImports: true,
+              message:
+                "Import only types from shared/protocol (it loads Zod); runtime values such as socketPath live in shared/socket.",
+            },
           ],
         },
       ],
@@ -95,6 +103,11 @@ export default defineConfig([
       sourceType: "script",
       parserOptions: { projectService: false, project: null },
     },
+  },
+  {
+    // Build and check scripts run in Node.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: globals.node },
   },
   prettier,
 ]);
