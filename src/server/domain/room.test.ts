@@ -512,6 +512,8 @@ describe("invariants", () => {
     { command: castVote("bob", "5"), outcome: "reject" },
     // bob is still within the grace period at NOW, so expiry changes nothing.
     { command: expire("bob"), outcome: "noop" },
+    // bob reclaims his seat: status and disconnectedAt must flip back together.
+    { command: join("bob"), outcome: "change" },
     { command: leave("alice"), outcome: "change" },
     { command: leave("alice"), outcome: "noop" },
   ];
@@ -533,6 +535,19 @@ describe("invariants", () => {
         expect(next.version).toBe(before);
       }
       room = next;
+    }
+  });
+
+  it("keeps status and disconnectedAt in agreement at every step", () => {
+    // Two fields encode one fact; expire reads one and the sweep filters on
+    // the other, so any divergence would be silent. Check it everywhere.
+    let room = createRoom("r1");
+    for (const { command } of scenario) {
+      const result = applyCommand(room, command, NOW);
+      if (result.ok) room = result.room;
+      for (const p of room.participants.values()) {
+        expect(p.status === "disconnected").toBe(p.disconnectedAt !== null);
+      }
     }
   });
 
