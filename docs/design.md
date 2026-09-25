@@ -131,21 +131,26 @@ Wide, facilitator view, voting (what the team sees on the shared screen):
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Wide, revealed. The same deck row becomes the scale:
+Wide, revealed. The same deck row becomes the scale, and the people list shows each person's card:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Votes revealed                        [ Start next round ]   │
+│ Votes revealed                          [ Start next round ] │
 │                                                              │
-│                           Dee                                │
-│                 Ada       Ben  Eli         Cy                │
-│  0    1    2    3    5    8    13    21    ?    ☕           │
+│ ● Ada 3                              Dee                     │
+│ ● Ben 8                      Ada     Ben Eli     Cy          │
+│ ● Cy ?           0   1   2   3   5   8   13  21  ?   ☕       │
+│ ● Dee 8                                                      │
+│ ● Eli 13                                                     │
+│ ○ Fay (away)                                                 │
 │                                                              │
-│ Spread of 3 steps, from 3 to 13.                             │  Discuss colour
-│ Ada and Eli, talk through your estimates.                    │
-│ Cy voted ?                                                   │
+│                  Spread of 3 steps, from 3 to 13.            │  Discuss colour
+│                  Ada and Eli, talk through your estimates.   │
+│                  Cy voted ?                                  │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+Compact, revealed: the scale runs down the page, one card per row with its names beside it, and the result follows. The people list, the controls and the pinned facilitator bar are as in voting.
 
 ## Who the round waits for
 
@@ -189,15 +194,28 @@ Each action keeps one name through the whole flow.
 | Consensus             | "Everyone chose 5."                                                          |
 | Close spread          | "Close: 3 and 5."                                                            |
 | Wide spread           | "Spread of 3 steps, from 3 to 13. Ada and Eli, talk through your estimates." |
+| One number, not all   | "All numbers agree: 5."                                                      |
+| One numeric voter     | "Only Ada voted: 8.", or "Only Ada chose a number: 8."                       |
 | No numeric votes      | "No numeric votes this round."                                               |
+| No votes              | "Nobody voted this round."                                                   |
 | Non-numeric votes     | "Cy voted ?"                                                                 |
 | Link                  | "Copy link" → "Link copied"                                                  |
 | Invalid masked entry  | "Not a card on the deck"                                                     |
+| Next round (spoken)   | "Next round started."                                                        |
+
+The rarer result lines cover every case the results model can produce:
+
+- **"All numbers agree: 5."** Every numeric vote is the same card, but someone chose `?` or ☕, so it is not consensus. It stays in Ink, not Agree: the `?` means someone is not there yet.
+- **"Only Ada voted: 8."** Only one person voted. **"Only Ada chose a number: 8."** One person chose a number and everyone else who voted chose `?` or ☕.
+- **"No numeric votes this round."** Everyone who voted chose `?` or ☕.
+- **"Nobody voted this round."** The round was revealed with no votes.
 
 ## Accessibility, built in
 
 - **The deck is a toolbar of toggle buttons** (`aria-pressed`), not a radiogroup: a radiogroup selects on arrow keys, which here would cast and broadcast a vote on every keypress. Arrow keys move between cards, Space or Enter chooses, and Tab moves past the whole deck in one step.
-- **Reveal is announced** through a polite live region: "Votes revealed. Everyone chose 5", or "Spread of 3 steps. Ada and Eli, talk through your estimates."
+- **Reveal is announced** through a polite live region, in the same words as the screen, range included, because someone who cannot see the scale needs the numbers: "Votes revealed. Spread of 3 steps, from 3 to 13. Ada and Eli, talk through your estimates." `?` and ☕ are spoken as "question mark" and "coffee", since a screen reader skips a `?` that ends a sentence.
+- **The next round is announced too:** "Next round started.", whoever pressed the button, because the scale giving way to the deck is a big change caused by someone else. Only changes of phase are announced: not joining a room in either phase, and not later snapshots within one. A repeated message ("Vote recorded", twice) is changed invisibly so it is spoken again.
+- **Focus survives a phase change.** Reveal and "Start next round" replace the view, taking the focused control with it; focus then goes to the new status line, which is not a control, so a stray Space or Enter cannot start a round. Focus that is still on the page (the header) stays where it is.
 - **The voted count is visible but not announced** on every change, which would make a screen reader chatter through the whole discussion.
 - **Selection and focus look different,** so a keyboard user can tell "this is my vote" from "this is where I am". Selected: a Cobalt fill with the numeral in Paper (5.3:1 light, 7.1:1 dark). Focused: the 3 px Cobalt ring, 2 px outside the card's edge. A selected card with focus shows both. In the facilitator view before reveal, "selected" never appears, so only focus does.
 - **Every control shows the focus ring** when reached from the keyboard.
@@ -208,6 +226,8 @@ Session 7 audits what is built in; it is not a retrofit. It needs a browser, and
 - A screen reader pass, and keyboard only, in both layouts and both themes.
 - **Focus order is meaningful in both layouts.** One component tree keeps the DOM order identical by construction; the real risk is CSS grid areas reordering the picture without reordering the DOM, so focus jumps around the screen. The one deliberate difference is the wide facilitator controls (see the facilitator view).
 - **200% zoom,** including that the pinned facilitator bar in the compact layout never covers the deck: a sticky bar is a common way for a zoomed page to become unusable. At 100%, focus already scrolls clear of the bar (`scroll-padding-block-end`, from the same `--controls-bar-height` as the bar).
+- **"Votes revealed" twice?** The person whose focused button disappeared hears the status line when focus lands on it, and the live region's announcement. It only happens to them; whether to change it depends on hearing it with a real screen reader.
+- **Empty steps on the scale** are read as bare numbers ("0", "1", "2"…) before the first name. Whether to hide them from screen readers is a judgement to make while listening.
 - **Firefox: the masked field and password prompts.** Whichever way `CSS.supports` answers there, the field is masked; the open question is whether the `type="password"` fallback invites a password prompt.
 
 ## Reviewed against the brief
@@ -230,4 +250,5 @@ Session 7 audits what is built in; it is not a retrofit. It needs a browser, and
 - **Theme:** the no-flash script applies exactly what the app would, for every stored value (unit test); the stored choice is applied before first paint (the Session 8 end-to-end suite).
 - **Contrast, two tiers, both themes:** meaning (Ink, Cobalt, Agree, Discuss) at least 4.5:1 on Paper; control boundaries (Edge, Cobalt) at least 3:1; Rule below 3:1, so it cannot stand in for Edge; and a Paper numeral on a Cobalt fill at least 4.5:1.
 - Focus order and 200% zoom need a browser, so they belong to the Session 7 audit above.
-- **The Session 8 end-to-end suite** also covers what static markup cannot: "Clear my vote" clears the "Vote recorded" message and returns focus to the masked field; and in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked.
+- **Motion:** a test reads the stylesheets and fails if anything animates outside `prefers-reduced-motion: no-preference`, or for 200 ms or more.
+- **The Session 8 end-to-end suite** also covers what static markup cannot: "Clear my vote" clears the "Vote recorded" message and returns focus to the masked field; in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked; the reveal and the next round are each announced once, on the change; and after reveal or "Start next round", focus is on the status line.

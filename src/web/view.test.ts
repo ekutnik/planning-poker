@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import { MAX_NAME_LENGTH } from "../shared/rules.js";
-import {
-  bannerFor,
-  canAct,
-  checkName,
-  resultLines,
-  STOP_ACTIONS,
-  voteFor,
-} from "./view.js";
+import { bannerFor, canAct, checkName, STOP_ACTIONS, voteFor } from "./view.js";
 
 const voting: RoomSnapshot = {
   phase: "voting",
@@ -77,65 +70,5 @@ describe("STOP_ACTIONS", () => {
     expect(STOP_ACTIONS.superseded).toBe("use-this-tab");
     expect(STOP_ACTIONS["room-full"]).toBe("try-again");
     expect(STOP_ACTIONS["invalid-name"]).toBe("change-name");
-  });
-});
-
-describe("resultLines", () => {
-  const revealed = (
-    results: Extract<RoomSnapshot, { phase: "revealed" }>["results"],
-  ): Extract<RoomSnapshot, { phase: "revealed" }> => ({
-    phase: "revealed",
-    roomId: "abcdefghijk",
-    version: 3,
-    viewerId: "a",
-    participants: [
-      { id: "a", name: "Ada", status: "connected", vote: "3" },
-      { id: "b", name: "Bo", status: "connected", vote: "3" },
-      { id: "c", name: "Cy", status: "connected", vote: "21" },
-    ],
-    results,
-  });
-
-  it("lists votes, distribution, range and outliers by name", () => {
-    expect(
-      resultLines(
-        revealed({
-          voteCount: 3,
-          distribution: [
-            { card: "3", count: 2 },
-            { card: "21", count: 1 },
-          ],
-          consensus: false,
-          min: "3",
-          max: "21",
-          spreadSteps: 4,
-          wideSpread: true,
-          outliers: ["c"],
-        }),
-      ),
-    ).toEqual([
-      "3 votes",
-      "3: 2",
-      "21: 1",
-      "Range 3–21, a wide spread.",
-      "Outliers: Cy.",
-    ]);
-  });
-
-  it("says consensus when everyone agrees", () => {
-    expect(
-      resultLines(
-        revealed({
-          voteCount: 1,
-          distribution: [{ card: "5", count: 1 }],
-          consensus: true,
-          min: "5",
-          max: "5",
-          spreadSteps: 0,
-          wideSpread: false,
-          outliers: [],
-        }),
-      ),
-    ).toEqual(["1 vote", "5: 1", "Consensus."]);
   });
 });

@@ -1,7 +1,10 @@
+import { useRef } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { Deck } from "./Deck.js";
+import { useRecoverFocus } from "./focus.js";
 import { MaskedVote } from "./MaskedVote.js";
+import { People } from "./People.js";
 import { roundStatus } from "./status.js";
 import { voteFor } from "./view.js";
 
@@ -18,14 +21,19 @@ export function VotingView({
   snapshot,
   facilitating,
   live,
+  recoverFocus = false,
   onAction,
 }: {
   readonly snapshot: Voting;
   readonly facilitating: boolean;
   readonly live: boolean;
+  /** Set after a phase change: see useRecoverFocus. */
+  readonly recoverFocus?: boolean;
   readonly onAction: (action: RoomAction) => void;
 }) {
   const status = roundStatus(snapshot);
+  const statusRef = useRef<HTMLParagraphElement>(null);
+  useRecoverFocus(statusRef, recoverFocus);
   const hasVoted =
     snapshot.participants.find((p) => p.id === snapshot.viewerId)?.hasVoted ??
     false;
@@ -42,29 +50,14 @@ export function VotingView({
 
   return (
     <div
-      className={
-        facilitating
-          ? "voting voting--facilitator"
-          : "voting voting--participant"
-      }
+      className={`round round--voting ${
+        facilitating ? "round--facilitator" : "round--participant"
+      }`}
     >
-      <p className="status">
+      <p ref={statusRef} className="status" tabIndex={-1}>
         {facilitating ? status.facilitatorLine : status.participantLine}
       </p>
-      <ul className="people" aria-label="Participants">
-        {snapshot.participants.map((p) => (
-          <li key={p.id}>
-            <span className="dot" aria-hidden="true">
-              {p.hasVoted ? "●" : "○"}
-            </span>
-            {p.name}
-            <span className="visually-hidden">
-              , {p.hasVoted ? "voted" : "not voted"}
-            </span>
-            {p.status === "disconnected" && " (away)"}
-          </li>
-        ))}
-      </ul>
+      <People participants={snapshot.participants} />
       <Deck
         shown={facilitating ? null : snapshot.yourVote}
         disabled={!live}

@@ -1,12 +1,13 @@
+import { useState } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
+import { phaseAnnouncement } from "./announce.js";
 import type { RoomAction } from "./connection/room-connection.js";
-import { resultLines } from "./view.js";
+import { RevealedView } from "./RevealedView.js";
 import { VotingView } from "./VotingView.js";
 
 /**
- * The room: banners, then the voting screen, or the results until PR C turns
- * the deck into the scale. The room id is never shown; Copy link in the
- * header shares it.
+ * The room: banners, then the voting screen or the revealed round. The room
+ * id is never shown; Copy link in the header shares it.
  */
 export function RoomView({
   snapshot,
@@ -25,9 +26,23 @@ export function RoomView({
   readonly persistent: boolean;
   readonly onAction: (action: RoomAction) => void;
 }) {
-  const you = (id: string) => (id === snapshot.viewerId ? " (you)" : "");
+  // The live region must exist before it changes, so it lives here, above
+  // both phases. Its text is set only when the phase changes (React's
+  // "adjust state when a prop changes" pattern), never on other snapshots.
+  const [phase, setPhase] = useState(snapshot.phase);
+  const [announcement, setAnnouncement] = useState("");
+  const [phaseChanged, setPhaseChanged] = useState(false);
+  if (snapshot.phase !== phase) {
+    setPhase(snapshot.phase);
+    setAnnouncement(phaseAnnouncement(phase, snapshot));
+    setPhaseChanged(true);
+  }
+
   return (
     <main aria-busy={!live}>
+      <p role="status" className="visually-hidden">
+        {announcement}
+      </p>
       {banner && <p role="status">{banner}</p>}
       {notice && <p role="alert">{notice}</p>}
       {!persistent && (
@@ -41,34 +56,17 @@ export function RoomView({
           snapshot={snapshot}
           facilitating={facilitating}
           live={live}
+          recoverFocus={phaseChanged}
           onAction={onAction}
         />
       ) : (
-        <>
-          <h2>Participants</h2>
-          <ul>
-            {snapshot.participants.map((p) => (
-              <li key={p.id}>
-                {p.name}
-                {you(p.id)}: {p.vote ?? "no vote"}
-                {p.status === "disconnected" && " (away)"}
-              </li>
-            ))}
-          </ul>
-          <h2>Results</h2>
-          <ul>
-            {resultLines(snapshot).map((line, index) => (
-              <li key={index}>{line}</li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            disabled={!live}
-            onClick={() => onAction({ type: "reset" })}
-          >
-            Start next round
-          </button>
-        </>
+        <RevealedView
+          snapshot={snapshot}
+          facilitating={facilitating}
+          live={live}
+          recoverFocus={phaseChanged}
+          onAction={onAction}
+        />
       )}
     </main>
   );
