@@ -82,7 +82,8 @@ export default defineConfig([
                 "src/web must not import from src/server; share types through src/shared.",
             },
             {
-              group: ["**/shared/protocol.js"],
+              // Both forms: bundler resolution also accepts the bare path.
+              group: ["**/shared/protocol", "**/shared/protocol.js"],
               allowTypeImports: true,
               message:
                 "Import only types from shared/protocol (it loads Zod); runtime values such as socketPath live in shared/socket.",
