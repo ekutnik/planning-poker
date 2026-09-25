@@ -31,30 +31,35 @@ What follows from that:
 
 Before reveal, the deck row is where you choose. After reveal, the same row becomes the result: each person's name sits above the card they chose. Consensus is everyone stacked on one card; a wide spread visibly stretches across the deck. There is no separate results panel. This makes the reveal-time results decision visible: spread is measured in deck steps, and nothing is shown that does not map back to a card.
 
+**Names sit above every card, numeric or not.** A sentence may add meaning, but it never replaces a name's place on the scale: "Cy voted ?" also appears as text, because a `?` usually means someone does not understand the story, and the facilitator should say so aloud.
+
 ## Tokens
 
 Defined in [`src/web/styles/tokens.css`](../src/web/styles/tokens.css) as CSS custom properties. Each colour is defined once with its light and dark value through `light-dark()`, and `color-scheme` chooses between them.
 
 ### Colour
 
-| Token   | Light     | Dark      | Job                                               | On Paper (light / dark) |
-| ------- | --------- | --------- | ------------------------------------------------- | ----------------------- |
-| Paper   | `#F3F5F2` | `#141A20` | Background                                        | —                       |
-| Ink     | `#1E2833` | `#E4E9EE` | Text, card numerals                               | 13.6 / 14.3             |
-| Rule    | `#CDD5D1` | `#33404B` | Card outlines, empty states, dividers             | 1.4 / 1.7               |
-| Cobalt  | `#2D5BD8` | `#7FA2FF` | Your selection (participant view), focus, primary | 5.3 / 7.1               |
-| Agree   | `#2F7D5B` | `#5FBF93` | Consensus                                         | 4.6 / 7.8               |
-| Discuss | `#966319` | `#E0A84A` | Wide spread, outliers                             | 4.7 / 8.2               |
+| Token   | Light     | Dark      | Job                                          | On Paper (light / dark) |
+| ------- | --------- | --------- | -------------------------------------------- | ----------------------- |
+| Paper   | `#F3F5F2` | `#141A20` | Background                                   | —                       |
+| Ink     | `#1E2833` | `#E4E9EE` | Text, card numerals                          | 13.6 / 14.3             |
+| Rule    | `#CDD5D1` | `#33404B` | Dividers, empty states                       | 1.4 / 1.7               |
+| Edge    | `#7D8A92` | `#606B72` | Card outlines (control boundaries)           | 3.2 / 3.2               |
+| Cobalt  | `#2D5BD8` | `#7FA2FF` | Your selection (a fill), focus ring, primary | 5.3 / 7.1               |
+| Agree   | `#2F7D5B` | `#5FBF93` | Consensus                                    | 4.6 / 7.8               |
+| Discuss | `#966319` | `#E0A84A` | Wide spread, outliers                        | 4.7 / 8.2               |
 
 - **Colour is never the only signal.** Consensus and spread always have words; "voted" is a filled dot against a hollow one; "away" is a word.
-- **Nothing that carries meaning uses Rule.** At 1.4:1 it is too faint to survive a compressed screen share. It is only for outlines and dividers; every card is identified by its numeral, and the selected card by Cobalt.
-- **Every colour that carries meaning is at least 4.5:1 on Paper in both themes** (WCAG AA for normal text). A test parses the stylesheet and enforces it.
-- **Discuss was darkened in the light theme,** from the brief's `#B7791F` (3.3:1, which fails for the 16–18 px text it colours) to `#966319` (4.7:1): the same hue and saturation, lower lightness.
+- **Rule is decoration only:** dividers and empty states. At 1.4:1 it is too faint to survive a compressed screen share, and too faint to mark a control.
+- **Card outlines use Edge.** The deck cards are buttons, and their outline is what makes them read as cards, so WCAG's non-text contrast criterion (1.4.11) requires 3:1 against the background. Rule cannot give that; Edge gives 3.2:1 in both themes.
+- **Two contrast tiers, in both themes.** Meaning (text, and any colour that carries information) is at least 4.5:1 on Paper, WCAG AA for normal text. Control boundaries (Edge, and Cobalt as the focus ring) are at least 3:1. A test parses the stylesheet and enforces both, and checks that Rule stays below the control tier, so it cannot quietly stand in for Edge.
+- **Discuss was darkened in the light theme,** from the brief's `#B7791F` to `#966319`: the same hue and saturation, lower lightness. The original was chosen by eye and never measured; at 3.3:1 it fails AA for the 16–18 px text it colours and would be the first thing to wash out over a screen share. At 4.7:1 it passes, and the test means the palette cannot slip below AA again.
 
 ### Themes
 
 - A **System / Light / Dark** menu in the header, defaulting to System and remembered in `localStorage`.
 - A `data-theme` attribute on `<html>` pins `color-scheme`, and so overrides `prefers-color-scheme`.
+- **Known limitation:** each colour is defined once with `light-dark()`, which needs a 2024-or-later browser (Chrome 123, Firefox 120, Safari 17.5). Older browsers treat the colour tokens as invalid and fall back to their default black on white: readable, not broken. Accepted for a tool used in current browsers.
 - **No flash of the wrong theme.** [`src/web/public/theme-init.js`](../src/web/public/theme-init.js) applies the stored choice before the first paint. It **must stay a plain, blocking `<script src>` in `<head>`: not `type="module"`, not `async`, not `defer`**, or the flash comes back. It is external rather than inline so that a Content-Security-Policy of `script-src 'self'` allows it with no hash to keep in sync. A test runs it and checks it applies exactly what the app would.
 
 ### Type
@@ -95,7 +100,7 @@ Compact, participant view, voting:
 │                                  │
 │ ┌──┐┌──┐┌──┐┌──┐┌──┐┌──┐┌──┐┌──┐ │
 │ │0 ││1 ││2 ││3 ││5 ││8 ││13││21│ │
-│ └──┘└──┘└──┘└──┘└──┘└▀▀┘└──┘└──┘ │  your 8, in Cobalt
+│ └──┘└──┘└──┘└──┘└──┘└▀▀┘└──┘└──┘ │  your 8: a Cobalt fill
 │ ┌──┐┌──┐                         │
 │ │? ││☕│                          │
 │ └──┘└──┘                         │
@@ -107,7 +112,7 @@ Wide, facilitator view, voting (what the team sees on the shared screen):
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Planning poker               Facilitate ●   Theme   Copy link │
+│ Planning poker       Facilitate ●   Theme   Copy link   Leave │
 │                                                              │
 │ Waiting for Cy. Fay is away.            [ Reveal votes ]     │
 │                                         1 hasn't voted       │
@@ -126,15 +131,15 @@ Wide, revealed. The same deck row becomes the scale:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Votes revealed                          [ Start next round ] │
+│ Votes revealed                        [ Start next round ]   │
 │                                                              │
-│                              Ben                             │
-│                  Ada         Dee                 Eli         │
-│   0    1    2    3     5     8     13    21     ?    ☕       │
-│                                          Cy voted ?          │
+│                           Dee                                │
+│                 Ada       Ben  Eli         Cy                │
+│  0    1    2    3    5    8    13    21    ?    ☕           │
 │                                                              │
 │ Spread of 3 steps, from 3 to 13.                             │  Discuss colour
 │ Ada and Eli, talk through your estimates.                    │
+│ Cy voted ?                                                   │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -148,8 +153,8 @@ A per-person view, not a role, so the server does not change and anyone can stil
 
 - **The toggle.** A "Facilitate" switch in the header with `aria-pressed`, remembered per browser in `localStorage`, because the same person usually runs every session. Its description reads: "Shows the round controls up front and hides your own vote, so you can share your screen."
 - **Controls up front.** "Reveal votes", then "Start next round", as the primary action, always in the same place: top of the main area in wide, pinned to the bottom in compact. In the participant view the same controls are quieter secondary buttons.
-- **The status line names who is missing** ("Waiting for Cy and Fay") rather than counting, because that is what the facilitator says aloud. When everyone counted has voted it reads "Everyone has voted".
-- **No confirmation on reveal.** "2 haven't voted" sits beside the button instead. A calm, fast tool does not add friction.
+- **The status line names who is missing** ("Waiting for Cy. Fay is away.") rather than counting, because that is what the facilitator says aloud. When everyone counted has voted it reads "Everyone has voted", with any away non-voters after it ("Everyone has voted. Fay is away.").
+- **No confirmation on reveal.** "1 hasn't voted" sits beside the button instead. A calm, fast tool does not add friction.
 - **Per browser, so design for the surprise.** Someone who facilitated yesterday may join as a participant today, click a card, and see no selection. The toggle's visible state in the header and the "You've voted ✓" line must make it obvious they are in the facilitator view.
 
 **Hidden vote, before reveal:**
@@ -171,8 +176,8 @@ Each action keeps one name through the whole flow.
 
 | Moment                | Copy                                                                         |
 | --------------------- | ---------------------------------------------------------------------------- |
-| Status (participant)  | "4 of 6 have voted", or "Everyone has voted"                                 |
-| Status (facilitator)  | "Waiting for Cy and Fay", or "Everyone has voted"                            |
+| Status (participant)  | "4 of 5 have voted", or "Everyone has voted"                                 |
+| Status (facilitator)  | "Waiting for Cy. Fay is away.", or "Everyone has voted. Fay is away."        |
 | Primary actions       | "Reveal votes" → "Votes revealed"; "Start next round"                        |
 | Own vote, facilitator | "You've voted ✓"; "Vote recorded"; "Clear my vote"                           |
 | Consensus             | "Everyone chose 5."                                                          |
@@ -188,9 +193,15 @@ Each action keeps one name through the whole flow.
 - **The deck is a radiogroup.** Arrow keys move between cards, Space or Enter selects, and Tab moves past the whole deck in one step.
 - **Reveal is announced** through a polite live region: "Votes revealed. Everyone chose 5", or "Spread of 3 steps. Ada and Eli, talk through your estimates."
 - **The voted count is visible but not announced** on every change, which would make a screen reader chatter through the whole discussion.
-- **A visible focus ring in Cobalt everywhere.** "Away" is a word, not only a dimmed name.
+- **Selection and focus look different,** so a keyboard user can tell "this is my vote" from "this is where I am". Selected: a Cobalt fill with the numeral in Paper (5.3:1 light, 7.1:1 dark). Focused: the 3 px Cobalt ring, 2 px outside the card's edge. A selected card with focus shows both. In the facilitator view before reveal, "selected" never appears, so only focus does.
+- **Every control shows the focus ring** when reached from the keyboard.
+- **"Away" is a word,** not only a dimmed name.
 
-Session 7 audits what is built in (a screen reader pass, keyboard only, 200% zoom, both layouts, both themes); it is not a retrofit.
+Session 7 audits what is built in; it is not a retrofit. It needs a browser, and covers:
+
+- A screen reader pass, and keyboard only, in both layouts and both themes.
+- **Focus order follows visual order in both layouts.** One component tree keeps the DOM order identical by construction; the real risk is CSS grid areas reordering the picture without reordering the DOM, so focus jumps around the screen.
+- **200% zoom,** including that the pinned facilitator bar in the compact layout never covers the deck: a sticky bar is a common way for a zoomed page to become unusable.
 
 ## Reviewed against the brief
 
@@ -209,5 +220,5 @@ Session 7 audits what is built in (a screen reader pass, keyboard only, 200% zoo
 - **Screen-level no-leak test,** mirroring the wire-level vote-privacy test: in the facilitator view before reveal, no element shows the viewer's own card (no selected state on any deck card, no card value in any visible text, and the masked field empty after submit). Removing the hiding once must fail it.
 - **Invalid masked input** produces the fixed error copy, never containing the typed value.
 - **Theme:** the no-flash script applies exactly what the app would, for every stored value (unit test); the stored choice is applied before first paint (the Session 8 end-to-end suite).
-- **Contrast:** every colour that carries meaning is at least 4.5:1 on Paper in both themes.
-- **Layout:** the same DOM order at both widths.
+- **Contrast, two tiers, both themes:** meaning (Ink, Cobalt, Agree, Discuss) at least 4.5:1 on Paper; control boundaries (Edge, Cobalt) at least 3:1; Rule below 3:1, so it cannot stand in for Edge; and a Paper numeral on a Cobalt fill at least 4.5:1.
+- Focus order and 200% zoom need a browser, so they belong to the Session 7 audit above.
