@@ -82,5 +82,17 @@ export default defineConfig([
       ],
     },
   },
+  {
+    // Classic scripts served as is from Vite's public directory, such as the
+    // blocking no-flash theme script: browser globals, script mode, and no
+    // type information, since no tsconfig covers them.
+    files: ["src/web/public/**/*.js"],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      globals: globals.browser,
+      sourceType: "script",
+      parserOptions: { projectService: false, project: null },
+    },
+  },
   prettier,
 ]);
