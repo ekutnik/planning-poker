@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import type { Card } from "../shared/deck.js";
+import { freshAnnouncement } from "./announce.js";
 import { maskedInputType, submitMasked } from "./masked.js";
 
 // Checked once, when the module loads: support cannot change while the page
@@ -38,7 +39,8 @@ export function MaskedVote({
     event.preventDefault();
     const { vote, message: next } = submitMasked(value);
     setValue("");
-    setMessage(next);
+    // A second "Vote recorded" must still be spoken.
+    setMessage((previous) => freshAnnouncement(previous, next));
     if (vote !== null) onVote(vote);
   };
 
