@@ -262,15 +262,15 @@ export class RoomConnection {
     this.livenessTimer = null;
     if (!this.socket) return;
     const now = this.deps.clock.now();
-    const outstanding =
-      this.pingSentAt !== null && this.lastHeardAt < this.pingSentAt;
-    if (outstanding && now - (this.pingSentAt ?? now) >= PONG_DEADLINE_MS) {
+    const { pingSentAt } = this;
+    const outstanding = pingSentAt !== null && this.lastHeardAt < pingSentAt;
+    if (outstanding && now - pingSentAt >= PONG_DEADLINE_MS) {
       // No reply of any kind to our ping: the server or the path is gone.
       this.abandonSocket("no reply to ping");
       this.scheduleRetry("normal");
       return;
     }
-    const lastPing = this.pingSentAt ?? this.openedAt;
+    const lastPing = pingSentAt ?? this.openedAt;
     if (!outstanding && now - lastPing >= CLIENT_PING_INTERVAL_MS) {
       this.socket.send(JSON.stringify({ type: "ping" }));
       this.pingSentAt = now;
