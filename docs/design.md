@@ -113,7 +113,7 @@ Wide, facilitator view, voting (what the team sees on the shared screen):
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Planning poker       Facilitate ●   Theme   Copy link   Leave │
+│ Planning poker      Facilitate ●   Theme   Copy link   Leave │
 │                                                              │
 │ Waiting for Cy. Fay is away.            [ Reveal votes ]     │
 │                                         1 hasn't voted       │
@@ -124,7 +124,10 @@ Wide, facilitator view, voting (what the team sees on the shared screen):
 │ ● Eli           │ ? ││ ☕│    no card shown as selected       │
 │ ○ Fay (away)    └───┘└───┘                                   │
 │                                                              │
-│                 Your vote (hidden)  [ •• ]   You've voted ✓   │
+│                 Your vote (hidden)                           │
+│                 [ •• ]                                       │
+│                 You've voted ✓                               │
+│                 [ Clear my vote ]                            │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -205,6 +208,7 @@ Session 7 audits what is built in; it is not a retrofit. It needs a browser, and
 - A screen reader pass, and keyboard only, in both layouts and both themes.
 - **Focus order is meaningful in both layouts.** One component tree keeps the DOM order identical by construction; the real risk is CSS grid areas reordering the picture without reordering the DOM, so focus jumps around the screen. The one deliberate difference is the wide facilitator controls (see the facilitator view).
 - **200% zoom,** including that the pinned facilitator bar in the compact layout never covers the deck: a sticky bar is a common way for a zoomed page to become unusable. At 100%, focus already scrolls clear of the bar (`scroll-padding-block-end`, from the same `--controls-bar-height` as the bar).
+- **Firefox: the masked field and password prompts.** Whichever way `CSS.supports` answers there, the field is masked; the open question is whether the `type="password"` fallback invites a password prompt.
 
 ## Reviewed against the brief
 
