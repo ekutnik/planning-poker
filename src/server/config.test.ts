@@ -55,6 +55,12 @@ describe("parseConfig (#18)", () => {
     ["SWEEP_INTERVAL_MS", "60000"],
     ["SWEEP_INTERVAL_MS", "10"],
     ["ROOM_TTL_MS", "ten minutes"],
+    // Number() would accept all of these; plain decimal digits only.
+    ["MAX_ROOMS", "0x10"],
+    ["MAX_ROOMS", "1e4"],
+    ["MAX_ROOMS", " 5"],
+    ["MAX_ROOMS", "5 "],
+    ["MAX_ROOMS", "+5"],
   ])("refuses %s=%j and names it", (name, value) => {
     const result = parseConfig({ [name]: value });
     expect(result.ok).toBe(false);

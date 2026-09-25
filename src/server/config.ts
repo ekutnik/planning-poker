@@ -18,8 +18,17 @@ const LOG_LEVELS = [
   "silent",
 ] as const;
 
+/**
+ * Plain decimal digits only. z.coerce.number() would go through Number(),
+ * which also accepts "0x10", "1e4" and " 5 ", so MAX_ROOMS=0x10 would quietly
+ * mean 16.
+ */
 const whole = (min: number, max = Number.MAX_SAFE_INTEGER) =>
-  z.coerce.number().int().min(min).max(max);
+  z
+    .string()
+    .regex(/^\d+$/, "expected a whole number in plain decimal digits")
+    .transform(Number)
+    .pipe(z.number().int().min(min).max(max));
 
 /**
  * Everything the server reads from its environment (#18). Unset means the
