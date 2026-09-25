@@ -1,13 +1,10 @@
 import { SESSION_TOKEN_PATTERN, validName } from "../shared/rules.js";
+import { safeStorage, type KeyValueStore } from "./storage.js";
+
+export type { KeyValueStore };
 
 const TOKEN_KEY = "planning-poker:token";
 const NAME_KEY = "planning-poker:name";
-
-/** The part of Storage this uses; localStorage in the browser. */
-export interface KeyValueStore {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-}
 
 export interface Identity {
   /** One token for every room: the server salts the public id per room (ADR 0006). */
@@ -20,35 +17,14 @@ export interface Identity {
 }
 
 /**
- * The browser's identity for every room. Storage can fail in two ways, and
- * both fall back to memory: accessing localStorage throws in some privacy
- * modes, and setItem throws when storage is full or read-only.
+ * The browser's identity for every room. When storage fails (see
+ * safeStorage), both the token and the name fall back to memory.
  */
 export function loadIdentity(
   getStorage: () => KeyValueStore,
   newToken: () => string,
 ): Identity {
-  let storage: KeyValueStore | null;
-  try {
-    storage = getStorage();
-  } catch {
-    storage = null;
-  }
-  const read = (key: string): string | null => {
-    try {
-      return storage?.getItem(key) ?? null;
-    } catch {
-      return null;
-    }
-  };
-  const write = (key: string, value: string): boolean => {
-    try {
-      storage?.setItem(key, value);
-      return storage !== null;
-    } catch {
-      return false;
-    }
-  };
+  const { read, write } = safeStorage(getStorage);
 
   let sessionToken = read(TOKEN_KEY);
   let persistent = true;
