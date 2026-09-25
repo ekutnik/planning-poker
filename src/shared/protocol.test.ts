@@ -12,6 +12,7 @@ describe("parseClientMessage — valid messages", () => {
     { type: "reveal" },
     { type: "reset" },
     { type: "leave" },
+    { type: "ping" },
   ])("accepts $type", (message) => {
     expect(parseClientMessage(JSON.stringify(message))).toEqual(message);
   });
@@ -25,6 +26,12 @@ describe("parseClientMessage — rejections", () => {
   it("rejects an extra key (strictObject, not strip)", () => {
     expect(
       parseClientMessage(JSON.stringify({ type: "reveal", extra: 1 })),
+    ).toBeNull();
+  });
+
+  it("rejects a ping that carries anything", () => {
+    expect(
+      parseClientMessage(JSON.stringify({ type: "ping", at: 1 })),
     ).toBeNull();
   });
 

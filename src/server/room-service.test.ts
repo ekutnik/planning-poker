@@ -949,3 +949,49 @@ describe("RoomService — sweep: room TTL (#18)", () => {
     expect(ctx.service.bookkeeping().rooms).toBe(0);
   });
 });
+
+describe("RoomService — app-level ping (#20)", () => {
+  const ping = JSON.stringify({ type: "ping" });
+
+  it("answers a ping with a pong before join and after join", () => {
+    const { service, connect, join } = setup();
+    const alice = connect("alice");
+    service.message(alice, ping);
+    expect(alice.sent).toEqual([{ type: "pong" }]);
+
+    join(alice, ALICE, "Alice");
+    alice.sent.length = 0;
+    service.message(alice, ping);
+    expect(alice.sent).toEqual([{ type: "pong" }]);
+  });
+
+  it("changes nothing: no broadcast, no log line, and it is not a join", () => {
+    const { service, connect, join, logs, tick } = setup();
+    const alice = connect("alice");
+    join(alice, ALICE, "Alice");
+    const bob = connect("bob");
+    join(bob, BOB, "Bob");
+    const lurker = connect("lurker");
+    alice.sent.length = 0;
+    bob.sent.length = 0;
+    const logged = logs.length;
+    const before = service.bookkeeping();
+
+    service.message(alice, ping);
+    service.message(lurker, ping);
+    expect(bob.sent).toEqual([]);
+    expect(logs.length).toBe(logged);
+    expect(service.bookkeeping()).toEqual(before);
+
+    // A pinging socket that never joins still times out.
+    tick(JOIN_TIMEOUT_MS);
+    expect(lurker.closedWith?.code).toBe(CloseCode.JOIN_TIMEOUT);
+  });
+
+  it("ignores a ping from a connection it does not know", () => {
+    const { service } = setup();
+    const stray = new FakeConnection("stray");
+    service.message(stray, ping);
+    expect(stray.sent).toEqual([]);
+  });
+});

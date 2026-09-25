@@ -276,6 +276,12 @@ describe("websocket route", () => {
     }
   });
 
+  it("answers an app-level ping with a pong over the socket", async () => {
+    const client = await connect(await createRoom());
+    client.send({ type: "ping" });
+    expect(await client.next()).toEqual({ type: "pong" });
+  });
+
   it("lets a client on the current protocol version join", async () => {
     expect(socketPath("abcdefghijk")).toBe(
       `/ws/abcdefghijk?v=${PROTOCOL_VERSION}`,
