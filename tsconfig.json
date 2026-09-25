@@ -14,7 +14,11 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "files": ["src/web/vite.config.ts", "src/web/styles/tokens.node.test.ts"],
+  "files": [
+    "src/web/vite.config.ts",
+    "src/web/styles/tokens.node.test.ts",
+    "src/web/styles/motion.node.test.ts"
+  ],
   "include": ["src"],
   "exclude": ["src/web"]
 }
