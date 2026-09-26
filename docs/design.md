@@ -5,7 +5,7 @@
 
 The visual and interaction design of the client, and the reasoning behind it. The architecture decisions are in [decisions](decisions); this is their counterpart for what people see.
 
-Session 7b revised the Session 6 design after the team used it: a new typeface and palette, status pills, a quieter status line, no hidden-vote field, a result the team reads by its own rule, and nudges. The reference for every screen is the specimen board, rows "Direction, round 2", "Reveal outcomes" and "Dark theme, the menu, and compact reveal". The revision is built over seven PRs (see [Building 7b](#building-7b)); until they land, parts of the app still show Session 6.
+Session 7b revised the Session 6 design after the team used it: a new typeface and palette, status pills, a quieter status line, no hidden-vote field, a result the team reads by its own rule, and nudges. The revision is built over seven PRs, starting with [#46](https://github.com/ekutnik/planning-poker/pull/46) (see [Building 7b](#building-7b)), and those PRs, with their screenshots in both themes, are the reference screens until the finished screens are added here ([#47](https://github.com/ekutnik/planning-poker/issues/47)). Until they land, parts of the app still show Session 6.
 
 ## Who it is for
 
@@ -33,7 +33,7 @@ What follows from that:
 
 | Session 6                                                                                  | Now                                                                                                                                   | Why                                                                                                                                         |
 | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Atkinson Hyperlegible Next, cool paper `#F3F5F2`                                           | Figtree 400/600, warm white `#FAF9F6`                                                                                                 | Chosen side by side on the specimen board: cleaner and smoother, still clearly legible.                                                     |
+| Atkinson Hyperlegible Next, cool paper `#F3F5F2`                                           | Figtree 400/600, warm white `#FAF9F6`                                                                                                 | Chosen side by side against Atkinson, Geist and Instrument Sans: cleaner and smoother, still clearly legible.                               |
 | Dots for voted / not voted, "(away)" as text                                               | Tinted status pills: Voted, Not yet, Away                                                                                             | Readable at a glance in the list, and colour is never the only signal because each pill is a word.                                          |
 | Status line bold, 18–22 px                                                                 | Status line quiet, 15 px regular, Quiet colour                                                                                        | It overshadowed the names. The pills now answer "who are we waiting for?"; the status line is supporting text. It is still the room's `h1`. |
 | Masked "Your vote (hidden)" field                                                          | Removed                                                                                                                               | Decided by the team: it added clutter. The accepted consequence is under [the facilitator view](#the-facilitator-view).                     |
@@ -103,6 +103,7 @@ Scale cards after reveal, fill / border / numeral:
 One family: **Figtree**, in weights 400 and 600.
 
 - **Self-hosted**, with no third-party request: it works offline and avoids the GDPR concerns of loading fonts from a third party's servers. The variable font covers both weights in one file per subset: Latin (20 KB) always, and Latin Extended (10 KB) only when a name on screen needs one of its characters (`unicode-range`).
+- **No flash of the system font:** the page preloads the Latin file, so Figtree is usually there for the first frame. Latin Extended is not preloaded; it only matters when a name needs it.
 - The files are the upstream Fontsource 5.3.0 builds, **used exactly as published: never subset or altered here**. They are licensed under the SIL Open Font License 1.1 ([`src/web/fonts/OFL.txt`](../src/web/fonts/OFL.txt)), which declares no Reserved Font Name.
 - **Sentence case everywhere,** except the product name, "Planning Poker Session". No all-caps labels.
 
