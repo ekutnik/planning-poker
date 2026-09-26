@@ -31,7 +31,7 @@ What follows from that:
 
 Before reveal, the deck row is where you choose. After reveal, the same row becomes the result: each person's name sits above the card they chose. Consensus is everyone stacked on one card; a wide spread visibly stretches across the deck. There is no separate results panel. This makes the reveal-time results decision visible: spread is measured in deck steps, and nothing is shown that does not map back to a card.
 
-**Names sit above every card, numeric or not.** A sentence may add meaning, but it never replaces a name's place on the scale: "Cy voted ?" also appears as text, because a `?` usually means someone does not understand the story, and the facilitator should say so aloud.
+**Names sit above every card, numeric or not,** one line each: a long name is cut short with "…" rather than wrapped, because a name wrapped across two lines reads as two people. The full name stays in the page for screen readers, and the people list beside the scale shows it whole. A sentence may add meaning, but it never replaces a name's place on the scale: "Cy voted ?" also appears as text, because a `?` usually means someone does not understand the story, and the facilitator should say so aloud.
 
 ## Tokens
 
@@ -163,7 +163,7 @@ Compact, revealed: the scale runs down the page, one card per row with its names
 A per-person view, not a role, so the server does not change and anyone can still reveal and reset ([ADR 0005](decisions/0005-anyone-can-reveal.md)).
 
 - **The toggle.** A "Facilitate" switch in the header with `aria-pressed`, remembered per browser in `localStorage`, because the same person usually runs every session. Its description reads: "Shows the round controls up front and hides your own vote, so you can share your screen."
-- **Controls up front.** "Reveal votes", then "Start next round", as the primary action, always in the same place: top of the main area in wide, pinned to the bottom in compact. In the participant view the same controls are quieter secondary buttons.
+- **Controls up front.** "Reveal votes", then "Start next round", as the primary action, always in the same place: top of the main area in wide, pinned to the bottom in compact when the window is tall enough (at least 25em; below that, as at 400% zoom, the bar would take a third of the screen, so it sits in the normal flow). In the participant view the same controls are quieter secondary buttons.
 - **The controls come last in the DOM,** after the hidden vote. In compact that matches the pinned bar; in wide they sit top right but come last in keyboard order, which still follows the task (read the status, see who is in, vote, then reveal): WCAG asks for a meaningful focus order, not a strictly visual one.
 - **The status line names who is missing** ("Waiting for Cy. Fay is away.") rather than counting, because that is what the facilitator says aloud. When everyone counted has voted it reads "Everyone has voted", with any away non-voters after it ("Everyone has voted. Fay is away.").
 - **No confirmation on reveal.** "1 hasn't voted" sits beside the button instead. A calm, fast tool does not add friction.
