@@ -15,5 +15,9 @@
     "types": []
   },
   "include": ["src/web", "src/shared"],
-  "exclude": ["src/web/vite.config.ts", "src/web/**/*.node.test.ts"]
+  "exclude": [
+    "src/web/vite.config.ts",
+    "src/web/**/*.node.test.ts",
+    "src/web/**/*.node.ts"
+  ]
 }
