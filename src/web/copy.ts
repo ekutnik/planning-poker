@@ -109,3 +109,10 @@ export const HEADER_COPY = {
   theme: "Theme",
   leave: "Leave the room",
 } as const;
+
+/** Copy link, and what it says after a copy, for a few seconds. */
+export const COPY_LINK_COPY = {
+  copy: "Copy link",
+  copied: "Link copied",
+  failed: "Couldn't copy. Copy the address from your browser.",
+} as const;
