@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
+import { PRODUCT_NAME } from "./copy.js";
 import { roundStatus } from "./status.js";
 
-const APP = "Planning poker";
+const APP = PRODUCT_NAME;
 
-/** "Votes revealed – Planning poker"; the app's name alone for the landing page. */
+/** "Votes revealed – Planning Poker Session"; the name alone on the landing page. */
 export function documentTitle(part: string | null): string {
   return part === null ? APP : `${part} – ${APP}`;
 }

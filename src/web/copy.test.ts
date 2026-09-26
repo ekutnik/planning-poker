@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { MAX_NAME_LENGTH, MAX_PARTICIPANTS } from "../shared/rules.js";
 import {
+  COPY_LINK_COPY,
   ERROR_COPY,
+  HEADER_COPY,
   HOME_COPY,
   JOIN_COPY,
   NOT_FOUND_COPY,
@@ -22,6 +24,8 @@ const sentences = [
   NOT_FOUND_COPY.title,
   NOT_FOUND_COPY.body,
   NOT_SAVED_COPY,
+  HEADER_COPY.facilitateNote,
+  COPY_LINK_COPY.failed,
 ];
 
 /** Headings and button labels: short, no full stop. */
@@ -32,6 +36,13 @@ const labels = [
   JOIN_COPY.submit,
   NOT_FOUND_COPY.action,
   ...Object.values(STOP_ACTION_LABELS),
+  HEADER_COPY.menu,
+  HEADER_COPY.facilitate,
+  HEADER_COPY.facilitating,
+  HEADER_COPY.theme,
+  HEADER_COPY.leave,
+  COPY_LINK_COPY.copy,
+  COPY_LINK_COPY.copied,
 ];
 
 const everything = [...sentences, ...labels, ...Object.values(MASKED_COPY)];

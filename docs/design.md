@@ -117,6 +117,8 @@ One family: **Figtree**, in weights 400 and 600.
 | Result sentence                 | 17 / 400        | 18 / 400        |
 | Pills, nudge button             | 13 / 600        | 13 / 600        |
 | Wordmark                        | 14 / 600        | 17 / 600        |
+| Controls (buttons, Menu labels) | 15 / 600        | 15 / 600        |
+| Small (a switch's description)  | 14 / 400        | 14 / 400        |
 
 Sizes are px, set in `rem`, so browser zoom scales them. A test checks every role against this table. The numerals are smaller than in Session 6, so the screen-share legibility check is repeated before launch ([#44](https://github.com/ekutnik/planning-poker/issues/44)).
 
@@ -140,13 +142,16 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 
 ### Header
 
-- **Left:** the mark (a card with an index dot in Cobalt) and "Planning Poker Session".
-- **Right:** the "Facilitating" pill (only while on), Copy link, Menu. In compact, Menu is an icon button with `aria-label="Menu"`.
-- **Menu** is a button that opens a panel, not an ARIA menu, because it holds mixed controls:
-  1. Facilitate, a switch, with "Hides your vote so you can share your screen."
+- **Left:** the mark (a card with an index dot in Cobalt; its outline follows the text colour) and "Planning Poker Session". The mark is 26 px wide, 20 px compact.
+- **Right:** the "Facilitating" pill (only while on), Copy link, Menu. In compact, Menu is an icon button (three bars) with `aria-label="Menu"`; in wide it reads "Menu" with a chevron. Outside a room there is no pill and no Copy link, and the Menu holds Theme alone.
+- **Copy link moves into the Menu in compact,** as its first item, above Facilitate, so the pill and the Menu fit beside the name in one row: a second header row would cost about 72 px where height is scarcest, and Copy link is used once a session, by whoever creates the room. It says "Link copied" there, and the panel stays open to show it. When the browser refuses the copy it says "Couldn't copy. Copy the address from your browser." instead; either message shows for three seconds, and both are announced through the button's own live region, since a focused button whose text changes is not reliably read out. It is rendered in one place or the other, chosen in script at the same 55em breakpoint, never in both with one hidden by CSS, so a screen reader never finds two.
+- **The frame:** the header spans the window with its Rule line underneath; its content, and each screen's content below it, sit in one column of at most 1120 px. At 320 px (400% zoom) the header wraps onto two rows, the controls kept at the right edge so the Menu's panel stays on screen.
+- **Menu** is a disclosure: a button that shows a panel, not an ARIA menu (it holds mixed controls) and not a dialog (a dialog would move and trap focus and make the rest of the page inert, none of which fits a small settings panel).
+  1. Facilitate, a switch (`role="switch"`), with "Hides your vote so you can share your screen."
   2. Theme: System / Light / Dark, a native select.
   3. A divider, then "Leave the room".
-- **Favicon:** the mark as an SVG with a dark-mode-aware stroke, plus a 32 px PNG fallback.
+- **How the Menu behaves:** the button has `aria-expanded` and `aria-controls`, and the panel comes straight after it in the page, so the next Tab after opening goes into the panel; opening does not move focus. It closes on Escape (focus returns to the button), on a click outside, and when focus moves out of both the button and the panel. Escape works wherever focus is while it is open, because Safari does not focus a button on click. Toggling Facilitate or changing the theme leaves it open, so the result can be seen.
+- **Favicon:** the mark as an SVG, plus a 32 px PNG for browsers without SVG icons. At 16 px the header's 1.75 outline blurs away, so the favicon alone frames the card tighter and draws it at 2. The PNG fills the card white, so it shows on a dark tab bar too. **The SVG's dark stroke follows the computer's dark mode, not the theme chosen in the Menu:** a tab icon cannot read the page's setting, so someone on a light computer who picked Dark keeps the light icon. That is expected, not a bug.
 
 ### People list
 
@@ -306,7 +311,7 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 | Own vote, facilitator | "Clear my vote"; "You've voted"                                                        |
 | Nudge                 | "Nudge" (accessible name "Nudge Cy"), "Nudged"; "The room is waiting for your vote."   |
 | Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8." |
-| Link                  | "Copy link" → "Link copied"                                                            |
+| Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."   |
 | Preview               | "Pause preview" / "Play preview"                                                       |
 | Next round (spoken)   | "Next round started."                                                                  |
 
@@ -349,7 +354,7 @@ Session 6's first instincts, and what they became:
 - **Layout:** the scale's names never clip (no `max-height` or fixed height on the name stack); compact renders only voted cards; the facilitator bar is pinned only in compact and only when the window is tall enough.
 - **Motion:** a test reads the stylesheets and fails if anything animates outside `prefers-reduced-motion: no-preference`, or for 200 ms or more; the preview loop is the one exemption, and must have a pause control.
 - **Theme:** the no-flash script applies exactly what the app would, for every stored value (unit test); the stored choice is applied before first paint (the Session 8 end-to-end suite).
-- **The Session 8 end-to-end suite** also covers what static markup cannot: in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked; the reveal and the next round are each announced once, on the change, and the person who revealed hears "Votes revealed" once, not twice; after a screen change (reveal, "Start next round", joining, a stopped screen arriving from another tab), focus is on the new heading; the title follows the round; and a nudge reaches only its target, with the banner and tab title clearing on voting.
+- **The Session 8 end-to-end suite** also covers what static markup cannot: the Menu closes on Escape (with focus back on its button), on a click outside and when focus leaves it, and stays open while Facilitate or the theme changes; in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked; the reveal and the next round are each announced once, on the change, and the person who revealed hears "Votes revealed" once, not twice; after a screen change (reveal, "Start next round", joining, a stopped screen arriving from another tab), focus is on the new heading; the title follows the round; and a nudge reaches only its target, with the banner and tab title clearing on voting.
 
 ## Building 7b
 

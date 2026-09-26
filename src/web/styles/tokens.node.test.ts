@@ -141,6 +141,8 @@ describe("type scale (docs/design.md, Type)", () => {
     result: [17, 18],
     pill: [13, 13],
     wordmark: [14, 17],
+    control: [15, 15],
+    small: [14, 14],
   };
 
   const sizes = (block: string): Record<string, number> => {
@@ -193,5 +195,29 @@ describe("the font's first frame", () => {
 
   it("does not preload Latin Extended, which only some names need", () => {
     expect(preloads.some((tag) => tag.includes("latin-ext"))).toBe(false);
+  });
+});
+
+describe("the favicon", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const svg = readFileSync(
+    new URL("../public/favicon.svg", import.meta.url),
+    "utf8",
+  );
+
+  it("offers the SVG, with a 32px PNG for browsers without SVG icons", () => {
+    expect(html).toMatch(
+      /<link rel="icon" href="\/favicon-32.png" sizes="32x32" type="image\/png"/,
+    );
+    expect(html).toMatch(
+      /<link rel="icon" href="\/favicon.svg" type="image\/svg\+xml"/,
+    );
+  });
+
+  it("follows the computer's dark mode, in the tokens' colours", () => {
+    expect(svg).toContain("@media (prefers-color-scheme: dark)");
+    for (const colour of ["#1d1f22", "#2d5bd8", "#edeeef", "#8aa8ff"]) {
+      expect(svg).toContain(colour);
+    }
   });
 });

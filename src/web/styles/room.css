@@ -4,12 +4,20 @@
  * the cards have outlines.
  */
 
-/* Buttons: quiet by default, Cobalt for the primary action. */
+/* Buttons: Surface with an Edge outline by default, Cobalt for the primary
+   action. 44px tall, above the 24px WCAG 2.5.8 minimum. */
 button {
-  padding: var(--space-4) var(--space-16);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  min-height: 2.75rem;
+  padding: 0 var(--space-16);
   border: 1px solid var(--edge);
   border-radius: var(--radius-control);
-  background: transparent;
+  background: var(--surface);
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
   cursor: pointer;
 }
 
@@ -23,19 +31,6 @@ button.primary {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-
-.header-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-8) var(--space-16);
-}
-
-.facilitate-toggle[aria-pressed="true"] {
-  border-color: var(--cobalt);
-  color: var(--cobalt);
-  font-weight: var(--weight-strong);
 }
 
 /* A round, voting or revealed: compact is one column, in reading order. */

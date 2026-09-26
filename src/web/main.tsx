@@ -8,6 +8,7 @@ import "./styles/base.css";
 import "./index.css";
 import "./styles/room.css";
 import "./styles/pages.css";
+import "./styles/header.css";
 import { createRouter } from "./router.js";
 import { trackFocus } from "./focus.js";
 import { watchStorage } from "./storage.js";

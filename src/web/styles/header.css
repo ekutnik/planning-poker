@@ -1,0 +1,222 @@
+/*
+ * The header (docs/design.md, Header): the mark and the product's name, then
+ * the Facilitating pill, Copy link and the Menu, a disclosure whose panel
+ * follows its button in the page.
+ */
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8) var(--space-12);
+  min-height: 4.5rem; /* 72px */
+  box-sizing: border-box;
+  padding: var(--space-12) var(--gutter);
+  border-block-end: 1px solid var(--rule);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.brand-mark {
+  inline-size: 1.25rem; /* 20px */
+  block-size: 1.25rem;
+  color: var(--ink);
+}
+
+.mark-dot {
+  fill: var(--cobalt);
+}
+
+.wordmark {
+  font-size: var(--text-wordmark);
+  font-weight: var(--weight-strong);
+}
+
+/* In compact, Copy link lives in the Menu, so the pill and the Menu fit
+   beside the name in one row from 375px. Narrower still (320px, which is
+   400% zoom), they wrap onto a second row, kept at the right edge: the
+   Menu's panel is aligned to the Menu button's right edge, so it must stay
+   on screen. */
+.header-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  margin-inline-start: auto;
+}
+
+/* The header's own buttons, not the controls inside the Menu's panel. */
+.header-controls > button,
+.menu-button {
+  padding-inline: var(--space-12);
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.125rem 0.625rem; /* 2px 10px */
+  border-radius: var(--radius-pill);
+  font-size: var(--text-pill);
+  font-weight: var(--weight-strong);
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+.pill--facilitating {
+  background: var(--facilitating-bg);
+  color: var(--facilitating-text);
+}
+
+/* The Menu. Compact shows the three bars, wide the word and a chevron. */
+.menu {
+  position: relative;
+}
+
+.menu-icon {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+}
+
+.menu-button-label,
+.menu-icon--chevron {
+  display: none;
+}
+
+/* Positioned against .menu, which must stay position: relative. Its display
+   is set only when it is not hidden: a display rule on .menu-panel itself
+   would override the hidden attribute and leave a closed panel showing. */
+.menu-panel {
+  position: absolute;
+  inset-block-start: calc(100% + var(--space-8));
+  inset-inline-end: 0;
+  z-index: 10;
+  box-sizing: border-box;
+  inline-size: min(20rem, calc(100vw - 2 * var(--space-16)));
+  padding: var(--space-24);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-container);
+  background: var(--surface);
+}
+
+.menu-panel:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.menu-row--switch {
+  align-items: flex-start;
+}
+
+.menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.menu-label {
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
+}
+
+.menu-note {
+  color: var(--quiet);
+  font-size: var(--text-small);
+  line-height: 1.45;
+}
+
+.menu-panel select {
+  min-height: 2.5rem; /* 40px */
+  padding: 0 var(--space-8);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  font-size: var(--text-control);
+}
+
+.menu-divider {
+  margin: 0;
+  border: 0;
+  border-block-start: 1px solid var(--rule);
+}
+
+/* A switch: Edge track when off, Cobalt when on; the knob keeps 3:1 against
+   either. 44x26, so a comfortable target. */
+.switch {
+  flex: none;
+  justify-content: flex-start;
+  inline-size: 2.75rem;
+  block-size: 1.625rem;
+  min-height: 0;
+  padding: 3px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--edge);
+}
+
+.switch[aria-checked="true"] {
+  justify-content: flex-end;
+  background: var(--cobalt);
+}
+
+.switch-knob {
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.switch[aria-checked="true"] .switch-knob {
+  background: var(--on-cobalt);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .menu-panel:not([hidden]) {
+    animation: menu-open 120ms ease-out;
+  }
+}
+
+@keyframes menu-open {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (min-width: 55em) {
+  .brand-mark {
+    inline-size: 1.625rem; /* 26px */
+    block-size: 1.625rem;
+  }
+
+  .header-controls > button,
+  .menu-button {
+    padding-inline: var(--space-16);
+  }
+
+  .menu-button-label,
+  .menu-icon--chevron {
+    display: inline;
+  }
+
+  .menu-icon--chevron {
+    inline-size: 1rem;
+    block-size: 1rem;
+  }
+
+  .menu-icon--bars {
+    display: none;
+  }
+}
