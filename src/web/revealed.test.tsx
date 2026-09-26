@@ -116,7 +116,8 @@ describe("the deck as the scale", () => {
 describe("the revealed people list", () => {
   it("shows each person's card next to their name", () => {
     const html = render();
-    const people = /<ul class="people"[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+    const people =
+      /<ul class="people[^"]*"[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
     expect(people).toContain('Ada <span class="person-card">3</span>');
     expect(people).toContain('Dee <span class="person-card">8</span>');
     expect(people).toMatch(

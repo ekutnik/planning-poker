@@ -37,7 +37,10 @@ export function RevealedView({
       <ScreenHeading className="status" onShown={onHeadingShown}>
         Votes revealed
       </ScreenHeading>
-      <People participants={snapshot.participants} />
+      <People
+        participants={snapshot.participants}
+        viewerId={snapshot.viewerId}
+      />
       <Scale snapshot={snapshot} />
       <div className="result">
         <p className={`result-summary result-summary--${copy.tone}`}>

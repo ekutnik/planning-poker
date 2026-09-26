@@ -88,11 +88,14 @@ button:disabled {
   }
 }
 
+/* The room's h1, styled quiet: the pills answer "who are we waiting for?",
+   and the status line is supporting text. */
 .status {
   grid-area: status;
   margin: 0;
+  color: var(--quiet);
   font-size: var(--text-status);
-  font-weight: var(--weight-strong);
+  font-weight: var(--weight-regular);
 }
 
 .controls {
@@ -107,14 +110,57 @@ button:disabled {
   margin: 0;
 }
 
+/* While voting: one row per person, the name, then a status pill. */
 .people {
   grid-area: people;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4) var(--space-24);
+  flex-direction: column;
+  gap: var(--space-8);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: 2rem; /* 32px */
+}
+
+/* A long name is cut short, not wrapped: the row stays one person. */
+.person-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-you {
+  color: var(--quiet);
+}
+
+.pill--voted {
+  background: var(--voted-bg);
+  color: var(--voted-text);
+}
+
+.pill--not-yet {
+  background: var(--not-yet-bg);
+  color: var(--not-yet-text);
+}
+
+.pill--away {
+  background: var(--away-bg);
+  color: var(--away-text);
+}
+
+/* After reveal, until the revealed list moves below the scale (7b PR 4). */
+.people--revealed {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-24);
 }
 
 .people .dot {
@@ -126,16 +172,70 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* The deck. Edge outlines (3:1), a Cobalt fill for your own choice, and the
-   global focus ring 2px outside: selection and focus never look the same. */
-.deck {
+/* The deck: ten 68px cards in one row when there is room for them, two
+   rows of five otherwise, which is always the case in compact. The deck's
+   own width decides, through a container query, since in wide the room
+   for it depends on the window. */
+.deck-area {
   grid-area: deck;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-8);
+  container: deck / inline-size;
 }
 
-.card,
+.deck {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 4.25rem));
+  gap: var(--space-12);
+}
+
+@container deck (min-width: 49.25rem) {
+  .deck {
+    grid-template-columns: repeat(10, 4.25rem);
+  }
+}
+
+/* A card is 4:5, Surface with an Edge outline (3:1). Hover darkens the
+   outline to Ink and lifts it 2px; selected is a Cobalt fill with an On
+   Cobalt numeral; focus is the global 3px ring 2px outside, so selection
+   and focus never look the same, and a selected card with focus shows
+   both. */
+.card {
+  box-sizing: border-box;
+  inline-size: 100%;
+  aspect-ratio: 4 / 5;
+  min-height: 0;
+  padding: 0;
+  border: 1.5px solid var(--edge);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-card);
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.card:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+/* The lift only moves with motion allowed; otherwise hover is the outline
+   alone, since with reduced motion nothing moves. */
+@media (prefers-reduced-motion: no-preference) {
+  .card {
+    transition:
+      transform 120ms ease-out,
+      border-color 120ms ease-out;
+  }
+
+  .card:hover:not(:disabled) {
+    transform: translateY(-2px);
+  }
+
+  .card:active:not(:disabled) {
+    transform: none;
+    transition-duration: 80ms;
+  }
+}
+
 .scale-card {
   min-width: 2.25em;
   min-height: 3em;
@@ -155,16 +255,13 @@ button:disabled {
   color: var(--on-cobalt);
 }
 
+/* Clear my vote, then the "You've voted" pill. */
 .own-vote {
   grid-area: own;
-  display: grid;
-  justify-items: start;
-  gap: var(--space-8);
-}
-
-.own-vote-message,
-.own-vote-confirmation {
-  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
 }
 
 /* The scale: the deck row after reveal. Compact lists the steps down the
@@ -264,54 +361,47 @@ button:disabled {
   font-weight: var(--weight-strong);
 }
 
-/* Masked like a password, without being one: a password field would invite
-   password managers to offer to save the vote. Where this property is
-   missing, MaskedVote falls back to a password field (maskedInputType). */
-.masked {
-  width: 6ch;
-  padding: var(--space-4) var(--space-8);
-  border: 2px solid var(--edge);
-  border-radius: var(--radius-control);
-  background: transparent;
-  font-size: var(--text-status);
-  letter-spacing: 0.2em;
-  -webkit-text-security: disc;
-}
-
 @media (min-width: 55em) {
+  /* Two columns: the status line and the people on the left, 280px; the
+     round on the right. The people span the rows beside the right column,
+     so they start right under the status line, while the deck waits for
+     the controls above it. */
   .round {
-    grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr) auto;
-    column-gap: var(--space-32);
+    grid-template-columns: 17.5rem minmax(0, 1fr);
+    column-gap: var(--space-48);
+    align-items: start;
   }
 
   .round--voting.round--participant {
     grid-template-areas:
-      "status status status"
-      "people deck deck"
-      ". controls controls";
+      "status deck"
+      "people deck"
+      "people controls";
   }
 
-  /* Controls up front, always in the same place: top of the main area. */
+  /* Controls up front, always in the same place: top right. */
   .round--voting.round--facilitator {
     grid-template-areas:
-      "status status controls"
-      "people deck deck"
-      ". own own";
+      "status controls"
+      "people controls"
+      "people deck"
+      "people own";
   }
 
   .round--revealed.round--participant {
     grid-template-areas:
-      "status status status"
-      "people scale scale"
-      ". result result"
-      ". controls controls";
+      "status scale"
+      "people scale"
+      "people result"
+      "people controls";
   }
 
   .round--revealed.round--facilitator {
     grid-template-areas:
-      "status status controls"
-      "people scale scale"
-      ". result result";
+      "status controls"
+      "people controls"
+      "people scale"
+      "people result";
   }
 
   .round--facilitator .controls {
@@ -319,11 +409,6 @@ button:disabled {
     align-items: flex-end;
     padding: 0;
     border: 0;
-  }
-
-  .people {
-    flex-direction: column;
-    flex-wrap: nowrap;
   }
 
   .scale {

@@ -1,13 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { DECK } from "../shared/deck.js";
 import { moveFocus, tabStop } from "./deck-keys.js";
 import { createFacilitateStore, FACILITATE_KEY } from "./facilitate.js";
-import {
-  MASKED_COPY,
-  maskedInputType,
-  parseMaskedEntry,
-  submitMasked,
-} from "./masked.js";
 import type { KeyValueStore } from "./storage.js";
 
 describe("moveFocus", () => {
@@ -34,54 +28,6 @@ describe("tabStop", () => {
   it("is the chosen card when the vote is shown, the first card otherwise", () => {
     expect(tabStop(DECK, "13")).toBe(DECK.indexOf("13"));
     expect(tabStop(DECK, null)).toBe(0);
-  });
-});
-
-describe("the masked field", () => {
-  it.each(DECK)("accepts %s", (card) => {
-    expect(parseMaskedEntry(card)).toBe(card);
-  });
-
-  it("accepts c for coffee, and tolerates spaces and case", () => {
-    expect(parseMaskedEntry("c")).toBe("☕");
-    expect(parseMaskedEntry(" C ")).toBe("☕");
-    expect(parseMaskedEntry(" 13 ")).toBe("13");
-  });
-
-  it.each(["4", "1 3", "13.0", "", "coffee", "x"])("refuses %j", (entry) => {
-    expect(parseMaskedEntry(entry)).toBeNull();
-  });
-
-  it("records a card with fixed copy", () => {
-    expect(submitMasked("13")).toEqual({
-      vote: "13",
-      message: MASKED_COPY.recorded,
-    });
-  });
-
-  it.each(["4", "42", "hello"])(
-    "refuses %j without ever echoing it",
-    (entry) => {
-      const result = submitMasked(entry);
-      expect(result).toEqual({ vote: null, message: "Not a card on the deck" });
-      expect(result.message).not.toContain(entry);
-    },
-  );
-});
-
-describe("maskedInputType", () => {
-  it("masks a text field with CSS where the browser supports it", () => {
-    const supports = vi.fn(() => true);
-    expect(maskedInputType(supports)).toBe("text");
-    expect(supports).toHaveBeenCalledWith("-webkit-text-security", "disc");
-  });
-
-  it("falls back to a password field where it does not", () => {
-    expect(maskedInputType(() => false)).toBe("password");
-  });
-
-  it("falls back to a password field when support is unknown", () => {
-    expect(maskedInputType(undefined)).toBe("password");
   });
 });
 

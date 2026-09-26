@@ -11,7 +11,6 @@ import {
   STOP_ACTION_LABELS,
   STOP_COPY,
 } from "./copy.js";
-import { MASKED_COPY } from "./masked.js";
 
 /** Every full sentence the app shows outside the round's own lines. */
 const sentences = [
@@ -45,7 +44,7 @@ const labels = [
   COPY_LINK_COPY.copied,
 ];
 
-const everything = [...sentences, ...labels, ...Object.values(MASKED_COPY)];
+const everything = [...sentences, ...labels];
 
 describe("copy", () => {
   it("says what happened and what to do, without apologising", () => {

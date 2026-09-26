@@ -76,3 +76,41 @@ describe("one breakpoint (docs/design.md, Layout)", () => {
     }
   });
 });
+
+describe("the deck and its cards (7b)", () => {
+  it("draws every card at 4:5, with an Edge outline and a Surface fill", () => {
+    const card = declarations(css, ".card");
+    expect(card).toMatch(/aspect-ratio:\s*4\s*\/\s*5/);
+    expect(card).toMatch(/border:\s*1\.5px solid var\(--edge\)/);
+    expect(card).toMatch(/background:\s*var\(--surface\)/);
+  });
+
+  it("lays out two rows of five, or ten in a row when the deck has room", () => {
+    expect(declarations(css, ".deck")).toMatch(
+      /grid-template-columns:\s*repeat\(5,/,
+    );
+    // Ten 68px cards and nine 12px gaps: 788px, 49.25rem.
+    const ten =
+      /@container deck \(min-width: ([\d.]+)rem\)\s*\{\s*\.deck\s*\{\s*grid-template-columns:\s*repeat\(10, 4\.25rem\)/.exec(
+        css,
+      );
+    expect(Number(ten?.[1])).toBe((10 * 68 + 9 * 12) / 16);
+  });
+
+  it("lifts a card on hover only when motion is allowed", () => {
+    const { inside, outside } = split(
+      css,
+      "(prefers-reduced-motion: no-preference)",
+    );
+    expect(inside).toMatch(/\.card:hover:not\(:disabled\)\s*\{\s*transform/);
+    expect(outside).not.toMatch(/\.card[^{]*\{[^}]*transform/);
+  });
+});
+
+describe("the room's status line (7b)", () => {
+  it("is quiet: Quiet colour, regular weight", () => {
+    const status = declarations(css, ".status");
+    expect(status).toMatch(/color:\s*var\(--quiet\)/);
+    expect(status).toMatch(/font-weight:\s*var\(--weight-regular\)/);
+  });
+});
