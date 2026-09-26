@@ -9,7 +9,7 @@
 export type MenuEvent =
   /** The Menu button was pressed. */
   | "toggle"
-  /** Escape, with focus in the button or the panel. */
+  /** Escape while it is open, wherever focus is (Safari leaves it on the page). */
   | "escape"
   /** A pointer went down outside the button and the panel. */
   | "click-outside"
