@@ -3,17 +3,17 @@
  * and dark value, through light-dark(): color-scheme picks one. The theme menu
  * pins color-scheme with data-theme on <html>; without it, the system decides.
  *
- * Colour is never the only signal. --rule is for decoration only (dividers,
- * empty states): it is too faint to survive a compressed screen share, and
- * too faint for a control's boundary, which is what --edge is for.
+ * Colour is never the only signal: every pill is a word. --rule is for
+ * decoration only (dividers, outlines of empty scale cards): it is too faint
+ * for a control's boundary, which is what --edge is for.
  */
 
 @font-face {
-  font-family: "Atkinson Hyperlegible Next";
+  font-family: "Figtree";
   font-style: normal;
   font-display: swap;
-  font-weight: 200 800;
-  src: url("../fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2")
+  font-weight: 300 900;
+  src: url("../fonts/figtree-latin-ext-wght-normal.woff2")
     format("woff2-variations");
   unicode-range:
     U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
@@ -22,11 +22,11 @@
 }
 
 @font-face {
-  font-family: "Atkinson Hyperlegible Next";
+  font-family: "Figtree";
   font-style: normal;
   font-display: swap;
-  font-weight: 200 800;
-  src: url("../fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2")
+  font-weight: 300 900;
+  src: url("../fonts/figtree-latin-wght-normal.woff2")
     format("woff2-variations");
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
@@ -37,48 +37,88 @@
 :root {
   color-scheme: light dark;
 
-  /* Colour: light-dark(light, dark). */
-  --paper: light-dark(#f3f5f2, #141a20); /* background */
-  --ink: light-dark(#1e2833, #e4e9ee); /* text, card numerals */
-  --rule: light-dark(#cdd5d1, #33404b); /* dividers, empty states */
-  --edge: light-dark(#7d8a92, #606b72); /* card outlines: 3:1 on paper */
-  --cobalt: light-dark(#2d5bd8, #7fa2ff); /* your selection, focus, primary */
-  --agree: light-dark(#2f7d5b, #5fbf93); /* consensus */
-  --discuss: light-dark(#966319, #e0a84a); /* wide spread, outliers */
+  /* Colour: light-dark(light, dark). Every text pair is at least 4.5:1. */
+  --paper: light-dark(#faf9f6, #1c1d1f); /* page background */
+  --surface: light-dark(#ffffff, #242528); /* cards, inputs, the menu panel */
+  --ink: light-dark(#1d1f22, #edeeef); /* text, card numerals */
+  --quiet: light-dark(#5f6368, #a7abb0); /* status line, secondary text */
+  --rule: light-dark(#e6e4df, #33363a); /* dividers, empty scale cards */
+  --edge: light-dark(#7d8a92, #6e747a); /* control outlines: 3:1 on paper */
+  --cobalt: light-dark(#2d5bd8, #8aa8ff); /* selection, focus, primary */
+  --on-cobalt: light-dark(#ffffff, #1c1d1f); /* a label on a cobalt fill */
 
-  /* Type: one family, weights 400 and 700, sentence case everywhere. */
-  --font:
-    "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif;
+  /* Pills and banners: background, then text. */
+  --voted-bg: light-dark(#e7f3ec, #1f3a2b);
+  --voted-text: light-dark(#1f6b45, #8fd6ae);
+  --not-yet-bg: light-dark(#f0f1f2, #2b2d30);
+  --not-yet-text: light-dark(#55595e, #b7bbc0);
+  --away-bg: light-dark(#fbeaea, #402426);
+  --away-text: light-dark(#a12a2a, #f3a9a9);
+  --draw-bg: light-dark(#fbf1e0, #3a2f1c);
+  --draw-text: light-dark(#8a5a12, #e8c07a);
+  --name-bg: light-dark(#efeeea, #2b2d30);
+  --name-text: light-dark(#1d1f22, #edeeef);
+  --facilitating-bg: light-dark(#e8eefc, #1e2a4a);
+  --facilitating-text: light-dark(#2448b0, #aac0ff);
+
+  /* Scale cards after reveal: fill, border, numeral. Their own tokens, like
+     the pills', even where the values match today: a card and a pill do
+     different jobs, and may diverge. Borders at least 3:1 on paper. */
+  --win-fill: light-dark(#e7f3ec, #1f3a2b);
+  --win-border: light-dark(#2e8b57, #5fbf93);
+  --win-numeral: light-dark(#1f6b45, #8fd6ae);
+  --draw-fill: light-dark(#fbf1e0, #3a2f1c);
+  --draw-border: light-dark(#a8761f, #e0a84a);
+  --draw-numeral: light-dark(#8a5a12, #e8c07a);
+
+  /* Type: Figtree 400 and 600, sentence case everywhere. */
+  --font: "Figtree", system-ui, sans-serif;
   --weight-regular: 400;
-  --weight-bold: 700;
+  --weight-strong: 600;
 
   /* Compact sizes; wide sizes below. rem, so browser zoom scales them. */
   --text-body: 1rem; /* 16px */
-  --text-status: 1.125rem; /* 18px, bold */
-  --text-card: 1.75rem; /* 28px, bold */
-  --text-name: 1rem; /* 16px, bold */
-  --text-heading: 1.25rem; /* 20px, bold */
+  --text-status: 0.9375rem; /* 15px, regular, quiet: the room's h1 */
+  --text-heading: 1.625rem; /* 26px, strong: landing and join h1 */
+  --text-card: 1.375rem; /* 22px, strong: deck numerals */
+  --text-scale: 1.0625rem; /* 17px, strong: scale numerals */
+  --text-result: 1.0625rem; /* 17px, regular: the result sentence */
+  --text-pill: 0.8125rem; /* 13px, strong: pills, the nudge button */
+  --text-wordmark: 0.875rem; /* 14px, strong */
 
-  /* Space separates sections; only the cards have outlines. */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 1rem;
-  --space-4: 1.5rem;
-  --space-5: 2.5rem;
-  --card-radius: 0.375rem;
+  /* Space: 4, 8, 12, 16, 24, 32, 48, 80 px. Sections separate by space. */
+  --space-4: 0.25rem;
+  --space-8: 0.5rem;
+  --space-12: 0.75rem;
+  --space-16: 1rem;
+  --space-24: 1.5rem;
+  --space-32: 2rem;
+  --space-48: 3rem;
+  --space-80: 5rem;
 
-  /* The only motion: names settle onto the scale at reveal. */
+  /* Corners. */
+  --radius-control: 0.5rem; /* cards, buttons, inputs */
+  --radius-container: 0.75rem; /* the menu panel, the preview, the banner */
+  --radius-chip: 0.375rem; /* value chips, the nudge button */
+  --radius-pill: 999px;
+
+  /* The content column. */
+  --content-width: 70rem; /* 1120px */
+
+  /* The only motion at reveal: names settle onto the scale. */
   --settle: 180ms;
 }
 
-/* Wide: sized for a 1080p screen share seen as a video thumbnail. */
+/* Wide: sized for a 1080p screen share seen as a video thumbnail. The room
+   status and the pills keep their size. */
 @media (min-width: 55em) {
   :root {
-    --text-body: 1.125rem; /* 18px */
-    --text-status: 1.375rem; /* 22px */
-    --text-card: 2.5rem; /* 40px */
-    --text-name: 1.125rem; /* 18px */
-    --text-heading: 1.5rem; /* 24px */
+    --text-body: 1.0625rem; /* 17px */
+    --text-heading: 1.875rem; /* 30px */
+    --text-card: 1.625rem; /* 26px */
+    --text-scale: 1.75rem; /* 28px */
+    --text-result: 1.125rem; /* 18px */
+    --text-wordmark: 1.0625rem; /* 17px */
   }
 }
 

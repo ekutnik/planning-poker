@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <title>Planning poker</title>
+    <!-- Latin only: Latin Extended loads just when a name needs it. -->
+    <link
+      rel="preload"
+      href="./fonts/figtree-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <!-- Must stay blocking: not a module, not async, not defer (docs/design.md). -->
     <script src="/theme-init.js"></script>
   </head>

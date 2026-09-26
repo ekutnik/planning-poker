@@ -71,7 +71,7 @@ See [docs/decisions](docs/decisions) for the architecture decisions and [docs/de
 
 ## Credits
 
-The typeface is [Atkinson Hyperlegible Next](https://github.com/googlefonts/atkinson-hyperlegible-next), created for the Braille Institute of America, used under the SIL Open Font License 1.1 ([`src/web/fonts/OFL.txt`](src/web/fonts/OFL.txt)).
+The typeface is [Figtree](https://github.com/erikdkennedy/figtree) by Erik Kennedy, used under the SIL Open Font License 1.1 ([`src/web/fonts/OFL.txt`](src/web/fonts/OFL.txt)).
 
 ## License
 
