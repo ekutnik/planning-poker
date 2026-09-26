@@ -87,15 +87,15 @@
   display: none;
 }
 
+/* Positioned against .menu, which must stay position: relative. Its display
+   is set only when it is not hidden: a display rule on .menu-panel itself
+   would override the hidden attribute and leave a closed panel showing. */
 .menu-panel {
   position: absolute;
   inset-block-start: calc(100% + var(--space-8));
   inset-inline-end: 0;
   z-index: 10;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-16);
   inline-size: min(20rem, calc(100vw - 2 * var(--space-16)));
   padding: var(--space-24);
   border: 1px solid var(--rule);
@@ -103,8 +103,10 @@
   background: var(--surface);
 }
 
-.menu-panel[hidden] {
-  display: none;
+.menu-panel:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
 }
 
 .menu-row {

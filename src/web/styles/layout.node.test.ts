@@ -32,3 +32,17 @@ describe("the pinned facilitator bar (A-05)", () => {
     expect(tall.outside).not.toMatch(reserved);
   });
 });
+
+describe("the Menu's panel (#48)", () => {
+  it("never sets display on the panel itself, so hidden really hides it", () => {
+    // A display rule on .menu-panel would override the hidden attribute.
+    expect(declarations(css, ".menu-panel")).not.toMatch(/display\s*:/);
+    expect(declarations(css, ".menu-panel:not([hidden])")).toMatch(
+      /display:\s*flex/,
+    );
+  });
+
+  it("is positioned against the Menu itself", () => {
+    expect(declarations(css, ".menu")).toMatch(/position:\s*relative/);
+  });
+});
