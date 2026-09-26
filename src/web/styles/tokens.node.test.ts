@@ -174,3 +174,24 @@ describe("type scale (docs/design.md, Type)", () => {
     }
   });
 });
+
+describe("the font's first frame", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const preloads = [...html.matchAll(/<link\s[^>]*rel="preload"[^>]*>/g)].map(
+    ([tag]) => tag,
+  );
+
+  it("preloads the Latin face that the stylesheet declares", () => {
+    const latin = preloads.find((tag) => tag.includes("figtree-latin-wght"));
+    expect(latin).toBeDefined();
+    // A font preload without crossorigin is fetched twice.
+    expect(latin).toMatch(/as="font"/);
+    expect(latin).toMatch(/type="font\/woff2"/);
+    expect(latin).toMatch(/\scrossorigin[\s/>]/);
+    expect(tokens).toContain("../fonts/figtree-latin-wght-normal.woff2");
+  });
+
+  it("does not preload Latin Extended, which only some names need", () => {
+    expect(preloads.some((tag) => tag.includes("latin-ext"))).toBe(false);
+  });
+});
