@@ -2,35 +2,37 @@
 
 Session 7. The standard is WCAG 2.2 AA, with three criteria that bear directly on this app: 2.4.11 Focus Not Obscured, 2.5.8 Target Size, and 1.4.10 Reflow. The audit checks every claim in [design.md](../design.md) and runs real tasks rather than a checklist. Every finding ends as a fix, an issue, or a written acceptance.
 
-**Status: audit pass complete and triaged (2026-09-26); fixes in progress.** Five findings, A-01 to A-05, all to be fixed. The checks run by hand on the maintainer's machine found nothing new (see [Checks by hand](#checks-by-hand)).
+**Status: audit pass complete (2026-09-26); fixes in progress.** Six findings: A-01 to A-05 are triaged, all to be fixed; A-06, from the checks by hand, awaits triage. Two checks by hand were not run in detail and are due before launch ([#44](https://github.com/ekutnik/planning-poker/issues/44)); see [Checks by hand](#checks-by-hand).
 
 ## Environment
 
-| Tool                                                       | Used for                                                                  | Status                   |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------ |
-| Chromium (the Claude desktop app's browser), keyboard only | Every flow without a mouse, focus order and visibility                    | Done, 2026-09-26         |
-| Chromium, viewport emulation                               | Reflow and zoom: 640×400 is 200% and 320×200 is 400% of a 1280×800 window | Done, 2026-09-26         |
-| Chromium, scripted measurements                            | Target sizes, focus hidden by the pinned bar, text spacing (1.4.12)       | Done, 2026-09-26         |
-| Chromium accessibility tree                                | Roles, names, headings, landmarks, live regions                           | Done, 2026-09-26         |
-| VoiceOver with Safari                                      | The main screen reader pass                                               | Done by hand, 2026-09-26 |
-| Firefox                                                    | The masked field and password prompts                                     | Done by hand, 2026-09-26 |
-| axe                                                        | An automated baseline on every screen                                     | Not run; see below       |
-| A real Meet or Zoom share, viewed on a second device       | Legibility at thumbnail and full size, both themes                        | Done by hand, 2026-09-26 |
+| Tool                                                       | Used for                                                                  | Status                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------- |
+| Chromium (the Claude desktop app's browser), keyboard only | Every flow without a mouse, focus order and visibility                    | Done, 2026-09-26                      |
+| Chromium, viewport emulation                               | Reflow and zoom: 640×400 is 200% and 320×200 is 400% of a 1280×800 window | Done, 2026-09-26                      |
+| Chromium, scripted measurements                            | Target sizes, focus hidden by the pinned bar, text spacing (1.4.12)       | Done, 2026-09-26                      |
+| Chromium accessibility tree                                | Roles, names, headings, landmarks, live regions                           | Done, 2026-09-26                      |
+| VoiceOver with Safari                                      | The main screen reader pass                                               | By hand, 2026-09-26; one item not run |
+| Firefox                                                    | The masked field and password prompts                                     | Not run; before launch (#44)          |
+| axe                                                        | An automated baseline on every screen                                     | Not run; see below                    |
+| A real Meet or Zoom share, viewed on a second device       | Legibility at thumbnail and full size, both themes                        | By hand, 2026-09-26                   |
+
+**Versions:** the latest macOS, Safari and Chrome on 2026-09-26; exact version numbers were not noted.
 
 **Not covered:** NVDA and JAWS on Windows, and mobile screen readers (VoiceOver on iOS, TalkBack). **axe was not run:** the extension was not installed, and loading the engine into the page was not approved for this pass; Session 8 adds it as a dev dependency, run by Playwright on every CI build, so its baseline arrives there. Browser zoom was emulated with viewport sizes, which gives the same CSS-pixel viewport as real zoom; a real 400% zoom in Chrome is part of the re-check. The accessibility tree seen from Chromium is what a screen reader is given, not what it says: the inspection tool even drops two-letter names ("Cy", "Zo") that the DOM has, so it cannot stand in for the VoiceOver pass.
 
 ## Scenarios
 
-| #   | Scenario                                                                     | Keyboard (Chromium)                                                                                                          | By hand, 2026-09-26         | Findings         |
-| --- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ---------------- |
-| 1   | Create a room, join from a second browser, vote                              | Done: create with Enter from the name field; join by link; vote with arrows and Space                                        | VoiceOver: as expected      | A-01, A-02, A-03 |
-| 2   | Run a round as facilitator: masked vote, reveal, read the result, next round | Done: every step by keyboard, focus visible at each stop, focus to the status line after reveal and after "Start next round" | VoiceOver: as expected      | A-01, A-04       |
-| 3   | Someone else reveals and starts the next round while you listen              | Live region text checked: "Votes revealed. Close: 8 and 13." and "Next round started."                                       | VoiceOver: as expected      | None             |
-| 4   | Every reachable stopped screen, plus "Not a room"                            | Done for "left", "open in another tab" and "Not a room"                                                                      | VoiceOver: as expected      | A-02             |
-| 5   | Scenarios 1 and 2 at 200% and 400%, compact and wide                         | Done at 640×400 and 320×200, facilitator view, voting and revealed                                                           | n/a                         | A-05             |
-| 6   | Screen share of the facilitator view, voting and revealed, both themes       | n/a                                                                                                                          | Meet or Zoom: as expected   | None             |
-| 7   | The masked field in Firefox                                                  | n/a                                                                                                                          | Masked, no prompt: expected | None             |
-| 8   | Theme: Dark, reload, second tab                                              | Script order checked in the built page; tab sync checked after #41                                                           | No flash seen               | None             |
+| #   | Scenario                                                                     | Keyboard (Chromium)                                                                                                          | By hand, 2026-09-26          | Findings         |
+| --- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ---------------- |
+| 1   | Create a room, join from a second browser, vote                              | Done: create with Enter from the name field; join by link; vote with arrows and Space                                        | VoiceOver: completed         | A-01, A-02, A-03 |
+| 2   | Run a round as facilitator: masked vote, reveal, read the result, next round | Done: every step by keyboard, focus visible at each stop, focus to the status line after reveal and after "Start next round" | VoiceOver: completed         | A-01, A-04, A-06 |
+| 3   | Someone else reveals and starts the next round while you listen              | Live region text checked: "Votes revealed. Close: 8 and 13." and "Next round started."                                       | VoiceOver: completed         | None             |
+| 4   | Every reachable stopped screen, plus "Not a room"                            | Done for "left", "open in another tab" and "Not a room"                                                                      | VoiceOver: completed         | A-02             |
+| 5   | Scenarios 1 and 2 at 200% and 400%, compact and wide                         | Done at 640×400 and 320×200, facilitator view, voting and revealed                                                           | n/a                          | A-05             |
+| 6   | Screen share of the facilitator view, voting and revealed, both themes       | n/a                                                                                                                          | Readable at thumbnail size   | None             |
+| 7   | The masked field in Firefox                                                  | n/a                                                                                                                          | Not run; before launch (#44) | None             |
+| 8   | Theme: Dark, reload, second tab                                              | Script order checked in the built page; tab sync checked after #41                                                           | No flash on reload           | None             |
 
 ## Findings
 
@@ -80,6 +82,15 @@ Session 7. The standard is WCAG 2.2 AA, with three criteria that bear directly o
 - **Severity:** Minor, under 30 minutes.
 - **Decision:** fix, though no WCAG criterion failed: the bar is pinned only above a minimum viewport height (a `min-height` media query) and sits in the normal flow below it. A Minor under 30 minutes is fixed rather than filed.
 
+### A-06 "Votes revealed" is heard twice by the person who reveals
+
+- **Where:** scenario 2, VoiceOver with Safari, the person who presses Reveal.
+- **What happened:** "Votes revealed" is heard twice: once as the heading that takes focus (A-02's rule, since the Reveal button went with the voting view), then again at the start of the live announcement, before the result.
+- **Expected:** heard once. Everyone else, whose focus stays put, hears it once, from the announcement.
+- **WCAG:** none failed.
+- **Severity:** Minor (noise).
+- **Proposed decision, awaiting triage:** fix if accepted, in under 30 minutes. When this viewer's heading is about to take focus (focus is inside the view being replaced), the announcement leaves out "Votes revealed." and starts with the result; everyone else still hears it whole.
+
 ## Checked, no finding
 
 - **Keyboard only, scenarios 1 and 2:** every flow completes without a mouse; no traps; the focus ring shows at every stop (`:focus-visible` matched for each).
@@ -92,16 +103,21 @@ Session 7. The standard is WCAG 2.2 AA, with three criteria that bear directly o
 - **1.4.12 Text Spacing:** with the criterion's spacing applied, nothing clips, compact or wide.
 - **No flash of the wrong theme:** in the built page the blocking `theme-init.js` runs before the stylesheet and the body.
 - **Theme sync across tabs (#41):** a choice in one tab applies in the other, both ways, including the menu's value.
-- **Live region text:** "Votes revealed. …" at reveal and "Next round started." at the next round, each set once. VoiceOver speaks them as expected (scenario 3).
+- **Live region text:** "Votes revealed. …" at reveal and "Next round started." at the next round, each set once. Heard with VoiceOver; for the person who pressed Reveal, "Votes revealed" comes twice (A-06).
 
 ## Checks by hand
 
-Run by the maintainer on 2026-09-26, and reported as "all checks are as expected", with no new findings:
+Run by the maintainer on 2026-09-26, with the latest macOS, Safari and Chrome. One line per check, as observed; anything not observed in detail is marked "Not run" and is due before launch in [#44](https://github.com/ekutnik/planning-poker/issues/44).
 
-1. **VoiceOver with Safari,** scenarios 1 to 4. Headings are absent from the room, as A-01 found. The three open design.md items (hearing "Votes revealed" twice after focus moves, how empty cards on the scale are read, and whether a repeated "Vote recorded" is announced) raised nothing to change.
-2. **Firefox,** scenario 7: typed digits shown masked, and no password prompt.
-3. **A real screen share,** scenario 6, both themes, voting and revealed, seen on a second device at thumbnail and full size: readable.
-4. **Scenario 8 by eye:** no flash of the wrong theme on reload.
+| Check                                 | Result                                                                                                                                                                                                                     |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VoiceOver, scenarios 1 to 4           | Completed: create, join, vote, reveal, next round, and the stopped screens reachable by hand.                                                                                                                              |
+| VoiceOver, after pressing Reveal      | "Votes revealed" heard twice: once from the heading that takes focus, once at the start of the announcement. Finding A-06.                                                                                                 |
+| VoiceOver, empty cards on the scale   | Not run. How the cards nobody chose are read is unknown; due before launch (#44).                                                                                                                                          |
+| VoiceOver, the same masked vote twice | "Vote recorded" announced again the second time.                                                                                                                                                                           |
+| Firefox, the masked field             | Not run; due before launch (#44). The field is masked on either path by construction (CSS where supported, `type="password"` otherwise; both unit-tested), so what remains open is a password prompt on the fallback path. |
+| A real screen share                   | Everything readable on a second device at thumbnail size: status line, names, numerals and the result sentence, both themes, voting and revealed.                                                                          |
+| Theme, Dark then several reloads      | No flash of the light theme.                                                                                                                                                                                               |
 
 ## Re-check after fixes
 
@@ -114,5 +130,6 @@ Each finding re-checked the way it was found.
 | A-03    | #43      | Chromium, 2026-09-26: the tab title went "1 waiting", "Everyone voted", "Votes revealed", then "You left the room", each followed by " – Planning poker"; "Not a room" and "This room is open in another tab" titled likewise; no vote or room id in any title                                                                                              | Verified |
 | A-04    |          |                                                                                                                                                                                                                                                                                                                                                             |          |
 | A-05    |          |                                                                                                                                                                                                                                                                                                                                                             |          |
+| A-06    |          | Awaiting triage                                                                                                                                                                                                                                                                                                                                             |          |
 
 A note on the A-02 re-check: focusing an element from a script, in a tab without window focus, fires no `focusin`, so the page cannot know focus was ever there, and nothing is recovered. That is a test artefact, not a user path: real key presses and clicks give the window focus. Safari does not focus a button on click, so a mouse-only Safari user never had focus in the page, which is the same as a fresh load: focus stays with the browser.
