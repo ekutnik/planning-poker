@@ -16,11 +16,16 @@ const facilitate = (on: boolean): FacilitateStore => ({
   set: () => undefined,
 });
 
-function inRoom(on: boolean, menuOpen = false): string {
+function inRoom(
+  on: boolean,
+  menuOpen = false,
+  layout: "wide" | "compact" = "wide",
+): string {
   return renderToStaticMarkup(
     <Header
       theme={theme}
       menuOpen={menuOpen}
+      layout={layout}
       room={{
         facilitate: facilitate(on),
         link: "http://localhost/r/abcdefghijk",
@@ -121,5 +126,35 @@ describe("the Menu, a disclosure", () => {
     expect(html).not.toContain("Leave the room");
     expect(html).not.toContain("Copy link");
     expect(html).not.toContain("Facilitating");
+  });
+});
+
+describe("Copy link, by layout", () => {
+  const copies = (html: string) => html.match(/>Copy link</g)?.length ?? 0;
+
+  it("is in the header when wide, and only there", () => {
+    const html = inRoom(true, true, "wide");
+    expect(copies(html)).toBe(1);
+    const { tag, after } = menuButton(html);
+    expect(html.indexOf(">Copy link<")).toBeLessThan(html.indexOf(tag));
+    expect(after).not.toContain("Copy link");
+  });
+
+  it("is the Menu's first item when compact, and only there", () => {
+    const html = inRoom(true, true, "compact");
+    // In the page once, not twice with one hidden: a screen reader would
+    // find both.
+    expect(copies(html)).toBe(1);
+    const { tag, after } = menuButton(html);
+    expect(html.indexOf(">Copy link<")).toBeGreaterThan(html.indexOf(tag));
+    expect(after.indexOf(">Copy link<")).toBeLessThan(
+      after.indexOf('role="switch"'),
+    );
+  });
+
+  it("keeps the pill beside the Menu in compact", () => {
+    const html = inRoom(true, false, "compact");
+    const { tag } = menuButton(html);
+    expect(html.indexOf("pill--facilitating")).toBeLessThan(html.indexOf(tag));
   });
 });

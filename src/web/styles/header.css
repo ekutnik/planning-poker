@@ -37,9 +37,11 @@
   font-weight: var(--weight-strong);
 }
 
-/* Pushed to the right edge, also when a narrow window wraps them onto a
-   second row (the Facilitating pill in compact): the Menu's panel is
-   aligned to the Menu button's right edge, so it must stay on screen. */
+/* In compact, Copy link lives in the Menu, so the pill and the Menu fit
+   beside the name in one row from 375px. Narrower still (320px, which is
+   400% zoom), they wrap onto a second row, kept at the right edge: the
+   Menu's panel is aligned to the Menu button's right edge, so it must stay
+   on screen. */
 .header-controls {
   display: flex;
   flex-wrap: wrap;

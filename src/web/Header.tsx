@@ -4,6 +4,7 @@ import { CopyLinkButton } from "./CopyLinkButton.js";
 import type { FacilitateStore } from "./facilitate.js";
 import { FacilitateSwitch } from "./FacilitateSwitch.js";
 import { HeaderMenu } from "./HeaderMenu.js";
+import { useWide } from "./layout.js";
 import { Mark } from "./Mark.js";
 import type { ThemeStore } from "./theme.js";
 import { ThemeMenu } from "./ThemeMenu.js";
@@ -23,17 +24,28 @@ export interface RoomHeader {
  * and the facilitator's screen is shared. In a room: the Facilitating pill
  * (only while on), Copy link, and a Menu with Facilitate, Theme and Leave
  * the room. Elsewhere the Menu holds Theme alone.
+ *
+ * In compact, Copy link moves into the Menu, first, so the pill and the
+ * Menu fit beside the name in one row: it is used once a session, by
+ * whoever creates the room. It is rendered in one place or the other, never
+ * both, so a screen reader never finds two.
  */
 export function Header({
   theme,
   room,
   menuOpen = false,
+  layout,
 }: {
   readonly theme: ThemeStore;
   readonly room?: RoomHeader;
   /** For tests of the open markup. */
   readonly menuOpen?: boolean;
+  /** For tests; otherwise the window decides. */
+  readonly layout?: "wide" | "compact";
 }) {
+  const windowIsWide = useWide();
+  const wide = layout === undefined ? windowIsWide : layout === "wide";
+  const copyLink = room && <CopyLinkButton link={room.link} />;
   return (
     <header className="app-header">
       <div className="brand">
@@ -42,8 +54,9 @@ export function Header({
       </div>
       <div className="header-controls">
         {room && <FacilitatingPill store={room.facilitate} />}
-        {room && <CopyLinkButton link={room.link} />}
+        {wide && copyLink}
         <HeaderMenu defaultOpen={menuOpen}>
+          {!wide && copyLink}
           {room && <FacilitateSwitch store={room.facilitate} />}
           <ThemeMenu store={theme} />
           {room && (
