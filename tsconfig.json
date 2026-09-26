@@ -18,6 +18,7 @@
     "src/web/vite.config.ts",
     "src/web/styles/tokens.node.test.ts",
     "src/web/styles/motion.node.test.ts",
+    "src/web/styles/layout.node.test.ts",
     "src/web/styles/css.node.ts"
   ],
   "include": ["src"],

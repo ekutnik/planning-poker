@@ -198,16 +198,24 @@ html:has(.round--facilitator) {
 .scale-names {
   display: flex;
   flex-wrap: wrap;
+  min-inline-size: 0;
   gap: var(--space-1) var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* One line per name (A-04): a name wrapped across lines reads as two
+   people stacked on the card. Truncation is only visual; the full name
+   stays in the page for screen readers, and the people list beside the
+   scale shows every full name with its card. */
 .scale-name {
+  max-inline-size: 100%;
+  overflow: hidden;
   font-size: var(--text-name);
   font-weight: var(--weight-bold);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Colour is never the only signal: the sentence below says it in words. */
