@@ -141,6 +141,8 @@ describe("type scale (docs/design.md, Type)", () => {
     result: [17, 18],
     pill: [13, 13],
     wordmark: [14, 17],
+    control: [15, 15],
+    small: [14, 14],
   };
 
   const sizes = (block: string): Record<string, number> => {
