@@ -9,12 +9,14 @@ import "./index.css";
 import "./styles/room.css";
 import "./styles/pages.css";
 import { createRouter } from "./router.js";
+import { trackFocus } from "./focus.js";
 import { watchStorage } from "./storage.js";
 import { createThemeStore } from "./theme.js";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("index.html has no #root element");
 
+trackFocus(document);
 const router = createRouter(window);
 const identity = loadIdentity(
   () => window.localStorage,

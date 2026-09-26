@@ -23,7 +23,7 @@ describe("the stopped screens", () => {
       );
       const { title, body } = STOP_COPY[reason];
       const label = STOP_ACTION_LABELS[STOP_ACTIONS[reason]];
-      expect(html).toContain(`<h1>${escape(title)}</h1>`);
+      expect(html).toContain(`<h1 tabindex="-1">${escape(title)}</h1>`);
       expect(html).toContain(`<p>${escape(body)}</p>`);
       expect(html.match(/<button/g)).toHaveLength(1);
       expect(html).toContain(`class="primary">${label}</button>`);

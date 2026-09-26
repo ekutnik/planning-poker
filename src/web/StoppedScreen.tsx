@@ -1,5 +1,7 @@
 import type { StopReason } from "./connection/policy.js";
 import { STOP_ACTION_LABELS, STOP_COPY } from "./copy.js";
+import { ScreenHeading } from "./ScreenHeading.js";
+import { titleOf, useDocumentTitle } from "./title.js";
 import { STOP_ACTIONS } from "./view.js";
 
 /**
@@ -20,6 +22,7 @@ export function StoppedScreen({
   readonly onHome: () => void;
 }) {
   const { title, body } = STOP_COPY[reason];
+  useDocumentTitle(titleOf(title));
   const action = STOP_ACTIONS[reason];
   const handlers = {
     "use-this-tab": onRestart,
@@ -30,7 +33,7 @@ export function StoppedScreen({
   };
   return (
     <main className="page">
-      <h1>{title}</h1>
+      <ScreenHeading>{title}</ScreenHeading>
       <p>{body}</p>
       <button type="button" className="primary" onClick={handlers[action]}>
         {STOP_ACTION_LABELS[action]}
