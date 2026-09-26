@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
-import { phaseAnnouncement } from "./announce.js";
+import {
+  announcementFor,
+  phaseAnnouncement,
+  type PhaseCopy,
+} from "./announce.js";
 import { NOT_SAVED_COPY } from "./copy.js";
 import { roomTitle, useDocumentTitle } from "./title.js";
 import type { RoomAction } from "./connection/room-connection.js";
@@ -28,21 +32,33 @@ export function RoomView({
   readonly persistent: boolean;
   readonly onAction: (action: RoomAction) => void;
 }) {
-  // The live region must exist before it changes, so it lives here, above
-  // both phases. Its text is set only when the phase changes (React's
-  // "adjust state when a prop changes" pattern), never on other snapshots.
   useDocumentTitle(roomTitle(snapshot));
+
+  // The live region must exist before it changes, so it lives here, above
+  // both phases. A phase change (React's "adjust state when a prop changes"
+  // pattern) leaves what to say pending; the new view's heading then reports
+  // whether it took focus, and only then is the text chosen (A-06).
   const [phase, setPhase] = useState(snapshot.phase);
-  const [announcement, setAnnouncement] = useState("");
+  const [speech, setSpeech] = useState<{
+    readonly pending: PhaseCopy | null;
+    readonly text: string;
+  }>({ pending: null, text: "" });
   if (snapshot.phase !== phase) {
     setPhase(snapshot.phase);
-    setAnnouncement(phaseAnnouncement(phase, snapshot));
+    setSpeech({ pending: phaseAnnouncement(phase, snapshot), text: "" });
   }
+  const onHeadingShown = useCallback((tookFocus: boolean) => {
+    setSpeech((current) =>
+      current.pending === null
+        ? current
+        : { pending: null, text: announcementFor(tookFocus, current.pending) },
+    );
+  }, []);
 
   return (
     <main aria-busy={!live}>
       <p role="status" className="visually-hidden">
-        {announcement}
+        {speech.text}
       </p>
       {banner && (
         <p role="status" className="room-message">
@@ -60,6 +76,7 @@ export function RoomView({
           snapshot={snapshot}
           facilitating={facilitating}
           live={live}
+          onHeadingShown={onHeadingShown}
           onAction={onAction}
         />
       ) : (
@@ -67,6 +84,7 @@ export function RoomView({
           snapshot={snapshot}
           facilitating={facilitating}
           live={live}
+          onHeadingShown={onHeadingShown}
           onAction={onAction}
         />
       )}

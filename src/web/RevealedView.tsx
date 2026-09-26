@@ -17,11 +17,14 @@ export function RevealedView({
   snapshot,
   facilitating,
   live,
+  onHeadingShown,
   onAction,
 }: {
   readonly snapshot: Revealed;
   readonly facilitating: boolean;
   readonly live: boolean;
+  /** See ScreenHeading: the room's live region waits for this (A-06). */
+  readonly onHeadingShown?: (tookFocus: boolean) => void;
   readonly onAction: (action: RoomAction) => void;
 }) {
   const copy = resultCopy(snapshot);
@@ -31,7 +34,9 @@ export function RevealedView({
         facilitating ? "round--facilitator" : "round--participant"
       }`}
     >
-      <ScreenHeading className="status">Votes revealed</ScreenHeading>
+      <ScreenHeading className="status" onShown={onHeadingShown}>
+        Votes revealed
+      </ScreenHeading>
       <People participants={snapshot.participants} />
       <Scale snapshot={snapshot} />
       <div className="result">

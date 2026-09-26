@@ -20,11 +20,14 @@ export function VotingView({
   snapshot,
   facilitating,
   live,
+  onHeadingShown,
   onAction,
 }: {
   readonly snapshot: Voting;
   readonly facilitating: boolean;
   readonly live: boolean;
+  /** See ScreenHeading: the room's live region waits for this (A-06). */
+  readonly onHeadingShown?: (tookFocus: boolean) => void;
   readonly onAction: (action: RoomAction) => void;
 }) {
   const status = roundStatus(snapshot);
@@ -48,7 +51,7 @@ export function VotingView({
         facilitating ? "round--facilitator" : "round--participant"
       }`}
     >
-      <ScreenHeading className="status">
+      <ScreenHeading className="status" onShown={onHeadingShown}>
         {facilitating ? status.facilitatorLine : status.participantLine}
       </ScreenHeading>
       <People participants={snapshot.participants} />

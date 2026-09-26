@@ -16,7 +16,9 @@ export interface ResultCopy {
     readonly names: string;
     readonly card: Card;
   }[];
-  /** What the live region says at reveal: the same words, spoken. */
+  /** The result as spoken: the summary, then who chose each non-numeric card. */
+  readonly spokenResult: string;
+  /** What the live region says at reveal: "Votes revealed.", then the result. */
   readonly announcement: string;
 }
 
@@ -51,13 +53,13 @@ export function resultCopy(snapshot: Revealed): ResultCopy {
   });
 
   const { summary, tone } = summarise(snapshot, namesFor);
-  const announcement = [
-    "Votes revealed.",
+  const spokenResult = [
     summary,
     ...others.map(({ names, card }) => `${names} voted ${spokenCard(card)}.`),
   ].join(" ");
+  const announcement = `Votes revealed. ${spokenResult}`;
 
-  return { summary, tone, others, announcement };
+  return { summary, tone, others, spokenResult, announcement };
 }
 
 function summarise(

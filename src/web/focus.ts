@@ -30,11 +30,21 @@ export function trackFocus(doc: Document): void {
   });
 }
 
-/** On mount, moves focus to target if focus was lost (shouldRecoverFocus). */
-export function useRecoverFocus(target: RefObject<HTMLElement | null>): void {
+/**
+ * On mount, moves focus to target if focus was lost (shouldRecoverFocus),
+ * then tells onDecided whether target now has focus. onDecided should be
+ * stable: a new function would run the effect, and the report, again.
+ */
+export function useRecoverFocus(
+  target: RefObject<HTMLElement | null>,
+  onDecided?: (tookFocus: boolean) => void,
+): void {
   useEffect(() => {
     if (shouldRecoverFocus(focusSeen, document.activeElement, document.body)) {
       target.current?.focus({ preventScroll: true });
     }
-  }, [target]);
+    onDecided?.(
+      target.current !== null && document.activeElement === target.current,
+    );
+  }, [target, onDecided]);
 }

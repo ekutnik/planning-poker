@@ -9,13 +9,16 @@ import { useRecoverFocus } from "./focus.js";
  */
 export function ScreenHeading({
   className,
+  onShown,
   children,
 }: {
   readonly className?: string;
+  /** Told, once shown, whether this heading took focus (stable function). */
+  readonly onShown?: (tookFocus: boolean) => void;
   readonly children: ReactNode;
 }) {
   const ref = useRef<HTMLHeadingElement>(null);
-  useRecoverFocus(ref);
+  useRecoverFocus(ref, onShown);
   return (
     <h1 ref={ref} className={className} tabIndex={-1}>
       {children}
