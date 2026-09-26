@@ -2,7 +2,7 @@
 
 Session 7. The standard is WCAG 2.2 AA, with three criteria that bear directly on this app: 2.4.11 Focus Not Obscured, 2.5.8 Target Size, and 1.4.10 Reflow. The audit checks every claim in [design.md](../design.md) and runs real tasks rather than a checklist. Every finding ends as a fix, an issue, or a written acceptance.
 
-**Status: audit pass complete (2026-09-26); fixes in progress.** Six findings, all triaged and fixed; A-06's VoiceOver re-check is due before launch. Two checks by hand were not run in detail and are due before launch ([#44](https://github.com/ekutnik/planning-poker/issues/44)); see [Checks by hand](#checks-by-hand).
+**Status: complete (2026-09-26); before-launch re-checks tracked in [#44](https://github.com/ekutnik/planning-poker/issues/44).** Six findings, A-01 to A-06, all fixed. Three checks still need a person before the link goes public: VoiceOver on the empty cards of the scale, VoiceOver on the reveal announcement after the A-06 fix, and the Firefox masked field; see [Checks by hand](#checks-by-hand) and the re-check table.
 
 ## Environment
 
