@@ -54,9 +54,11 @@ button:disabled {
   grid-template-areas: "status" "people" "scale" "result" "controls";
 }
 
-/* The facilitator's controls are pinned to the bottom in compact, when the
-   window is tall enough for it (A-05): at 400% zoom a pinned bar would take
-   a third of the screen, so below 25em it sits in the normal flow. */
+/* The facilitator's controls are pinned to the bottom in compact only, and
+   only when the window is tall enough for it (A-05): at 400% zoom a pinned
+   bar would take a third of the screen, so below 25em it sits in the normal
+   flow. Wide never pins it. The media query says all of this itself, so it
+   does not depend on the wide block coming later in the file. */
 :root {
   /* One height for the bar and the room kept for it, so they cannot drift. */
   --controls-bar-height: 4.25rem;
@@ -73,7 +75,7 @@ button:disabled {
   background: var(--paper);
 }
 
-@media (min-height: 25em) {
+@media (height >= 25em) and (width < 55em) {
   /* When focus moves to something near the bottom, scroll it above the bar,
      not under it. No bottom padding is needed: a sticky bar settles back
      into the flow at the end of the page, so the last content always
@@ -317,13 +319,7 @@ button:disabled {
       ". result result";
   }
 
-  html:has(.round--facilitator) {
-    scroll-padding-block-end: 0;
-  }
-
   .round--facilitator .controls {
-    position: static;
-    min-block-size: 0;
     flex-direction: column;
     align-items: flex-end;
     padding: 0;

@@ -19,9 +19,9 @@ describe("names on the scale (A-04)", () => {
 });
 
 describe("the pinned facilitator bar (A-05)", () => {
-  const tall = split(css, "(min-height: 25em)");
+  const tall = split(css, "(height >= 25em) and (width < 55em)");
 
-  it("is pinned only when the window is tall enough", () => {
+  it("is pinned only in compact, when the window is tall enough", () => {
     expect(tall.inside).toMatch(/position:\s*sticky/);
     expect(tall.outside).not.toMatch(/position:\s*sticky/);
   });
