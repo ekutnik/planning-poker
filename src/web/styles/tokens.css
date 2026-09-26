@@ -54,7 +54,6 @@
   --not-yet-text: light-dark(#55595e, #b7bbc0);
   --away-bg: light-dark(#fbeaea, #402426);
   --away-text: light-dark(#a12a2a, #f3a9a9);
-  /* Draw: the pills, and a draw card's fill and numeral. */
   --draw-bg: light-dark(#fbf1e0, #3a2f1c);
   --draw-text: light-dark(#8a5a12, #e8c07a);
   --name-bg: light-dark(#efeeea, #2b2d30);
@@ -62,11 +61,15 @@
   --facilitating-bg: light-dark(#e8eefc, #1e2a4a);
   --facilitating-text: light-dark(#2448b0, #aac0ff);
 
-  /* Scale cards after reveal: fill, border, numeral. Borders at least 3:1. */
+  /* Scale cards after reveal: fill, border, numeral. Their own tokens, like
+     the pills', even where the values match today: a card and a pill do
+     different jobs, and may diverge. Borders at least 3:1 on paper. */
   --win-fill: light-dark(#e7f3ec, #1f3a2b);
   --win-border: light-dark(#2e8b57, #5fbf93);
-  --win-text: light-dark(#1f6b45, #8fd6ae);
+  --win-numeral: light-dark(#1f6b45, #8fd6ae);
+  --draw-fill: light-dark(#fbf1e0, #3a2f1c);
   --draw-border: light-dark(#a8761f, #e0a84a);
+  --draw-numeral: light-dark(#8a5a12, #e8c07a);
 
   /* Type: Figtree 400 and 600, sentence case everywhere. */
   --font: "Figtree", system-ui, sans-serif;

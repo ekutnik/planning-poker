@@ -231,7 +231,7 @@ button:disabled {
 /* Colour is never the only signal: the sentence below says it in words. */
 .scale-name--agree,
 .result-summary--agree {
-  color: var(--win-text);
+  color: var(--voted-text);
 }
 
 .scale-name--discuss,

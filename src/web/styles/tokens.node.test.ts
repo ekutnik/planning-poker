@@ -75,8 +75,10 @@ describe("colour tokens", () => {
         "facilitating-text",
         "win-fill",
         "win-border",
-        "win-text",
+        "win-numeral",
+        "draw-fill",
         "draw-border",
+        "draw-numeral",
       ].sort(),
     );
   });
@@ -98,7 +100,8 @@ describe("colour tokens", () => {
     ["draw-text", "draw-bg"],
     ["name-text", "name-bg"],
     ["facilitating-text", "facilitating-bg"],
-    ["win-text", "win-fill"],
+    ["win-numeral", "win-fill"],
+    ["draw-numeral", "draw-fill"],
   ])("%s on %s is at least 4.5:1 in both themes", (fore, back) => {
     for (const ratio of ratios(fore, back)) {
       expect(ratio).toBeGreaterThanOrEqual(4.5);
