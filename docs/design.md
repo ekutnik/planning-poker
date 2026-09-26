@@ -144,7 +144,7 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 
 - **Left:** the mark (a card with an index dot in Cobalt; its outline follows the text colour) and "Planning Poker Session". The mark is 26 px wide, 20 px compact.
 - **Right:** the "Facilitating" pill (only while on), Copy link, Menu. In compact, Menu is an icon button (three bars) with `aria-label="Menu"`; in wide it reads "Menu" with a chevron. Outside a room there is no pill and no Copy link, and the Menu holds Theme alone.
-- **Copy link moves into the Menu in compact,** as its first item, above Facilitate, so the pill and the Menu fit beside the name in one row: a second header row would cost about 72 px where height is scarcest, and Copy link is used once a session, by whoever creates the room. It says "Link copied" there, and the panel stays open to show it. It is rendered in one place or the other, chosen in script at the same 55em breakpoint, never in both with one hidden by CSS, so a screen reader never finds two.
+- **Copy link moves into the Menu in compact,** as its first item, above Facilitate, so the pill and the Menu fit beside the name in one row: a second header row would cost about 72 px where height is scarcest, and Copy link is used once a session, by whoever creates the room. It says "Link copied" there, and the panel stays open to show it. When the browser refuses the copy it says "Couldn't copy. Copy the address from your browser." instead; either message shows for three seconds, and both are announced through the button's own live region, since a focused button whose text changes is not reliably read out. It is rendered in one place or the other, chosen in script at the same 55em breakpoint, never in both with one hidden by CSS, so a screen reader never finds two.
 - **The frame:** the header spans the window with its Rule line underneath; its content, and each screen's content below it, sit in one column of at most 1120 px. At 320 px (400% zoom) the header wraps onto two rows, the controls kept at the right edge so the Menu's panel stays on screen.
 - **Menu** is a disclosure: a button that shows a panel, not an ARIA menu (it holds mixed controls) and not a dialog (a dialog would move and trap focus and make the rest of the page inert, none of which fits a small settings panel).
   1. Facilitate, a switch (`role="switch"`), with "Hides your vote so you can share your screen."
@@ -311,7 +311,7 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 | Own vote, facilitator | "Clear my vote"; "You've voted"                                                        |
 | Nudge                 | "Nudge" (accessible name "Nudge Cy"), "Nudged"; "The room is waiting for your vote."   |
 | Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8." |
-| Link                  | "Copy link" → "Link copied"                                                            |
+| Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."   |
 | Preview               | "Pause preview" / "Play preview"                                                       |
 | Next round (spoken)   | "Next round started."                                                                  |
 
