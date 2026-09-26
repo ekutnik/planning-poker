@@ -27,6 +27,26 @@ describe("the pinned facilitator bar (A-05)", () => {
     expect(tall.outside).not.toMatch(/position:\s*sticky/);
   });
 
+  it("fits a button, its padding and its rule in the height reserved for it", () => {
+    // The scroll padding reserves --controls-bar-height; if the bar grows
+    // past it (a taller button, more padding), focus can end under the bar.
+    const rem = (value: string | undefined) => {
+      const match = /([\d.]+)(rem|px)/.exec(value ?? "");
+      if (!match) throw new Error(`no length in ${value ?? "nothing"}`);
+      return Number(match[1]) / (match[2] === "px" ? 16 : 1);
+    };
+    const reserved = rem(/--controls-bar-height:\s*([^;]+)/.exec(css)?.[1]);
+    const button = rem(
+      /min-height:\s*([^;]+)/.exec(declarations(css, "button"))?.[1],
+    );
+    const bar = declarations(css, ".round--facilitator .controls");
+    const padding = /padding-block:\s*var\(--space-(\d+)\)/.exec(bar)?.[1];
+    const rule = /border-block-start:\s*([\d.]+px)/.exec(bar)?.[1];
+    expect(button + 2 * (Number(padding) / 16) + rem(rule)).toBeLessThanOrEqual(
+      reserved,
+    );
+  });
+
   it("reserves scroll room for itself only while pinned", () => {
     const reserved = /scroll-padding-block-end:\s*calc/;
     expect(tall.inside).toMatch(reserved);

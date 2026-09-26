@@ -55,8 +55,10 @@ button:disabled {
    flow. Wide never pins it. The media query says all of this itself, so it
    does not depend on the wide block coming later in the file. */
 :root {
-  /* One height for the bar and the room kept for it, so they cannot drift. */
-  --controls-bar-height: 4.25rem;
+  /* One height for the bar and the room kept for it, so they cannot drift:
+     a 44px button, 12px above and below, and the 1px rule (72px). A test
+     checks the button, the padding and the rule still fit it. */
+  --controls-bar-height: 4.5rem;
 }
 
 .round--voting.round--facilitator {
@@ -65,7 +67,7 @@ button:disabled {
 
 .round--facilitator .controls {
   align-items: center;
-  padding-block: var(--space-16);
+  padding-block: var(--space-12);
   border-block-start: 1px solid var(--rule);
   background: var(--paper);
 }
