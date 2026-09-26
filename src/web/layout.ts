@@ -1,14 +1,12 @@
 import { useSyncExternalStore } from "react";
+import { WIDE_QUERY } from "./breakpoint.js";
 
 /**
- * The breakpoint between compact and wide (docs/design.md, Layout): the same
- * 55em as the stylesheets' @media (min-width: 55em). For the rare control
- * that must be in the page in only one place per layout, rather than hidden
- * with CSS, which would leave a second copy for screen readers to find.
+ * Whether the window is wide now, at the same breakpoint as the stylesheets,
+ * re-rendering when that changes. For the rare control that must be in the
+ * page in only one place per layout, rather than hidden with CSS, which
+ * would leave a second copy for screen readers to find.
  */
-export const WIDE_QUERY = "(min-width: 55em)";
-
-/** Whether the window is wide now, re-rendering when that changes. */
 export function useWide(): boolean {
   return useSyncExternalStore(
     (onChange) => {
