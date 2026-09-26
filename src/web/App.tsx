@@ -8,6 +8,7 @@ import { RoomPage } from "./RoomPage.js";
 import { roomPath, type Router } from "./router.js";
 import { ScreenHeading } from "./ScreenHeading.js";
 import type { ThemeStore } from "./theme.js";
+import { titleOf, useDocumentTitle } from "./title.js";
 
 export function App({
   router,
@@ -54,6 +55,7 @@ export function App({
 }
 
 function NotFound({ onHome }: { readonly onHome: () => void }) {
+  useDocumentTitle(titleOf(NOT_FOUND_COPY.title));
   return (
     <main className="page">
       <ScreenHeading>{NOT_FOUND_COPY.title}</ScreenHeading>

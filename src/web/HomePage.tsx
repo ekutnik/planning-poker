@@ -4,6 +4,7 @@ import { HOME_COPY } from "./copy.js";
 import type { Identity } from "./identity.js";
 import { NameForm } from "./NameForm.js";
 import { ScreenHeading } from "./ScreenHeading.js";
+import { useDocumentTitle } from "./title.js";
 
 /** The landing page: a name, one button, and the promise the tool keeps. */
 export function HomePage({
@@ -13,6 +14,7 @@ export function HomePage({
   readonly identity: Identity;
   readonly onCreated: (roomId: string) => void;
 }) {
+  useDocumentTitle(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import { phaseAnnouncement } from "./announce.js";
 import { NOT_SAVED_COPY } from "./copy.js";
+import { roomTitle, useDocumentTitle } from "./title.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { RevealedView } from "./RevealedView.js";
 import { VotingView } from "./VotingView.js";
@@ -30,6 +31,7 @@ export function RoomView({
   // The live region must exist before it changes, so it lives here, above
   // both phases. Its text is set only when the phase changes (React's
   // "adjust state when a prop changes" pattern), never on other snapshots.
+  useDocumentTitle(roomTitle(snapshot));
   const [phase, setPhase] = useState(snapshot.phase);
   const [announcement, setAnnouncement] = useState("");
   if (snapshot.phase !== phase) {

@@ -8,6 +8,7 @@ import { Header } from "./Header.js";
 import type { Identity } from "./identity.js";
 import { NameForm } from "./NameForm.js";
 import { ScreenHeading } from "./ScreenHeading.js";
+import { useDocumentTitle } from "./title.js";
 import { RoomSession } from "./room-session.js";
 import { RoomView } from "./RoomView.js";
 import { StoppedScreen } from "./StoppedScreen.js";
@@ -146,6 +147,7 @@ function Room({
 
 /** A room link in a browser with no name yet: ask for one first. */
 function JoinScreen({ onJoin }: { readonly onJoin: (name: string) => void }) {
+  useDocumentTitle(JOIN_COPY.heading);
   return (
     <main className="page">
       <ScreenHeading>{JOIN_COPY.heading}</ScreenHeading>
@@ -164,6 +166,7 @@ function JoinScreen({ onJoin }: { readonly onJoin: (name: string) => void }) {
  * status text is enough for the moment it shows.
  */
 function Connecting({ banner }: { readonly banner: string | null }) {
+  useDocumentTitle(JOIN_COPY.heading);
   return (
     <main className="page">
       <p role="status">{banner}</p>
