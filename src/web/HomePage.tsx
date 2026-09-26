@@ -3,6 +3,7 @@ import { createRoom } from "./api.js";
 import { HOME_COPY } from "./copy.js";
 import type { Identity } from "./identity.js";
 import { NameForm } from "./NameForm.js";
+import { ScreenHeading } from "./ScreenHeading.js";
 
 /** The landing page: a name, one button, and the promise the tool keeps. */
 export function HomePage({
@@ -32,7 +33,7 @@ export function HomePage({
 
   return (
     <main className="page">
-      <h1>{HOME_COPY.heading}</h1>
+      <ScreenHeading>{HOME_COPY.heading}</ScreenHeading>
       <p>{HOME_COPY.intro}</p>
       <NameForm
         initial={identity.lastName()}

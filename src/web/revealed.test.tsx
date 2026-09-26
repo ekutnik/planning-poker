@@ -159,3 +159,14 @@ describe("the reveal announcement", () => {
     expect(html).toContain('<p role="status" class="visually-hidden"></p>');
   });
 });
+
+describe("the room's heading (A-01)", () => {
+  it("is the status line, focusable by script, and never a live region", () => {
+    const html = render();
+    expect(html).toContain(
+      '<h1 class="status" tabindex="-1">Votes revealed</h1>',
+    );
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).not.toMatch(/<h1[^>]*(role|aria-live)=/);
+  });
+});

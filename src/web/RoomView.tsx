@@ -32,11 +32,9 @@ export function RoomView({
   // "adjust state when a prop changes" pattern), never on other snapshots.
   const [phase, setPhase] = useState(snapshot.phase);
   const [announcement, setAnnouncement] = useState("");
-  const [phaseChanged, setPhaseChanged] = useState(false);
   if (snapshot.phase !== phase) {
     setPhase(snapshot.phase);
     setAnnouncement(phaseAnnouncement(phase, snapshot));
-    setPhaseChanged(true);
   }
 
   return (
@@ -60,7 +58,6 @@ export function RoomView({
           snapshot={snapshot}
           facilitating={facilitating}
           live={live}
-          recoverFocus={phaseChanged}
           onAction={onAction}
         />
       ) : (
@@ -68,7 +65,6 @@ export function RoomView({
           snapshot={snapshot}
           facilitating={facilitating}
           live={live}
-          recoverFocus={phaseChanged}
           onAction={onAction}
         />
       )}

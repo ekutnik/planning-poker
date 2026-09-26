@@ -6,6 +6,7 @@ import { HomePage } from "./HomePage.js";
 import type { Identity } from "./identity.js";
 import { RoomPage } from "./RoomPage.js";
 import { roomPath, type Router } from "./router.js";
+import { ScreenHeading } from "./ScreenHeading.js";
 import type { ThemeStore } from "./theme.js";
 
 export function App({
@@ -46,14 +47,20 @@ export function App({
       return (
         <>
           <Header theme={theme} />
-          <main className="page">
-            <h1>{NOT_FOUND_COPY.title}</h1>
-            <p>{NOT_FOUND_COPY.body}</p>
-            <button type="button" className="primary" onClick={home}>
-              {NOT_FOUND_COPY.action}
-            </button>
-          </main>
+          <NotFound onHome={home} />
         </>
       );
   }
+}
+
+function NotFound({ onHome }: { readonly onHome: () => void }) {
+  return (
+    <main className="page">
+      <ScreenHeading>{NOT_FOUND_COPY.title}</ScreenHeading>
+      <p>{NOT_FOUND_COPY.body}</p>
+      <button type="button" className="primary" onClick={onHome}>
+        {NOT_FOUND_COPY.action}
+      </button>
+    </main>
+  );
 }

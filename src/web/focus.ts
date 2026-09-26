@@ -1,22 +1,40 @@
 import { useEffect, type RefObject } from "react";
 
 /**
- * When the round changes phase, the view is replaced, and whatever had focus
- * (the Reveal button, a card, the masked field) goes with it: focus falls to
- * the page. Put it on the new status line instead, which is not a control,
- * so a stray Space or Enter cannot start a round, and a screen reader reads
- * where you are. Only after a phase change, never on first load, and never
- * when focus is still somewhere on the page.
+ * One rule for every screen change (docs/design.md): when the view is
+ * replaced, whatever had focus (the Reveal button, a card, Leave, the name
+ * form's button) goes with it, and focus falls to the page. The new
+ * screen's heading takes it instead, so a screen reader reads where you
+ * are, and the keyboard starts from there. A heading is not a control, so a
+ * stray Space or Enter does nothing.
+ *
+ * "Focus was lost" means focus is on the page itself although something in
+ * it has had focus since the page loaded. On a fresh load nothing has, so
+ * the first screen leaves focus to the browser; and focus that is still on
+ * something (the Theme menu, say) is never moved.
  */
-export function useRecoverFocus(
-  target: RefObject<HTMLElement | null>,
-  afterPhaseChange: boolean,
-): void {
+export function shouldRecoverFocus(
+  focusSeen: boolean,
+  active: Element | null,
+  body: Element | null,
+): boolean {
+  return focusSeen && (active === null || active === body);
+}
+
+let focusSeen = false;
+
+/** Call once at startup: remembers that something in the page has had focus. */
+export function trackFocus(doc: Document): void {
+  doc.addEventListener("focusin", () => {
+    focusSeen = true;
+  });
+}
+
+/** On mount, moves focus to target if focus was lost (shouldRecoverFocus). */
+export function useRecoverFocus(target: RefObject<HTMLElement | null>): void {
   useEffect(() => {
-    if (!afterPhaseChange) return;
-    const active = document.activeElement;
-    if (active === null || active === document.body) {
+    if (shouldRecoverFocus(focusSeen, document.activeElement, document.body)) {
       target.current?.focus({ preventScroll: true });
     }
-  }, [target, afterPhaseChange]);
+  }, [target]);
 }
