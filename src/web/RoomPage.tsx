@@ -1,6 +1,5 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { JOIN_COPY } from "./copy.js";
-import { CopyLinkButton } from "./CopyLinkButton.js";
 import { createBrowserConnection } from "./connection/browser.js";
 import { retryOnReturn } from "./connection/wake.js";
 import type { FacilitateStore } from "./facilitate.js";
@@ -110,15 +109,11 @@ function Room({
   const header = (
     <Header
       theme={stores.theme}
-      facilitate={stores.facilitate}
-      actions={
-        <>
-          <CopyLinkButton link={window.location.href} />
-          <button type="button" onClick={() => session.leave()}>
-            Leave
-          </button>
-        </>
-      }
+      room={{
+        facilitate: stores.facilitate,
+        link: window.location.href,
+        onLeave: () => session.leave(),
+      }}
     />
   );
   if (state.snapshot === null) {

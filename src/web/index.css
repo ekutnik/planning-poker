@@ -1,29 +1,12 @@
-/* Page frame and the header. The screens have their own stylesheets. */
+/* The page frame. The header spans the window, with its rule; the header's
+   content and each screen's main line up in one column of at most 1120px,
+   centred by the gutter. The screens and the header have their own
+   stylesheets. */
 
 body {
-  margin: 0 auto;
-  max-width: var(--content-width);
-  padding: var(--space-16);
-}
-
-.app-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-16);
-  padding-block-end: var(--space-16);
-  border-block-end: 1px solid var(--rule);
-}
-
-.app-title {
   margin: 0;
-  font-size: var(--text-wordmark);
-  font-weight: var(--weight-strong);
 }
 
-.theme-menu {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
+main {
+  padding-inline: var(--gutter);
 }

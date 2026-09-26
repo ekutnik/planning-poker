@@ -1,33 +1,70 @@
-import type { ReactNode } from "react";
+import { useSyncExternalStore } from "react";
+import { HEADER_COPY, PRODUCT_NAME } from "./copy.js";
+import { CopyLinkButton } from "./CopyLinkButton.js";
 import type { FacilitateStore } from "./facilitate.js";
-import { FacilitateToggle } from "./FacilitateToggle.js";
+import { FacilitateSwitch } from "./FacilitateSwitch.js";
+import { HeaderMenu } from "./HeaderMenu.js";
+import { Mark } from "./Mark.js";
 import type { ThemeStore } from "./theme.js";
 import { ThemeMenu } from "./ThemeMenu.js";
 
+/** What the header adds inside a room. */
+export interface RoomHeader {
+  readonly facilitate: FacilitateStore;
+  /** The room's own link, copied but never shown: it is the credential. */
+  readonly link: string;
+  readonly onLeave: () => void;
+}
+
 /**
- * The same header on every screen; the room adds Facilitate and its actions.
- * The title is fixed: rooms have no names yet (#35), and the room id must
- * never stand in for one, because it is the room's credential and the
- * facilitator's screen is shared. One order in both layouts, so focus order
- * follows what the eye sees.
+ * The same header on every screen: the mark and the product's name, then
+ * the controls. The title is fixed: rooms have no names yet (#35), and the
+ * room id must never stand in for one, because it is the room's credential
+ * and the facilitator's screen is shared. In a room: the Facilitating pill
+ * (only while on), Copy link, and a Menu with Facilitate, Theme and Leave
+ * the room. Elsewhere the Menu holds Theme alone.
  */
 export function Header({
   theme,
-  facilitate,
-  actions,
+  room,
+  menuOpen = false,
 }: {
   readonly theme: ThemeStore;
-  readonly facilitate?: FacilitateStore;
-  readonly actions?: ReactNode;
+  readonly room?: RoomHeader;
+  /** For tests of the open markup. */
+  readonly menuOpen?: boolean;
 }) {
   return (
     <header className="app-header">
-      <p className="app-title">Planning poker</p>
+      <div className="brand">
+        <Mark className="brand-mark" />
+        <span className="wordmark">{PRODUCT_NAME}</span>
+      </div>
       <div className="header-controls">
-        {facilitate && <FacilitateToggle store={facilitate} />}
-        <ThemeMenu store={theme} />
-        {actions}
+        {room && <FacilitatingPill store={room.facilitate} />}
+        {room && <CopyLinkButton link={room.link} />}
+        <HeaderMenu defaultOpen={menuOpen}>
+          {room && <FacilitateSwitch store={room.facilitate} />}
+          <ThemeMenu store={theme} />
+          {room && (
+            <>
+              <hr className="menu-divider" />
+              <button type="button" onClick={room.onLeave}>
+                {HEADER_COPY.leave}
+              </button>
+            </>
+          )}
+        </HeaderMenu>
       </div>
     </header>
+  );
+}
+
+/** Says, on the shared screen too, that this is the facilitator view. */
+function FacilitatingPill({ store }: { readonly store: FacilitateStore }) {
+  const on = useSyncExternalStore(store.subscribe, store.isOn, store.isOn);
+  if (!on) return null;
+  return (
+    <span className="pill pill--facilitating">{HEADER_COPY.facilitating}</span>
   );
 }

@@ -26,12 +26,12 @@ function voting(
 
 describe("document titles (A-03)", () => {
   it("names the screen, then the app", () => {
-    expect(documentTitle(null)).toBe("Planning poker");
+    expect(documentTitle(null)).toBe("Planning Poker Session");
     expect(documentTitle("Join the room")).toBe(
-      "Join the room – Planning poker",
+      "Join the room – Planning Poker Session",
     );
     expect(documentTitle(titleOf(STOP_COPY.left.title))).toBe(
-      "You left the room – Planning poker",
+      "You left the room – Planning Poker Session",
     );
   });
 

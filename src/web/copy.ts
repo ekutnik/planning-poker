@@ -96,3 +96,16 @@ export const STOP_ACTION_LABELS = {
 
 export const NOT_SAVED_COPY =
   "This browser isn't saving your seat, so reloading will join you as someone new.";
+
+/** The product's name, capitalised as a name; everything else is sentence case. */
+export const PRODUCT_NAME = "Planning Poker Session";
+
+/** The header, its Menu and the Facilitate switch. */
+export const HEADER_COPY = {
+  menu: "Menu",
+  facilitate: "Facilitate",
+  facilitateNote: "Hides your vote so you can share your screen.",
+  facilitating: "Facilitating",
+  theme: "Theme",
+  leave: "Leave the room",
+} as const;
