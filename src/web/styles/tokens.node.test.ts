@@ -8,7 +8,7 @@ const tokens = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
 function colours(): Record<string, [string, string]> {
   const found: Record<string, [string, string]> = {};
   const pattern =
-    /--([a-z-]+):\s*light-dark\((#[0-9a-f]{6}),\s*(#[0-9a-f]{6})\)/gi;
+    /--([a-z-]+):\s*light-dark\(\s*(#[0-9a-f]{6}),\s*(#[0-9a-f]{6})\s*\)/gi;
   for (const [, name, light, dark] of tokens.matchAll(pattern)) {
     if (name && light && dark) found[name] = [light, dark];
   }
@@ -28,76 +28,146 @@ function contrast(a: string, b: string): number {
   return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05);
 }
 
+/** A token's [light, dark] values; fails loudly on a typo. */
+function pair(palette: Record<string, [string, string]>, name: string) {
+  const found = palette[name];
+  if (found === undefined) throw new Error(`no colour token --${name}`);
+  return found;
+}
+
+/** The contrast of two tokens, [light, dark]. */
+function against(
+  palette: Record<string, [string, string]>,
+  fore: string,
+  back: string,
+): [number, number] {
+  const [foreLight, foreDark] = pair(palette, fore);
+  const [backLight, backDark] = pair(palette, back);
+  return [contrast(foreLight, backLight), contrast(foreDark, backDark)];
+}
+
 describe("colour tokens", () => {
   const palette = colours();
+  const ratios = (fore: string, back: string) => against(palette, fore, back);
 
   it("defines every colour for both themes", () => {
     expect(Object.keys(palette).sort()).toEqual(
-      ["agree", "cobalt", "discuss", "edge", "ink", "paper", "rule"].sort(),
+      [
+        "paper",
+        "surface",
+        "ink",
+        "quiet",
+        "rule",
+        "edge",
+        "cobalt",
+        "on-cobalt",
+        "voted-bg",
+        "voted-text",
+        "not-yet-bg",
+        "not-yet-text",
+        "away-bg",
+        "away-text",
+        "draw-bg",
+        "draw-text",
+        "name-bg",
+        "name-text",
+        "facilitating-bg",
+        "facilitating-text",
+        "win-fill",
+        "win-border",
+        "win-text",
+        "draw-border",
+      ].sort(),
     );
   });
 
-  const onPaper = (name: string): [number, number] => {
-    const [light, dark] = palette[name] ?? ["", ""];
-    const [paperLight, paperDark] = palette.paper ?? ["", ""];
-    return [contrast(light, paperLight), contrast(dark, paperDark)];
-  };
-
   // Tier 1, meaning: everything that carries meaning must read over a
-  // compressed screen share, so WCAG AA for normal text, in both themes.
-  it.each(["ink", "cobalt", "agree", "discuss"])(
-    "%s is at least 4.5:1 on paper in both themes",
-    (name) => {
-      for (const ratio of onPaper(name)) {
-        expect(ratio).toBeGreaterThanOrEqual(4.5);
-      }
-    },
-  );
-
-  // Tier 2, control boundaries: WCAG 1.4.11 needs 3:1 for what identifies a
-  // control, such as a card's outline (Edge) and the focus ring (Cobalt).
-  it.each(["edge", "cobalt"])(
-    "%s is at least 3:1 on paper in both themes",
-    (name) => {
-      for (const ratio of onPaper(name)) {
-        expect(ratio).toBeGreaterThanOrEqual(3);
-      }
-    },
-  );
-
-  // Rule is decoration only (dividers, empty states); it is too faint for
-  // either tier, which is why cards have Edge.
-  it("keeps rule below the control tier, so it cannot stand in for edge", () => {
-    for (const ratio of onPaper("rule")) expect(ratio).toBeLessThan(3);
+  // compressed screen share, so WCAG AA for normal text, in both themes, on
+  // the page and on a card or the menu panel.
+  it.each([
+    ["ink", "paper"],
+    ["ink", "surface"],
+    ["quiet", "paper"],
+    ["quiet", "surface"],
+    ["cobalt", "paper"],
+    ["cobalt", "surface"],
+    ["on-cobalt", "cobalt"],
+    ["voted-text", "voted-bg"],
+    ["not-yet-text", "not-yet-bg"],
+    ["away-text", "away-bg"],
+    ["draw-text", "draw-bg"],
+    ["name-text", "name-bg"],
+    ["facilitating-text", "facilitating-bg"],
+    ["win-text", "win-fill"],
+  ])("%s on %s is at least 4.5:1 in both themes", (fore, back) => {
+    for (const ratio of ratios(fore, back)) {
+      expect(ratio).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
-  // A selected card is a Cobalt fill with a Paper numeral.
-  it("reads a paper numeral on a cobalt fill at 4.5:1 in both themes", () => {
-    const [cobaltLight, cobaltDark] = palette.cobalt ?? ["", ""];
-    const [paperLight, paperDark] = palette.paper ?? ["", ""];
-    expect(contrast(paperLight, cobaltLight)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(paperDark, cobaltDark)).toBeGreaterThanOrEqual(4.5);
+  // Tier 2, boundaries: WCAG 1.4.11 needs 3:1 for what identifies a control
+  // (Edge outlines, the Cobalt focus ring) and for a tinted scale card's
+  // border, so a highlighted card stays a card over a screen share.
+  it.each([
+    ["edge", "paper"],
+    ["edge", "surface"],
+    ["cobalt", "paper"],
+    ["win-border", "paper"],
+    ["draw-border", "paper"],
+  ])("%s on %s is at least 3:1 in both themes", (fore, back) => {
+    for (const ratio of ratios(fore, back)) {
+      expect(ratio).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  // Rule is decoration only (dividers, empty scale cards); it is too faint
+  // for either tier, which is why controls have Edge.
+  it("keeps rule below the control tier, so it cannot stand in for edge", () => {
+    for (const ratio of ratios("rule", "paper")) expect(ratio).toBeLessThan(3);
   });
 });
 
-describe("type scale", () => {
+describe("type scale (docs/design.md, Type)", () => {
+  // [compact, wide] in px, from the 7b spec's table.
+  const EXPECTED: Record<string, [number, number]> = {
+    body: [16, 17],
+    status: [15, 15],
+    heading: [26, 30],
+    card: [22, 26],
+    scale: [17, 28],
+    result: [17, 18],
+    pill: [13, 13],
+    wordmark: [14, 17],
+  };
+
   const sizes = (block: string): Record<string, number> => {
     const found: Record<string, number> = {};
     for (const [, name, size] of block.matchAll(
       /--text-([a-z]+):\s*([\d.]+)rem/g,
     )) {
-      if (name && size) found[name] = Number(size);
+      if (name && size) found[name] = Number(size) * 16;
     }
     return found;
   };
 
-  it("grows every size in the wide layout, for a screen-share thumbnail", () => {
-    const wideStart = tokens.indexOf("@media (min-width: 55em)");
-    const compact = sizes(tokens.slice(0, wideStart));
-    const wide = sizes(tokens.slice(wideStart));
-    expect(Object.keys(wide).sort()).toEqual(Object.keys(compact).sort());
+  const wideStart = tokens.indexOf("@media (min-width: 55em)");
+  const compact = sizes(tokens.slice(0, wideStart));
+  const wide = { ...compact, ...sizes(tokens.slice(wideStart)) };
+
+  it("defines exactly the roles in the table", () => {
+    expect(Object.keys(compact).sort()).toEqual(Object.keys(EXPECTED).sort());
+  });
+
+  it.each(Object.entries(EXPECTED))(
+    "%s is %j px, compact and wide",
+    (name, [compactPx, widePx]) => {
+      expect([compact[name], wide[name]]).toEqual([compactPx, widePx]);
+    },
+  );
+
+  it("never shrinks a size in the wide layout", () => {
     for (const name of Object.keys(compact)) {
-      expect(wide[name]).toBeGreaterThan(compact[name] ?? Infinity);
+      expect(wide[name]).toBeGreaterThanOrEqual(compact[name] ?? Infinity);
     }
   });
 });

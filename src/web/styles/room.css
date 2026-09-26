@@ -6,9 +6,9 @@
 
 /* Buttons: quiet by default, Cobalt for the primary action. */
 button {
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-4) var(--space-16);
   border: 1px solid var(--edge);
-  border-radius: var(--card-radius);
+  border-radius: var(--radius-control);
   background: transparent;
   cursor: pointer;
 }
@@ -16,8 +16,8 @@ button {
 button.primary {
   border-color: var(--cobalt);
   background: var(--cobalt);
-  color: var(--paper);
-  font-weight: var(--weight-bold);
+  color: var(--on-cobalt);
+  font-weight: var(--weight-strong);
 }
 
 button:disabled {
@@ -29,21 +29,21 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-8) var(--space-16);
 }
 
 .facilitate-toggle[aria-pressed="true"] {
   border-color: var(--cobalt);
   color: var(--cobalt);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-strong);
 }
 
 /* A round, voting or revealed: compact is one column, in reading order. */
 .round {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-4);
-  padding-block: var(--space-4);
+  gap: var(--space-24);
+  padding-block: var(--space-24);
 }
 
 .round--voting.round--participant {
@@ -70,7 +70,7 @@ button:disabled {
 
 .round--facilitator .controls {
   align-items: center;
-  padding-block: var(--space-3);
+  padding-block: var(--space-16);
   border-block-start: 1px solid var(--rule);
   background: var(--paper);
 }
@@ -82,7 +82,7 @@ button:disabled {
      scrolls clear. The extra space-2 keeps the focus ring (3px, 2px
      outside) clear too. */
   html:has(.round--facilitator) {
-    scroll-padding-block-end: calc(var(--controls-bar-height) + var(--space-2));
+    scroll-padding-block-end: calc(var(--controls-bar-height) + var(--space-8));
   }
 
   .round--facilitator .controls {
@@ -97,7 +97,7 @@ button:disabled {
   grid-area: status;
   margin: 0;
   font-size: var(--text-status);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-strong);
 }
 
 .controls {
@@ -105,7 +105,7 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-8) var(--space-16);
 }
 
 .not-voted {
@@ -116,18 +116,18 @@ button:disabled {
   grid-area: people;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
+  gap: var(--space-4) var(--space-24);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .people .dot {
-  margin-inline-end: var(--space-1);
+  margin-inline-end: var(--space-4);
 }
 
 .person-card {
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-strong);
   font-variant-numeric: tabular-nums;
 }
 
@@ -137,34 +137,34 @@ button:disabled {
   grid-area: deck;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-8);
 }
 
 .card,
 .scale-card {
   min-width: 2.25em;
   min-height: 3em;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-4) var(--space-8);
   border: 2px solid var(--edge);
-  border-radius: var(--card-radius);
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ink);
   font-size: var(--text-card);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-strong);
   font-variant-numeric: tabular-nums;
 }
 
 .card[aria-pressed="true"] {
   border-color: var(--cobalt);
   background: var(--cobalt);
-  color: var(--paper);
+  color: var(--on-cobalt);
 }
 
 .own-vote {
   grid-area: own;
   display: grid;
   justify-items: start;
-  gap: var(--space-2);
+  gap: var(--space-8);
 }
 
 .own-vote-message,
@@ -179,7 +179,7 @@ button:disabled {
 .scale {
   grid-area: scale;
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-8);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -188,7 +188,7 @@ button:disabled {
 .scale-step {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-16);
 }
 
 .scale-card {
@@ -198,7 +198,7 @@ button:disabled {
   justify-content: center;
   inline-size: 2.75em;
   min-height: 2.25em;
-  font-size: var(--text-status);
+  font-size: var(--text-scale);
 }
 
 .scale-step--empty .scale-card {
@@ -209,7 +209,7 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   min-inline-size: 0;
-  gap: var(--space-1) var(--space-3);
+  gap: var(--space-4) var(--space-16);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -222,8 +222,8 @@ button:disabled {
 .scale-name {
   max-inline-size: 100%;
   overflow: hidden;
-  font-size: var(--text-name);
-  font-weight: var(--weight-bold);
+  font-size: var(--text-pill);
+  font-weight: var(--weight-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -231,12 +231,12 @@ button:disabled {
 /* Colour is never the only signal: the sentence below says it in words. */
 .scale-name--agree,
 .result-summary--agree {
-  color: var(--agree);
+  color: var(--win-text);
 }
 
 .scale-name--discuss,
 .result-summary--discuss {
-  color: var(--discuss);
+  color: var(--draw-text);
 }
 
 /* The only motion (docs/design.md): names settle onto the scale once, at
@@ -257,7 +257,7 @@ button:disabled {
 .result {
   grid-area: result;
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-4);
 }
 
 .result p {
@@ -265,8 +265,8 @@ button:disabled {
 }
 
 .result-summary {
-  font-size: var(--text-status);
-  font-weight: var(--weight-bold);
+  font-size: var(--text-result);
+  font-weight: var(--weight-strong);
 }
 
 /* Masked like a password, without being one: a password field would invite
@@ -274,9 +274,9 @@ button:disabled {
    missing, MaskedVote falls back to a password field (maskedInputType). */
 .masked {
   width: 6ch;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-4) var(--space-8);
   border: 2px solid var(--edge);
-  border-radius: var(--card-radius);
+  border-radius: var(--radius-control);
   background: transparent;
   font-size: var(--text-status);
   letter-spacing: 0.2em;
@@ -286,7 +286,7 @@ button:disabled {
 @media (min-width: 55em) {
   .round {
     grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr) auto;
-    column-gap: var(--space-5);
+    column-gap: var(--space-32);
   }
 
   .round--voting.round--participant {
@@ -339,13 +339,13 @@ button:disabled {
   .scale-step {
     flex-direction: column-reverse;
     align-items: stretch;
-    gap: var(--space-2);
+    gap: var(--space-8);
   }
 
   .scale-card {
     inline-size: auto;
     min-height: 3em;
-    font-size: var(--text-card);
+    font-size: var(--text-scale);
   }
 
   .scale-names {
