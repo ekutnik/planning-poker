@@ -54,7 +54,9 @@ button:disabled {
   grid-template-areas: "status" "people" "scale" "result" "controls";
 }
 
-/* The facilitator's controls are pinned to the bottom in compact. */
+/* The facilitator's controls are pinned to the bottom in compact, when the
+   window is tall enough for it (A-05): at 400% zoom a pinned bar would take
+   a third of the screen, so below 25em it sits in the normal flow. */
 :root {
   /* One height for the bar and the room kept for it, so they cannot drift. */
   --controls-bar-height: 4.25rem;
@@ -64,23 +66,29 @@ button:disabled {
   grid-template-areas: "status" "people" "deck" "own" "controls";
 }
 
-/* When focus moves to something near the bottom, scroll it above the bar,
-   not under it. No bottom padding is needed: a sticky bar settles back into
-   the flow at the end of the page, so the last content always scrolls clear.
-   The extra space-2 keeps the focus ring (3px, 2px outside) clear too. */
-html:has(.round--facilitator) {
-  scroll-padding-block-end: calc(var(--controls-bar-height) + var(--space-2));
-}
-
 .round--facilitator .controls {
-  position: sticky;
-  bottom: 0;
-  box-sizing: border-box;
-  min-block-size: var(--controls-bar-height);
   align-items: center;
   padding-block: var(--space-3);
   border-block-start: 1px solid var(--rule);
   background: var(--paper);
+}
+
+@media (min-height: 25em) {
+  /* When focus moves to something near the bottom, scroll it above the bar,
+     not under it. No bottom padding is needed: a sticky bar settles back
+     into the flow at the end of the page, so the last content always
+     scrolls clear. The extra space-2 keeps the focus ring (3px, 2px
+     outside) clear too. */
+  html:has(.round--facilitator) {
+    scroll-padding-block-end: calc(var(--controls-bar-height) + var(--space-2));
+  }
+
+  .round--facilitator .controls {
+    position: sticky;
+    bottom: 0;
+    box-sizing: border-box;
+    min-block-size: var(--controls-bar-height);
+  }
 }
 
 .status {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { declarations, readStyles } from "./css.node.js";
+import { declarations, readStyles, split } from "./css.node.js";
 
 const css = readStyles();
 
@@ -15,5 +15,20 @@ describe("names on the scale (A-04)", () => {
 
   it("never break a name mid-word, where it would read as two people", () => {
     expect(scaleName).not.toMatch(/overflow-wrap|word-break/);
+  });
+});
+
+describe("the pinned facilitator bar (A-05)", () => {
+  const tall = split(css, "(min-height: 25em)");
+
+  it("is pinned only when the window is tall enough", () => {
+    expect(tall.inside).toMatch(/position:\s*sticky/);
+    expect(tall.outside).not.toMatch(/position:\s*sticky/);
+  });
+
+  it("reserves scroll room for itself only while pinned", () => {
+    const reserved = /scroll-padding-block-end:\s*calc/;
+    expect(tall.inside).toMatch(reserved);
+    expect(tall.outside).not.toMatch(reserved);
   });
 });
