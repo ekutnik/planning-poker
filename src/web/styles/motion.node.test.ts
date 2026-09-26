@@ -1,45 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
+import { readStyles, split } from "./css.node.js";
 
-// Read from disk: Vitest turns every CSS import into an empty string.
-const dir = new URL("./", import.meta.url);
-const css = [
-  ...readdirSync(dir)
-    .filter((file) => file.endsWith(".css"))
-    .map((file) => new URL(file, dir)),
-  new URL("../index.css", import.meta.url),
-]
-  .map((url) => readFileSync(url, "utf8"))
-  .join("\n")
-  .replace(/\/\*[\s\S]*?\*\//g, "");
-
-/** The CSS split into what is inside `@media <query>` blocks, and the rest. */
-function split(
-  source: string,
-  query: string,
-): { inside: string; outside: string } {
-  const at = `@media ${query}`;
-  let inside = "";
-  let outside = "";
-  let from = 0;
-  for (
-    let start = source.indexOf(at);
-    start !== -1;
-    start = source.indexOf(at, from)
-  ) {
-    outside += source.slice(from, start);
-    let end = source.indexOf("{", start);
-    let depth = 0;
-    do {
-      if (source[end] === "{") depth += 1;
-      if (source[end] === "}") depth -= 1;
-      end += 1;
-    } while (depth > 0 && end < source.length);
-    inside += source.slice(start, end);
-    from = end;
-  }
-  return { inside, outside: outside + source.slice(from) };
-}
+const css = readStyles();
 
 const MOTION = /\b(?:animation|transition)(?:-[a-z]+)?\s*:([^;}]*)/g;
 

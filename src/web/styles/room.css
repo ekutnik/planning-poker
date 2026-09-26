@@ -54,7 +54,11 @@ button:disabled {
   grid-template-areas: "status" "people" "scale" "result" "controls";
 }
 
-/* The facilitator's controls are pinned to the bottom in compact. */
+/* The facilitator's controls are pinned to the bottom in compact only, and
+   only when the window is tall enough for it (A-05): at 400% zoom a pinned
+   bar would take a third of the screen, so below 25em it sits in the normal
+   flow. Wide never pins it. The media query says all of this itself, so it
+   does not depend on the wide block coming later in the file. */
 :root {
   /* One height for the bar and the room kept for it, so they cannot drift. */
   --controls-bar-height: 4.25rem;
@@ -64,23 +68,29 @@ button:disabled {
   grid-template-areas: "status" "people" "deck" "own" "controls";
 }
 
-/* When focus moves to something near the bottom, scroll it above the bar,
-   not under it. No bottom padding is needed: a sticky bar settles back into
-   the flow at the end of the page, so the last content always scrolls clear.
-   The extra space-2 keeps the focus ring (3px, 2px outside) clear too. */
-html:has(.round--facilitator) {
-  scroll-padding-block-end: calc(var(--controls-bar-height) + var(--space-2));
-}
-
 .round--facilitator .controls {
-  position: sticky;
-  bottom: 0;
-  box-sizing: border-box;
-  min-block-size: var(--controls-bar-height);
   align-items: center;
   padding-block: var(--space-3);
   border-block-start: 1px solid var(--rule);
   background: var(--paper);
+}
+
+@media (height >= 25em) and (width < 55em) {
+  /* When focus moves to something near the bottom, scroll it above the bar,
+     not under it. No bottom padding is needed: a sticky bar settles back
+     into the flow at the end of the page, so the last content always
+     scrolls clear. The extra space-2 keeps the focus ring (3px, 2px
+     outside) clear too. */
+  html:has(.round--facilitator) {
+    scroll-padding-block-end: calc(var(--controls-bar-height) + var(--space-2));
+  }
+
+  .round--facilitator .controls {
+    position: sticky;
+    bottom: 0;
+    box-sizing: border-box;
+    min-block-size: var(--controls-bar-height);
+  }
 }
 
 .status {
@@ -198,16 +208,24 @@ html:has(.round--facilitator) {
 .scale-names {
   display: flex;
   flex-wrap: wrap;
+  min-inline-size: 0;
   gap: var(--space-1) var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* One line per name (A-04): a name wrapped across lines reads as two
+   people stacked on the card. Truncation is only visual; the full name
+   stays in the page for screen readers, and the people list beside the
+   scale shows every full name with its card. */
 .scale-name {
+  max-inline-size: 100%;
+  overflow: hidden;
   font-size: var(--text-name);
   font-weight: var(--weight-bold);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Colour is never the only signal: the sentence below says it in words. */
@@ -301,13 +319,7 @@ html:has(.round--facilitator) {
       ". result result";
   }
 
-  html:has(.round--facilitator) {
-    scroll-padding-block-end: 0;
-  }
-
   .round--facilitator .controls {
-    position: static;
-    min-block-size: 0;
     flex-direction: column;
     align-items: flex-end;
     padding: 0;

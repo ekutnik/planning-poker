@@ -3,6 +3,7 @@ import type { Card } from "../shared/deck.js";
 import type { Results, RoomSnapshot } from "../shared/snapshot.js";
 import {
   freshAnnouncement,
+  announcementFor,
   NEXT_ROUND,
   phaseAnnouncement,
 } from "./announce.js";
@@ -204,24 +205,63 @@ describe("phaseAnnouncement: only a change of phase is announced", () => {
   };
 
   it("announces the result on the change from voting to revealed", () => {
-    expect(phaseAnnouncement("voting", result)).toBe(
-      "Votes revealed. Everyone chose 5.",
-    );
+    expect(phaseAnnouncement("voting", result)).toEqual({
+      full: "Votes revealed. Everyone chose 5.",
+      afterHeading: "Everyone chose 5.",
+    });
   });
 
   it("stays quiet for later snapshots of the same reveal", () => {
-    expect(phaseAnnouncement("revealed", result)).toBe("");
+    expect(phaseAnnouncement("revealed", result)).toBeNull();
   });
 
   it("announces the next round, however it was started", () => {
     // Someone else pressing "Start next round" swaps the scale for the deck:
-    // a change a screen reader user must hear about.
-    expect(phaseAnnouncement("revealed", voting)).toBe(NEXT_ROUND);
+    // a change a screen reader user must hear about. The new heading names
+    // who is missing, so nothing repeats: both versions say it.
+    expect(phaseAnnouncement("revealed", voting)).toEqual({
+      full: NEXT_ROUND,
+      afterHeading: NEXT_ROUND,
+    });
     expect(NEXT_ROUND).toBe("Next round started.");
   });
 
   it("stays quiet within the voting phase", () => {
-    expect(phaseAnnouncement("voting", voting)).toBe("");
+    expect(phaseAnnouncement("voting", voting)).toBeNull();
+  });
+});
+
+describe("announcementFor: said once, not twice (A-06)", () => {
+  const copy = {
+    full: "Votes revealed. Close: 3 and 5. Cy voted question mark.",
+    afterHeading: "Close: 3 and 5. Cy voted question mark.",
+  };
+
+  it("leaves out what the heading that took focus has just said", () => {
+    expect(announcementFor(true, copy)).toBe(
+      "Close: 3 and 5. Cy voted question mark.",
+    );
+  });
+
+  it("says it whole to everyone whose focus stayed put", () => {
+    expect(announcementFor(false, copy)).toBe(copy.full);
+  });
+
+  it("keeps the whole result either way, only the heading's words differ", () => {
+    const revealedCopy = phaseAnnouncement(
+      "voting",
+      revealed(
+        { min: "3", max: "5", spreadSteps: 1 },
+        ["Ada", "3"],
+        ["Ben", "5"],
+        ["Cy", "?"],
+      ),
+    );
+    expect(revealedCopy).not.toBeNull();
+    if (revealedCopy === null) return;
+    expect(announcementFor(false, revealedCopy)).toBe(
+      `Votes revealed. ${announcementFor(true, revealedCopy)}`,
+    );
   });
 });
 

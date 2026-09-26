@@ -53,8 +53,12 @@ export default defineConfig([
     // tsconfig.json, so point the parser at it explicitly.
     files: ["src/web/**/*.{ts,tsx}"],
     // These run in Node and belong to the root (Node) project: Vite's config,
-    // and tests that read web assets from disk.
-    ignores: ["src/web/vite.config.ts", "src/web/**/*.node.test.ts"],
+    // and the tests that read web assets from disk, with their helpers.
+    ignores: [
+      "src/web/vite.config.ts",
+      "src/web/**/*.node.test.ts",
+      "src/web/**/*.node.ts",
+    ],
     languageOptions: {
       globals: globals.browser,
       parserOptions: {
