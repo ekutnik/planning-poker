@@ -162,10 +162,15 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 
 ### Deck (voting)
 
-- One row of ten in wide; two rows of five in compact.
-- **States:** default (Surface, Edge outline); hover (a 2 px lift, Ink outline); selected (Cobalt fill, On Cobalt numeral); focus (3 px Cobalt ring, 2 px outside); selected and focused shows both.
+- One row of ten 68 px cards when the deck has room for them (788 px); two rows of five otherwise, which is always the case in compact. The deck's own width decides, through a container query, because in wide the room for it depends on the window.
+- **States:** default (Surface, 1.5 px Edge outline); hover (Ink outline, and a 2 px lift only when motion is allowed: with reduced motion nothing moves); selected (Cobalt fill, On Cobalt numeral); focus (3 px Cobalt ring, 2 px outside); selected and focused shows both.
 - **A toolbar of toggle buttons** (`aria-pressed`), not a radiogroup: a radiogroup selects on arrow keys, which here would cast and broadcast a vote on every keypress. Arrow keys move between cards, Space or Enter chooses, and Tab moves past the whole deck in one step.
 - In the facilitator view, no card is ever shown as selected.
+
+### The room's layout
+
+- **Wide:** two columns. The status line and the people list on the left, 280 px; the round on the right. In the facilitator view the right column is the controls (top right), the deck, then your own vote; in the participant view it is the deck, then the controls. The people list spans the rows beside the right column, so it starts right under the status line.
+- **Compact:** one column in reading order: status, people, deck, your own vote, controls, with the facilitator's controls pinned to the bottom when the window is tall enough. The pinned bar is 72 px (a 44 px button, 12 px above and below, a 1 px rule), and focus scrolls clear of exactly that; a test holds the button, the padding and the rule to the height reserved.
 
 ### Room status
 
