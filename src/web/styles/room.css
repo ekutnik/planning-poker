@@ -149,6 +149,40 @@ button:disabled {
   margin-inline-start: auto;
 }
 
+/* The facilitator's Nudge button, before the pill: it takes the auto margin
+   instead, so the two sit together at the end of the row. */
+.person-nudge {
+  flex: none;
+  min-height: 1.75rem; /* 28px */
+  margin-inline-start: auto;
+  padding: 0 0.625rem; /* 10px */
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+  font-size: var(--text-pill);
+  font-weight: var(--weight-strong);
+}
+
+.person-nudge ~ .pill {
+  margin-inline-start: 0;
+}
+
+/* Nudged: plain Quiet words, still a button that keeps focus. */
+.person-nudge--sent {
+  padding: 0 var(--space-4);
+  border-color: transparent;
+  background: transparent;
+  color: var(--quiet);
+}
+
+.person-nudge[aria-disabled="true"] {
+  cursor: default;
+}
+
+.person-nudge:not(.person-nudge--sent)[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
 .pill--voted {
   background: var(--voted-bg);
   color: var(--voted-text);

@@ -1,8 +1,14 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { Deck } from "./Deck.js";
 import { PEOPLE_COPY } from "./copy.js";
+import {
+  expireNudges,
+  nextExpiry,
+  standingNudges,
+  type SentNudges,
+} from "./nudges.js";
 import { People } from "./People.js";
 import { ScreenHeading } from "./ScreenHeading.js";
 import { roundStatus } from "./status.js";
@@ -33,6 +39,23 @@ export function VotingView({
 }) {
   const status = roundStatus(snapshot);
   const deckArea = useRef<HTMLDivElement>(null);
+
+  // The nudges this facilitator has sent (ADR 0007). They end with the
+  // shared cooldown, when their person votes or leaves, and with the round,
+  // since this screen goes at the reveal: the moments the server's
+  // cooldown ends, so a Nudge button on screen is one it will deliver.
+  const [sent, setSent] = useState<SentNudges>(() => new Map());
+  const standing = standingNudges(sent, snapshot.participants);
+  if (standing !== sent) setSent(standing);
+  const expiry = nextExpiry(standing);
+  useEffect(() => {
+    if (expiry === null) return;
+    const timer = setTimeout(
+      () => setSent((current) => expireNudges(current, Date.now())),
+      Math.max(0, expiry - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [expiry]);
   const hasVoted =
     snapshot.participants.find((p) => p.id === snapshot.viewerId)?.hasVoted ??
     false;
@@ -59,6 +82,20 @@ export function VotingView({
       <People
         participants={snapshot.participants}
         viewerId={snapshot.viewerId}
+        nudges={
+          facilitating
+            ? {
+                sent: standing,
+                live,
+                onNudge: (participantId) => {
+                  onAction({ type: "nudge", participantId });
+                  setSent((current) =>
+                    new Map(current).set(participantId, Date.now()),
+                  );
+                },
+              }
+            : undefined
+        }
       />
       {/* The deck's own container, so the deck can choose ten cards in a
           row or two rows of five by the width it actually has. */}
