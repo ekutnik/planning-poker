@@ -16,6 +16,7 @@ class FakeConnection implements SessionConnection {
   readonly sent: RoomAction[] = [];
   private readonly listeners = new Set<() => void>();
   private readonly errorListeners = new Set<(code: ErrorCode) => void>();
+  private readonly nudgeListeners = new Set<() => void>();
 
   getState = () => this.state;
   subscribe(listener: () => void) {
@@ -25,6 +26,10 @@ class FakeConnection implements SessionConnection {
   onServerError(listener: (code: ErrorCode) => void) {
     this.errorListeners.add(listener);
     return () => this.errorListeners.delete(listener);
+  }
+  onNudged(listener: () => void) {
+    this.nudgeListeners.add(listener);
+    return () => this.nudgeListeners.delete(listener);
   }
   start() {
     this.started += 1;
@@ -53,8 +58,13 @@ class FakeConnection implements SessionConnection {
   error(code: ErrorCode) {
     for (const listener of this.errorListeners) listener(code);
   }
+  nudge() {
+    for (const listener of this.nudgeListeners) listener();
+  }
   listening() {
-    return this.listeners.size + this.errorListeners.size;
+    return (
+      this.listeners.size + this.errorListeners.size + this.nudgeListeners.size
+    );
   }
 }
 
@@ -150,5 +160,116 @@ describe("RoomSession", () => {
     session.leave();
     expect(connections[0]?.restarted).toBe(1);
     expect(connections[0]?.left).toBe(true);
+  });
+});
+
+/** An open room, voting unless revealed, with you ("me") and Ben. */
+function open(youVoted: boolean, phase: "voting" | "revealed" = "voting") {
+  const participants = [
+    { id: "me", name: "Ada", status: "connected" as const },
+    { id: "ben", name: "Ben", status: "connected" as const },
+  ];
+  const state: ConnectionState = {
+    status: "open",
+    snapshot:
+      phase === "voting"
+        ? {
+            phase,
+            roomId: "abcdefghijk",
+            version: 1,
+            viewerId: "me",
+            yourVote: youVoted ? "5" : null,
+            participants: participants.map((p) => ({
+              ...p,
+              hasVoted: p.id === "me" && youVoted,
+            })),
+          }
+        : {
+            phase,
+            roomId: "abcdefghijk",
+            version: 1,
+            viewerId: "me",
+            participants: participants.map((p) => ({ ...p, vote: null })),
+            results: {
+              voteCount: 0,
+              distribution: [],
+              consensus: false,
+              min: null,
+              max: null,
+              spreadSteps: null,
+              winners: [],
+            },
+          },
+  };
+  return state;
+}
+
+describe("RoomSession: a nudge (ADR 0007)", () => {
+  function nudgedSession() {
+    const ctx = setup();
+    ctx.session.subscribe(() => undefined);
+    const connection = ctx.connections[0];
+    if (!connection) throw new Error("no connection");
+    connection.setState(open(false));
+    connection.nudge();
+    return { ...ctx, connection };
+  }
+
+  it("stands once someone nudges you, through snapshots that change nothing for you", () => {
+    const { session, connection } = nudgedSession();
+    expect(session.getSnapshot().nudged).toBe(true);
+    connection.setState(open(false));
+    expect(session.getSnapshot().nudged).toBe(true);
+  });
+
+  it("ends when you vote, and stays ended if you clear your vote", () => {
+    const { session, connection } = nudgedSession();
+    connection.setState(open(true));
+    expect(session.getSnapshot().nudged).toBe(false);
+    connection.setState(open(false));
+    expect(session.getSnapshot().nudged).toBe(false);
+  });
+
+  it("ends when the round is revealed, and so for a reset too", () => {
+    const { session, connection } = nudgedSession();
+    connection.setState(open(false, "revealed"));
+    expect(session.getSnapshot().nudged).toBe(false);
+    connection.setState(open(false));
+    expect(session.getSnapshot().nudged).toBe(false);
+  });
+
+  it("ends when the connection stops", () => {
+    const { session, connection } = nudgedSession();
+    connection.setState(STOPPED);
+    expect(session.getSnapshot().nudged).toBe(false);
+  });
+
+  it("survives a reconnect that has no snapshot yet", () => {
+    const { session, connection } = nudgedSession();
+    connection.setState({
+      status: "reconnecting",
+      attempt: 1,
+      retryAt: 0,
+      snapshot: null,
+    });
+    expect(session.getSnapshot().nudged).toBe(true);
+  });
+
+  it("does not stand for someone who has already voted", () => {
+    const { session, connections } = setup();
+    session.subscribe(() => undefined);
+    connections[0]?.setState(open(true));
+    connections[0]?.nudge();
+    expect(session.getSnapshot().nudged).toBe(false);
+  });
+
+  it("ends with the session: leaving drops it", () => {
+    const { session, connections } = setup();
+    const stop = session.subscribe(() => undefined);
+    connections[0]?.setState(open(false));
+    connections[0]?.nudge();
+    stop();
+    expect(session.getSnapshot().nudged).toBe(false);
+    expect(connections[0]?.listening()).toBe(0);
   });
 });
