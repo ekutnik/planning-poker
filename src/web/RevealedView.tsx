@@ -40,7 +40,11 @@ export function RevealedView({
         participants={snapshot.participants}
         viewerId={snapshot.viewerId}
       />
-      <Scale snapshot={snapshot} />
+      {/* The scale's own container, so it lays all ten steps across only
+          when each has room for a name (docs/design.md). */}
+      <div className="scale-area">
+        <Scale snapshot={snapshot} />
+      </div>
       <p className="result">{copy.summary}</p>
       <div className="controls">
         <button

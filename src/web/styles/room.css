@@ -258,19 +258,6 @@ button:disabled {
   }
 }
 
-.scale-card {
-  min-width: 2.25em;
-  min-height: 3em;
-  padding: var(--space-4) var(--space-8);
-  border: 2px solid var(--edge);
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--text-card);
-  font-weight: var(--weight-strong);
-  font-variant-numeric: tabular-nums;
-}
-
 .card[aria-pressed="true"] {
   border-color: var(--cobalt);
   background: var(--cobalt);
@@ -286,12 +273,20 @@ button:disabled {
   gap: var(--space-12);
 }
 
-/* The scale: the deck row after reveal. Compact lists the steps down the
-   page, each card with its names beside it; wide lays them across, with the
-   names stacked above each card. Cards nobody chose keep their place, with
-   a Rule outline: an empty state, still labelled in Ink. */
-.scale {
+/* The scale: the deck row after reveal. All ten steps across, names
+   stacked above each card, when the scale has room for ten 100px columns:
+   the width of a pill holding a long word such as "Oppenheimer", so names
+   wrap only between words. Otherwise, as always in compact, only the cards
+   that got votes, one row each: the card, then its names wrapping beside
+   it. The scale's own width decides, like the deck's. Across, cards nobody
+   chose keep their place with a Rule outline and an Ink numeral, so the
+   gaps show the spread. */
+.scale-area {
   grid-area: scale;
+  container: scale / inline-size;
+}
+
+.scale {
   display: grid;
   gap: var(--space-8);
   margin: 0;
@@ -302,44 +297,64 @@ button:disabled {
 .scale-step {
   display: flex;
   align-items: center;
-  gap: var(--space-16);
+  gap: var(--space-12);
 }
 
+.scale-step--empty {
+  display: none;
+}
+
+/* The deck's card, not a control: 4:5, Surface with an Edge outline. */
 .scale-card {
-  display: inline-flex;
+  display: flex;
+  flex: none;
   box-sizing: border-box;
   align-items: center;
   justify-content: center;
-  inline-size: 2.75em;
-  min-height: 2.25em;
+  inline-size: calc(40em / 17); /* 40px at the compact 17px numeral */
+  aspect-ratio: 4 / 5;
+  border: 1.5px solid var(--edge);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
   font-size: var(--text-scale);
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
 }
 
 .scale-step--empty .scale-card {
   border-color: var(--rule);
+  background: transparent;
 }
 
 .scale-names {
   display: flex;
   flex-wrap: wrap;
   min-inline-size: 0;
-  gap: var(--space-4) var(--space-16);
+  gap: var(--space-4) var(--space-8);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* One line per name (A-04): a name wrapped across lines reads as two
-   people stacked on the card. Truncation is only visual; the full name
-   stays in the page for screen readers, and the people list beside the
-   scale shows every full name with its card. */
+/* Each name is a pill, and a name too long for its column wraps inside it,
+   never cut and never shrunk: the stack grows to fit. The pill is what
+   keeps a wrapped name one person (A-04 cut names to one line instead,
+   before names had pills). A long word is hyphenated, and broken anywhere
+   only when that is not enough. */
 .scale-name {
+  box-sizing: border-box;
   max-inline-size: 100%;
-  overflow: hidden;
+  padding: 0.125rem 0.625rem; /* 2px 10px */
+  border-radius: var(--radius-pill);
+  background: var(--name-bg);
+  color: var(--name-text);
   font-size: var(--text-pill);
   font-weight: var(--weight-strong);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 /* The winning card, or the cards of a draw, and the names on them. Colour
@@ -351,6 +366,7 @@ button:disabled {
 }
 
 .scale-step--win .scale-name {
+  background: var(--voted-bg);
   color: var(--voted-text);
 }
 
@@ -361,6 +377,7 @@ button:disabled {
 }
 
 .scale-step--draw .scale-name {
+  background: var(--draw-bg);
   color: var(--draw-text);
 }
 
@@ -436,28 +453,33 @@ button:disabled {
     padding: 0;
     border: 0;
   }
+}
 
+/* Ten 100px columns and nine 12px gaps: 1108px. All on one baseline. */
+@container scale (min-width: 69.25rem) {
   .scale {
     grid-template-columns: repeat(10, minmax(0, 1fr));
+    column-gap: var(--space-12);
     align-items: end;
   }
 
-  .scale-step {
+  .scale-step,
+  .scale-step--empty {
+    display: flex;
     flex-direction: column-reverse;
-    align-items: stretch;
+    align-items: center;
     gap: var(--space-8);
   }
 
   .scale-card {
-    inline-size: auto;
-    min-height: 3em;
-    font-size: var(--text-scale);
+    inline-size: min(100%, 4.75rem); /* 76px */
   }
 
+  /* Stacked upwards: the first to join nearest the card. */
   .scale-names {
     flex-direction: column-reverse;
     flex-wrap: nowrap;
     align-items: center;
-    text-align: center;
+    gap: var(--space-4);
   }
 }

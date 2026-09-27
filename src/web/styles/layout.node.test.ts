@@ -4,18 +4,39 @@ import { declarations, readStyles, split } from "./css.node.js";
 
 const css = readStyles();
 
-describe("names on the scale (A-04)", () => {
+describe("names on the scale (7b; A-04 revisited)", () => {
   const scaleName = declarations(css, ".scale-name");
 
-  it("keep each name on one line, cut short visually when too long", () => {
-    expect(scaleName).toMatch(/white-space:\s*nowrap/);
-    expect(scaleName).toMatch(/overflow:\s*hidden/);
-    expect(scaleName).toMatch(/text-overflow:\s*ellipsis/);
+  it("wraps a long name inside its pill, never cuts it", () => {
+    // A-04 cut names to one line, when a wrapped name read as two people.
+    // Each name is a pill now, which keeps its lines one name.
+    expect(scaleName).not.toMatch(/white-space:\s*nowrap/);
+    expect(scaleName).not.toMatch(/text-overflow|overflow:\s*hidden/);
+    expect(scaleName).toMatch(/overflow-wrap:\s*anywhere/);
     expect(scaleName).toMatch(/max-inline-size:\s*100%/);
   });
 
-  it("never break a name mid-word, where it would read as two people", () => {
-    expect(scaleName).not.toMatch(/overflow-wrap|word-break/);
+  it("lets the stack grow to fit: no height is fixed on it", () => {
+    const sizing =
+      /\.scale-(?:step|names?|card)[^{]*\{[^}]*(?<![\w-])(?:max-)?(?:height|block-size)\s*:/;
+    expect(css).not.toMatch(sizing);
+  });
+
+  it("lays all ten steps across only when each has room for a long word", () => {
+    // Ten 100px columns (a pill holding "Oppenheimer") and nine 12px gaps.
+    const across =
+      /@container scale \(min-width: ([\d.]+)rem\) \{([\s\S]*?)\n\}/.exec(css);
+    expect(Number(across?.[1])).toBe((10 * 100 + 9 * 12) / 16);
+    expect(across?.[2]).toMatch(/\.scale-step--empty\s*\{[^}]*display:\s*flex/);
+    expect(across?.[2]).toMatch(/repeat\(10, minmax\(0, 1fr\)\)/);
+  });
+
+  it("otherwise shows only the cards that got votes, as always in compact", () => {
+    const outside = css.replace(/@container scale[\s\S]*?\n\}/, "");
+    expect(declarations(outside, ".scale-step--empty")).toMatch(
+      /display:\s*none/,
+    );
+    expect(outside).not.toMatch(/\.scale-step--empty\s*\{[^}]*display:\s*flex/);
   });
 });
 
