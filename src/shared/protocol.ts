@@ -1,7 +1,7 @@
 import * as z from "zod";
 import { DECK } from "./deck.js";
 import type { DomainError } from "./errors.js";
-import { SESSION_TOKEN_PATTERN } from "./rules.js";
+import { PARTICIPANT_ID_PATTERN, SESSION_TOKEN_PATTERN } from "./rules.js";
 import type { RoomSnapshot } from "./snapshot.js";
 
 /**
@@ -34,6 +34,12 @@ export const ClientMessage = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("reveal") }),
   z.strictObject({ type: z.literal("reset") }),
   z.strictObject({ type: z.literal("leave") }),
+  // A nudge (ADR 0007). participantId is the person nudged, by the public id
+  // every snapshot shows; the sender is the socket, as for every message.
+  z.strictObject({
+    type: z.literal("nudge"),
+    participantId: z.string().regex(PARTICIPANT_ID_PATTERN),
+  }),
   // App-level liveness (#20). Browser JavaScript cannot see protocol pings,
   // so the client sends this about every 20s and reconnects if no reply
   // comes. It carries no state, so it is answered in any connection state.
@@ -53,7 +59,13 @@ export type ServerMessage =
   | { readonly type: "snapshot"; readonly snapshot: RoomSnapshot }
   | { readonly type: "error"; readonly code: ErrorCode }
   /** The answer to a client `ping`. Any message proves the server is alive. */
-  | { readonly type: "pong" };
+  | { readonly type: "pong" }
+  /**
+   * You have been nudged (ADR 0007). Sent to the person nudged and nobody
+   * else, and it carries nothing: not who sent it, nor anything about them.
+   * A client that predates it ignores an unknown type (#20).
+   */
+  | { readonly type: "nudged" };
 
 /**
  * Parse and validate a raw inbound frame. Never throws: malformed JSON or any

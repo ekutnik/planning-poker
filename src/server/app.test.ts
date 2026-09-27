@@ -153,6 +153,36 @@ describe("websocket route", () => {
     }
   });
 
+  it("carries a nudge to its target alone, over real sockets", async () => {
+    const roomId = await createRoom();
+    const alice = await connect(roomId);
+    const bob = await connect(roomId);
+    const carol = await connect(roomId);
+    const joined = async (client: TestClient, name: string, count: number) => {
+      client.send({ type: "join", sessionToken: randomUUID(), name });
+      let view = await client.snapshot();
+      while (view.participants.length < count) view = await client.snapshot();
+      return view;
+    };
+    await joined(alice, "Alice", 1);
+    await joined(bob, "Bob", 2);
+    const view = await joined(carol, "Carol", 3);
+    // Drain the join broadcasts, so each inbox is empty.
+    await alice.snapshot();
+    await alice.snapshot();
+    await bob.snapshot();
+    const bobId = view.participants[1]?.id ?? "";
+
+    alice.send({ type: "nudge", participantId: bobId });
+    expect(await bob.next()).toEqual({ type: "nudged" });
+    // Frames arrive in order: if anything had reached Alice or Carol, it
+    // would come before the pong to a ping sent after the nudge.
+    for (const client of [alice, carol]) {
+      client.send({ type: "ping" });
+      expect(await client.next()).toEqual({ type: "pong" });
+    }
+  });
+
   it.each(["short", "has.a.dot!", "toolongroomid1"])(
     "rejects the malformed room id %j before upgrade",
     async (roomId) => {

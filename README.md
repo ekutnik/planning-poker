@@ -51,13 +51,14 @@ The server reads its settings from environment variables. Unset means the defaul
 
 Every timeout runs in one periodic sweep that compares timestamps (no per-connection timers), so each deadline fires up to one sweep interval (5s) late.
 
-| Rule              | Threshold               | In practice                    |
-| ----------------- | ----------------------- | ------------------------------ |
-| Join timeout      | 10s without `join`      | closed after 10–15s            |
-| Heartbeat ping    | every 15s               | answered by the browser itself |
-| Heartbeat timeout | 35s since the last pong | terminated after 35–40s        |
-| Disconnect grace  | 60s after disconnecting | removed after 60–65s           |
-| Room TTL          | 10 min empty            | evicted after 10 min–10 min 5s |
+| Rule              | Threshold               | In practice                                                               |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------- |
+| Join timeout      | 10s without `join`      | closed after 10–15s                                                       |
+| Heartbeat ping    | every 15s               | answered by the browser itself                                            |
+| Heartbeat timeout | 35s since the last pong | terminated after 35–40s                                                   |
+| Disconnect grace  | 60s after disconnecting | removed after 60–65s                                                      |
+| Room TTL          | 10 min empty            | evicted after 10 min–10 min 5s                                            |
+| Nudge cooldown    | 30s per person nudged   | exact: checked when a nudge arrives; the sweep only forgets it (ADR 0007) |
 
 **Worst case:** a laptop whose lid closes (no FIN is ever sent) shows as disconnected 35–40s after its last pong and, absent a server stall, leaves the room at most **105s** after it (35s + 60s + two sweep intervals). Reconnecting before then reclaims the seat with the vote. A test asserts this bound.
 
