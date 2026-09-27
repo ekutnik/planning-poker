@@ -98,6 +98,7 @@ Scale cards after reveal, fill / border / numeral:
 - A **System / Light / Dark** choice in the header's Menu, defaulting to System and remembered in `localStorage`. A choice made in one tab applies in every open tab.
 - A `data-theme` attribute on `<html>` pins `color-scheme`, and so overrides `prefers-color-scheme`.
 - **Known limitation:** each colour is defined once with `light-dark()`, which needs a 2024-or-later browser (Chrome 123, Firefox 120, Safari 17.5). Older browsers treat the colour tokens as invalid and fall back to their default black on white: readable, not broken. Accepted for a tool used in current browsers.
+- **Known limitation:** the landing preview is shrunk to 80% with CSS `zoom`, which Firefox supports from 126 (May 2024; Chrome and Safari for years). In an older Firefox the preview shows at full size: cramped beside the form, but readable, and it is decoration only.
 - **No flash of the wrong theme.** [`src/web/public/theme-init.js`](../src/web/public/theme-init.js) applies the stored choice before the first paint. It **must stay a plain, blocking `<script src>` in `<head>`: not `type="module"`, not `async`, not `defer`**, or the flash comes back. It is external rather than inline so that a Content-Security-Policy of `script-src 'self'` allows it with no hash to keep in sync. A test runs it and checks it applies exactly what the app would.
 
 ### Type
@@ -303,7 +304,7 @@ The same header, one heading, a sentence or two, and one Cobalt action. An inval
 
 No flip and no rolling counts. Nothing moves because of someone else's action except the reveal settle and the nudge banner appearing (the banner itself does not animate). With reduced motion, nothing moves.
 
-- **Between screens** means a page outside the room, or the round inside it: React replaces the round when voting gives way to the reveal and back, never for an update within a phase, so a vote arriving does not replay the fade.
+- **Between screens** means a page outside the room, or the room itself: landing to room, room to a stopped screen. The reveal is not one: it is a change of phase inside the room, with its own motion, the names settling, and one moment moves at a time. So the fade sits on the room's `main`, which both phases share, never on the round inside it, which a change of phase replaces.
 - **The preview loop is played by script, not CSS,** so the CSS motion test has nothing to exempt. Its own tests hold the rest: it never moves with reduced motion, and it has Pause.
 
 ## Copy
