@@ -1,5 +1,6 @@
 import { isNumericCard, type Card } from "../shared/deck.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
+import { RESULT_COPY } from "./copy.js";
 import { listNames } from "./status.js";
 
 type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
@@ -34,28 +35,30 @@ export function spokenCard(card: Card): string {
  */
 export function resultCopy({ results }: Revealed): ResultCopy {
   const summary = sentence(results);
-  return { summary, announcement: `Votes revealed. ${summary}` };
+  return { summary, announcement: `${RESULT_COPY.revealed} ${summary}` };
 }
 
 function sentence(results: Revealed["results"]): string {
   const { min, max, winners } = results;
-  if (results.voteCount === 0) return "Nobody voted this round.";
-  if (min === null || max === null) return "No numeric votes this round.";
-  if (results.consensus) return `Everyone chose ${min}.`;
+  if (results.voteCount === 0) return RESULT_COPY.nobody;
+  if (min === null || max === null) return RESULT_COPY.noNumeric;
+  if (results.consensus) return RESULT_COPY.everyone(min);
   const numericVotes = results.distribution
     .filter(({ card }) => isNumericCard(card))
     .reduce((sum, { count }) => sum + count, 0);
   if (numericVotes === 1) {
-    // "Only one vote" would be untrue beside a ? or a ☕.
     return results.voteCount === 1
-      ? `Only one vote: ${min}.`
-      : `Only one numeric vote: ${min}.`;
+      ? RESULT_COPY.onlyOneVote(min)
+      : RESULT_COPY.onlyOneNumericVote(min);
   }
   // The spread is the full range, dropped votes included, and only when
   // there is one. Two or more numeric votes that agree always win, so the
   // sentence is never empty.
-  const parts = min === max ? [] : [`Spread from ${min} to ${max}.`];
-  if (winners.length === 1) parts.push(`Result: ${winners[0] ?? ""}.`);
-  if (winners.length > 1) parts.push(`Draw between ${listNames(winners)}.`);
+  const parts = min === max ? [] : [RESULT_COPY.spread(min, max)];
+  const [winner] = winners;
+  if (winners.length === 1 && winner !== undefined) {
+    parts.push(RESULT_COPY.result(winner));
+  }
+  if (winners.length > 1) parts.push(RESULT_COPY.draw(listNames(winners)));
   return parts.join(" ");
 }
