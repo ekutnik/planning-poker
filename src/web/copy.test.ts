@@ -9,6 +9,7 @@ import {
   NOT_FOUND_COPY,
   NOT_SAVED_COPY,
   PEOPLE_COPY,
+  PREVIEW_COPY,
   RESULT_COPY,
   RUNNING_COPY,
   STOP_ACTION_LABELS,
@@ -65,6 +66,8 @@ const labels = [
   // Pills and the own-vote button: "Voted", "No vote", "Clear my vote", …
   ...Object.values(PEOPLE_COPY),
   RUNNING_COPY.label,
+  PREVIEW_COPY.pause,
+  PREVIEW_COPY.play,
 ];
 
 const everything = [...sentences, ...labels];

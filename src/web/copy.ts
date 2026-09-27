@@ -154,3 +154,10 @@ export const RESULT_COPY = {
   result: (card: string) => `Result: ${card}.`,
   draw: (cards: string) => `Draw between ${cards}.`,
 } as const;
+
+/** The landing preview's one control, and its revealed frame's status. */
+export const PREVIEW_COPY = {
+  pause: "Pause preview",
+  play: "Play preview",
+  revealed: "Votes revealed",
+} as const;
