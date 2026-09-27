@@ -16,6 +16,13 @@ describe("names on the scale (7b; A-04 revisited)", () => {
     expect(scaleName).toMatch(/max-inline-size:\s*100%/);
   });
 
+  it("never hyphenates a name: only a word too long for a line breaks", () => {
+    // An inserted hyphen reads as part of the name. hyphens is inherited,
+    // so nothing anywhere may set it, not only the name's own rule.
+    expect(css).not.toMatch(/hyphens:\s*auto/);
+    expect(scaleName).not.toMatch(/hyphens/);
+  });
+
   it("lets the stack grow to fit: no height is fixed on it", () => {
     const sizing =
       /\.scale-(?:step|names?|card)[^{]*\{[^}]*(?<![\w-])(?:max-)?(?:height|block-size)\s*:/;

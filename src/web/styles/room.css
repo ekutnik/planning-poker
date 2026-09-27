@@ -346,8 +346,13 @@ button:disabled {
 /* Each name is a pill, and a name too long for its column wraps inside it,
    never cut and never shrunk: the stack grows to fit. The pill is what
    keeps a wrapped name one person (A-04 cut names to one line instead,
-   before names had pills). A long word is hyphenated, and broken anywhere
-   only when that is not enough. */
+   before names had pills). A name wraps between words. Only a single word
+   that cannot fit a line on its own breaks inside, through overflow-wrap.
+
+   No hyphens: auto, here or anywhere it could be inherited. It hyphenates
+   in ordinary wrapping, before overflow-wrap is needed ("Oppen-heimer"); an
+   inserted hyphen reads as part of the name, where Anne-Marie has a real
+   one; and the page's English rules do not know names from any language. */
 .scale-name {
   box-sizing: border-box;
   max-inline-size: 100%;
@@ -362,7 +367,6 @@ button:disabled {
   line-height: 1.25rem;
   text-align: center;
   overflow-wrap: anywhere;
-  hyphens: auto;
 }
 
 /* The winning card, or the cards of a draw, and the names on them. Colour
