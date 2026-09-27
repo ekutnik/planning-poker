@@ -258,13 +258,13 @@ The scale doesn't mark which votes were dropped: the names stay above their card
 A facilitator can nudge someone who hasn't voted, so nobody has to say a name aloud on the call.
 
 - **As the recipient sees it:** a banner above the room's heading, "The room is waiting for your vote.", in the Facilitating colours with 12 px corners and `role="status"`. It is anonymous: it never says who nudged. The tab title becomes "Your vote, please – Planning Poker Session", visible from another tab. Both clear when the person votes, when the round is revealed or reset, or when they leave. No sound and no system notification in v1.
-- **Protocol.** Client message `{ "type": "nudge", "participantId": "<public id>" }`; server message `{ "type": "nudged" }`, sent only to the target. Old clients ignore unknown server message types (#20), so no protocol version bump is needed.
+- **Protocol.** Client message `{ "type": "nudge", "participantId": "<public id>" }`, the id every snapshot shows (16 base64url characters); server message `{ "type": "nudged" }`, sent only to the target and carrying nothing else. Old clients ignore unknown server message types (#20), so no protocol version bump is needed.
 - **Server rules,** in the room service; a nudge is transient and never enters room state:
   - The sender must be joined, and the target must be someone else in the same room who is connected and has no vote, while the room is voting.
   - At most one nudge per target every 30 seconds, whoever sends it. The cooldown map is pruned by the sweep, counted in `bookkeeping()` and covered by the leak test.
   - A nudge that fails a rule is ignored and logged at info, with no error to the sender: a race such as "Cy voted a moment ago" is harmless.
-  - Nudges count toward the per-connection rate limit in [#16](https://github.com/ekutnik/planning-poker/issues/16).
-- **Roles.** Consistent with ADR 0005: anyone can technically nudge; the button appears only in the facilitator view. Recorded as ADR 0007, "Nudges are transient and anonymous".
+  - Nudges will count toward the per-connection message limit in [#16](https://github.com/ekutnik/planning-poker/issues/16) like any other message; that limit is not built yet, and until it is, the cooldown is what bounds them: one per person every 30 seconds, however many send.
+- **Roles.** Consistent with ADR 0005: anyone can technically nudge; the button appears only in the facilitator view. Recorded as [ADR 0007](decisions/0007-nudges-are-transient-and-anonymous.md), "Nudges are transient and anonymous".
 
 ## Screens outside the room
 
