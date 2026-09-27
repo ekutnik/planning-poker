@@ -76,7 +76,7 @@ button:disabled {
   /* When focus moves to something near the bottom, scroll it above the bar,
      not under it. No bottom padding is needed: a sticky bar settles back
      into the flow at the end of the page, so the last content always
-     scrolls clear. The extra space-2 keeps the focus ring (3px, 2px
+     scrolls clear. The extra 8px keeps the focus ring (3px, 2px
      outside) clear too. */
   html:has(.round--facilitator) {
     scroll-padding-block-end: calc(var(--controls-bar-height) + var(--space-8));
