@@ -1,8 +1,6 @@
 import type { ParticipantId } from "../shared/ids.js";
+import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
 import type { Room } from "./domain/room.js";
-
-/** At most one nudge per person every 30 seconds, whoever sends it. */
-export const NUDGE_COOLDOWN_MS = 30_000;
 
 /** Why a nudge was not delivered. Logged, never sent to anyone. */
 export type NudgeRefusal =

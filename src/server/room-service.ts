@@ -14,7 +14,8 @@ import {
 } from "./domain/room.js";
 import { project } from "./domain/projection.js";
 import { derivePublicId, roomLogId } from "./identity.js";
-import { NUDGE_COOLDOWN_MS, nudgeRefusal } from "./nudge.js";
+import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
+import { nudgeRefusal } from "./nudge.js";
 
 /**
  * One client socket, as the service sees it. Implementations must not throw:

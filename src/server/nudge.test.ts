@@ -5,7 +5,8 @@ import {
   type Command,
   type Room,
 } from "./domain/room.js";
-import { NUDGE_COOLDOWN_MS, nudgeRefusal } from "./nudge.js";
+import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
+import { nudgeRefusal } from "./nudge.js";
 
 const NOW = 100_000;
 

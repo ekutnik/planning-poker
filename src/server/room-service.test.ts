@@ -3,7 +3,7 @@ import { CloseCode } from "../shared/close-codes.js";
 import { DISCONNECT_GRACE_MS } from "./domain/room.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import { derivePublicId, roomLogId } from "./identity.js";
-import { NUDGE_COOLDOWN_MS } from "./nudge.js";
+import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
 import type { Connection, Limits, RoomLog } from "./room-service.js";
 import {
   JOIN_TIMEOUT_MS,

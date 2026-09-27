@@ -16,6 +16,14 @@ export const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
  */
 export const PARTICIPANT_ID_PATTERN = /^[A-Za-z0-9_-]{16}$/;
 
+/**
+ * At most one nudge per person every 30 seconds, whoever sends it (ADR
+ * 0007). Shared, because the client's "Nudged" button stays disabled for
+ * exactly this long: with its own copy, one side could change and the
+ * button would come back while the server still drops the nudge.
+ */
+export const NUDGE_COOLDOWN_MS = 30_000;
+
 /** Session tokens: 22–64 url-safe characters covers a randomUUID without over-fitting. */
 export const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22,64}$/;
 
