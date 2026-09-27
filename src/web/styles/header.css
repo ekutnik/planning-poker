@@ -106,25 +106,9 @@
   gap: var(--space-12);
 }
 
-.menu-row--switch {
-  align-items: flex-start;
-}
-
-.menu-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
 .menu-label {
   font-size: var(--text-control);
   font-weight: var(--weight-strong);
-}
-
-.menu-note {
-  color: var(--quiet);
-  font-size: var(--text-small);
-  line-height: 1.45;
 }
 
 .menu-panel select {
@@ -140,37 +124,6 @@
   margin: 0;
   border: 0;
   border-block-start: 1px solid var(--rule);
-}
-
-/* A switch: Edge track when off, Cobalt when on; the knob keeps 3:1 against
-   either. 44x26, so a comfortable target. */
-.switch {
-  flex: none;
-  justify-content: flex-start;
-  inline-size: 2.75rem;
-  block-size: 1.625rem;
-  min-height: 0;
-  padding: 3px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--edge);
-}
-
-.switch[aria-checked="true"] {
-  justify-content: flex-end;
-  background: var(--cobalt);
-}
-
-.switch-knob {
-  flex: none;
-  inline-size: 1.25rem;
-  block-size: 1.25rem;
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-}
-
-.switch[aria-checked="true"] .switch-knob {
-  background: var(--on-cobalt);
 }
 
 @media (prefers-reduced-motion: no-preference) {

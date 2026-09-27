@@ -66,3 +66,65 @@ h2 {
   line-height: 1.25rem;
   white-space: nowrap;
 }
+
+/* A switch row (SwitchRow): the words, then the switch, or the switch drawn
+   first with --leading, as on the landing and join forms. */
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.switch-row--leading {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+
+.switch-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.switch-label {
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
+}
+
+.switch-note {
+  color: var(--quiet);
+  font-size: var(--text-small);
+  line-height: 1.45;
+}
+
+/* A switch: Edge track when off, Cobalt when on; the knob keeps 3:1 against
+   either. 44x26, so a comfortable target. */
+.switch {
+  flex: none;
+  justify-content: flex-start;
+  inline-size: 2.75rem;
+  block-size: 1.625rem;
+  min-height: 0;
+  padding: 3px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--edge);
+}
+
+.switch[aria-checked="true"] {
+  justify-content: flex-end;
+  background: var(--cobalt);
+}
+
+.switch-knob {
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.switch[aria-checked="true"] .switch-knob {
+  background: var(--on-cobalt);
+}

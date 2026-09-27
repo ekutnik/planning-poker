@@ -71,6 +71,16 @@ export const HOME_COPY = {
   failed: "The room couldn't be created. Check your connection and try again.",
 } as const;
 
+/**
+ * The Facilitate switch on the landing and join forms: the same setting as
+ * the Menu's Facilitate, worded for someone about to start. On to create a
+ * room, off to join one.
+ */
+export const RUNNING_COPY = {
+  label: "I'm running this session",
+  note: "Hides your vote so you can share your screen.",
+} as const;
+
 /** A room link opened in a browser that has no name yet. */
 export const JOIN_COPY = {
   heading: "Join the room",

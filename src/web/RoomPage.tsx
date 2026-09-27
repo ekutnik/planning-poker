@@ -1,5 +1,5 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { JOIN_COPY } from "./copy.js";
+import { JOIN_COPY, RUNNING_COPY } from "./copy.js";
 import { createBrowserConnection } from "./connection/browser.js";
 import { retryOnReturn } from "./connection/wake.js";
 import type { FacilitateStore } from "./facilitate.js";
@@ -11,6 +11,7 @@ import { useDocumentTitle } from "./title.js";
 import { RoomSession } from "./room-session.js";
 import { RoomView } from "./RoomView.js";
 import { StoppedScreen } from "./StoppedScreen.js";
+import { SwitchRow } from "./SwitchRow.js";
 import type { ThemeStore } from "./theme.js";
 import { bannerFor, canAct } from "./view.js";
 
@@ -37,8 +38,9 @@ export function RoomPage({
       <>
         <Header theme={stores.theme} />
         <JoinScreen
-          onJoin={(chosen) => {
+          onJoin={(chosen, running) => {
             identity.rememberName(chosen);
+            stores.facilitate.set(running);
             setName(chosen);
           }}
         />
@@ -140,18 +142,35 @@ function Room({
   );
 }
 
-/** A room link in a browser with no name yet: ask for one first. */
-function JoinScreen({ onJoin }: { readonly onJoin: (name: string) => void }) {
+/**
+ * A room link in a browser with no name yet: ask for one first. Someone
+ * following a link usually joins someone else's session, so the Facilitate
+ * switch starts off.
+ */
+export function JoinScreen({
+  onJoin,
+}: {
+  readonly onJoin: (name: string, running: boolean) => void;
+}) {
   useDocumentTitle(JOIN_COPY.heading);
+  const [running, setRunning] = useState(false);
   return (
-    <main className="page">
+    <main className="page page--join">
       <ScreenHeading>{JOIN_COPY.heading}</ScreenHeading>
       <p>{JOIN_COPY.intro}</p>
       <NameForm
         initial={null}
         submitLabel={JOIN_COPY.submit}
-        onSubmit={onJoin}
-      />
+        onSubmit={(name) => onJoin(name, running)}
+      >
+        <SwitchRow
+          label={RUNNING_COPY.label}
+          note={RUNNING_COPY.note}
+          checked={running}
+          onChange={setRunning}
+          leading
+        />
+      </NameForm>
     </main>
   );
 }
