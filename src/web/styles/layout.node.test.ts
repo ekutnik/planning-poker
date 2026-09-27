@@ -40,6 +40,31 @@ describe("names on the scale (7b; A-04 revisited)", () => {
   });
 });
 
+describe("the revealed round (7b)", () => {
+  const { inside, outside } = split(css, WIDE_QUERY);
+
+  it("lists the people with their cards in wide only", () => {
+    expect(declarations(outside, ".people--revealed")).toMatch(
+      /display:\s*none/,
+    );
+    expect(declarations(inside, ".people--revealed")).toMatch(
+      /display:\s*flex/,
+    );
+  });
+
+  it("gives the scale the full width in wide, the people below the sentence", () => {
+    const areas = /\.round--revealed\s*\{\s*grid-template-areas:([^;]*);/.exec(
+      inside,
+    )?.[1];
+    expect(areas?.match(/"[^"]*"/g)).toEqual([
+      '"status controls"',
+      '"scale scale"',
+      '"result result"',
+      '"people people"',
+    ]);
+  });
+});
+
 describe("the pinned facilitator bar (A-05)", () => {
   const tall = split(css, "(height >= 25em) and (width < 55em)");
 

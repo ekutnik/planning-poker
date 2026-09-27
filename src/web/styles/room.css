@@ -46,7 +46,7 @@ button:disabled {
 }
 
 .round--revealed {
-  grid-template-areas: "status" "people" "scale" "result" "controls";
+  grid-template-areas: "status" "scale" "result" "controls";
 }
 
 /* The facilitator's controls are pinned to the bottom in compact only, and
@@ -164,18 +164,24 @@ button:disabled {
   color: var(--away-text);
 }
 
-/* After reveal, until the revealed list moves below the scale (7b PR 4). */
+/* After reveal, in wide only: everyone in a row that wraps, each name with
+   its card in a neutral chip. Compact leaves it out: the scale above lists
+   every vote, and height is scarce. */
 .people--revealed {
+  display: none;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: var(--space-4) var(--space-24);
+  gap: var(--space-12) var(--space-32);
 }
 
-.people .dot {
-  margin-inline-end: var(--space-4);
-}
-
-.person-card {
+/* A value chip: the card, neutral, since colour lives on the scale. */
+.chip {
+  flex: none;
+  padding: 0.125rem var(--space-8); /* 2px 8px */
+  border: 1.5px solid var(--edge);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+  font-size: var(--text-small);
   font-weight: var(--weight-strong);
   font-variant-numeric: tabular-nums;
 }
@@ -431,20 +437,23 @@ button:disabled {
       "people own";
   }
 
-  .round--revealed.round--participant {
-    grid-template-areas:
-      "status scale"
-      "people scale"
-      "people result"
-      "people controls";
-  }
-
-  .round--revealed.round--facilitator {
+  /* After reveal the scale takes the full width, so all ten steps fit,
+     with the sentence and then the people below it. The controls sit top
+     right, still last in the DOM. */
+  .round--revealed {
     grid-template-areas:
       "status controls"
-      "people controls"
-      "people scale"
-      "people result";
+      "scale scale"
+      "result result"
+      "people people";
+  }
+
+  .people--revealed {
+    display: flex;
+  }
+
+  .round--revealed.round--participant .controls {
+    justify-content: flex-end;
   }
 
   .round--facilitator .controls {

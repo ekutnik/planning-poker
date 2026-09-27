@@ -136,14 +136,36 @@ describe("the deck as the scale", () => {
 });
 
 describe("the revealed people list", () => {
-  it("shows each person's card next to their name", () => {
-    const html = render();
-    const people =
-      /<ul class="people[^"]*"[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
-    expect(people).toContain('Ada <span class="person-card">3</span>');
-    expect(people).toContain('Dee <span class="person-card">8</span>');
-    expect(people).toMatch(
-      /Fay<span class="visually-hidden">, no vote<\/span> \(away\)/,
+  const people = (html: string) =>
+    /<ul class="people people--revealed"[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+
+  it("gives each person their card in a neutral chip, and Away to someone away without a vote", () => {
+    expect(people(render())).toBe(
+      '<ul class="people people--revealed" aria-label="Participants">' +
+        '<li class="person"><span class="person-name">Ada</span> <span class="person-you">(you)</span> <span class="chip">3</span></li>' +
+        '<li class="person"><span class="person-name">Ben</span> <span class="chip">8</span></li>' +
+        '<li class="person"><span class="person-name">Cy</span> <span class="chip"><span aria-hidden="true">?</span><span class="visually-hidden">question mark</span></span></li>' +
+        '<li class="person"><span class="person-name">Dee</span> <span class="chip">8</span></li>' +
+        '<li class="person"><span class="person-name">Eli</span> <span class="chip">13</span></li>' +
+        '<li class="person"><span class="person-name">Fay</span> <span class="pill pill--away">Away</span></li>' +
+        "</ul>",
+    );
+  });
+
+  it("keeps colour off the list: no Win or Draw there", () => {
+    expect(people(render())).not.toMatch(/win|draw|voted/);
+  });
+
+  it("says no vote, to a screen reader, for someone here who did not vote", () => {
+    const quiet: Revealed = {
+      ...snapshot,
+      participants: [
+        ...snapshot.participants,
+        { id: "Gus", name: "Gus", status: "connected", vote: null },
+      ],
+    };
+    expect(people(render(true, quiet))).toContain(
+      '<li class="person"><span class="person-name">Gus</span> <span class="visually-hidden">no vote</span></li>',
     );
   });
 });
