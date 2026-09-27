@@ -223,9 +223,11 @@ button:disabled {
 
 /* Hover only where there is a pointer that hovers: on a phone a tap sets
    :hover and leaves it on the card until the next tap elsewhere, which
-   reads as a selection while you are choosing a vote. */
+   reads as a selection while you are choosing a vote. A selected card
+   keeps its Cobalt outline: Ink around the fill would read as a third
+   state. It still lifts, below. */
 @media (hover: hover) {
-  .card:hover:not(:disabled) {
+  .card:hover:not(:disabled):not([aria-pressed="true"]) {
     border-color: var(--ink);
   }
 }

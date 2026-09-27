@@ -148,6 +148,10 @@ describe("the deck and its cards (7b)", () => {
     );
     expect(lift).toBeGreaterThanOrEqual(0);
     expect(press).toBeGreaterThan(lift);
+    // The Ink outline leaves a selected card's Cobalt outline alone.
+    expect(split(css, "(hover: hover)").inside).toMatch(
+      /\.card:hover:not\(:disabled\):not\(\[aria-pressed="true"\]\)\s*\{\s*border-color:\s*var\(--ink\)/,
+    );
   });
 });
 
