@@ -56,7 +56,7 @@ export function RoomView({
   }, []);
 
   return (
-    <main aria-busy={!live}>
+    <main className="room-screen" aria-busy={!live}>
       <p role="status" className="visually-hidden">
         {speech.text}
       </p>

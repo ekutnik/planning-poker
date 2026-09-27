@@ -34,12 +34,13 @@ h2 {
 }
 
 /* Between screens (docs/design.md, Motion): each new screen fades in over
-   150ms. A screen is a page outside the room, or the round inside it,
-   which React replaces when voting gives way to the reveal and back, and
-   never for an update within a phase. */
+   150ms. A screen is a page outside the room, or the room itself, whose
+   main stays in place for the whole visit. The reveal is not a screen
+   change: the round inside is replaced then, but it has its own motion,
+   the names settling, and one moment moves at a time. */
 @media (prefers-reduced-motion: no-preference) {
   .page,
-  .round {
+  .room-screen {
     animation: screen-in 150ms ease-out;
   }
 }

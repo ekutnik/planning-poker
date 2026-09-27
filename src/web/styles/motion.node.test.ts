@@ -19,11 +19,17 @@ describe("motion (docs/design.md: calm by default)", () => {
 
   it("fades every new screen in, over 150ms", () => {
     expect(inside).toMatch(
-      /\.page,\s*\.round\s*\{\s*animation:\s*screen-in 150ms/,
+      /\.page,\s*\.room-screen\s*\{\s*animation:\s*screen-in 150ms/,
     );
     expect(css).toMatch(
       /@keyframes screen-in\s*\{\s*from\s*\{\s*opacity:\s*0;?\s*\}/,
     );
+  });
+
+  it("leaves the reveal to the settle: nothing fades the round", () => {
+    // The round is replaced at every change of phase; a fade on it would
+    // play with the names settling, two motions at once.
+    expect(css).not.toMatch(/\.round[^{]*\{[^}]*animation/);
   });
 
   it("has the settle, so the checks here are not vacuous", () => {

@@ -208,6 +208,41 @@ describe("the reveal announcement", () => {
   });
 });
 
+describe("the room's fade (7b)", () => {
+  it("sits on the room's main, which both phases share, not on the round", () => {
+    const voting: RoomSnapshot = {
+      phase: "voting",
+      roomId: snapshot.roomId,
+      version: 6,
+      viewerId: "Ada",
+      yourVote: null,
+      participants: [
+        { id: "Ada", name: "Ada", status: "connected", hasVoted: false },
+      ],
+    };
+    const room = (shown: RoomSnapshot) =>
+      renderToStaticMarkup(
+        <RoomView
+          snapshot={shown}
+          facilitating={false}
+          live
+          banner={null}
+          notice={null}
+          persistent
+          onAction={() => undefined}
+        />,
+      );
+    // The same element opens the room in both phases, so React keeps it at
+    // the reveal and the fade on it does not play again; only the round
+    // inside is replaced.
+    for (const html of [room(voting), room(snapshot)]) {
+      expect(html).toMatch(/^<main class="room-screen" aria-busy="false">/);
+    }
+    expect(room(voting)).toContain('class="round round--voting');
+    expect(room(snapshot)).toContain('class="round round--revealed');
+  });
+});
+
 describe("the room's heading (A-01)", () => {
   it("is the status line, focusable by script, and never a live region", () => {
     const html = render();
