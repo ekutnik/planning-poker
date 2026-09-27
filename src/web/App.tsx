@@ -30,6 +30,7 @@ export function App({
           <Header theme={theme} />
           <HomePage
             identity={identity}
+            facilitate={facilitate}
             onCreated={(roomId) => router.navigate(roomPath(roomId))}
           />
         </>

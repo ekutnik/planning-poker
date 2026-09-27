@@ -9,7 +9,9 @@ import {
   NOT_FOUND_COPY,
   NOT_SAVED_COPY,
   PEOPLE_COPY,
+  PREVIEW_COPY,
   RESULT_COPY,
+  RUNNING_COPY,
   STOP_ACTION_LABELS,
   STOP_COPY,
 } from "./copy.js";
@@ -27,6 +29,7 @@ const sentences = [
   NOT_SAVED_COPY,
   HEADER_COPY.facilitateNote,
   COPY_LINK_COPY.failed,
+  RUNNING_COPY.note,
   ...resultLines(),
 ];
 
@@ -62,6 +65,9 @@ const labels = [
   COPY_LINK_COPY.copied,
   // Pills and the own-vote button: "Voted", "No vote", "Clear my vote", …
   ...Object.values(PEOPLE_COPY),
+  RUNNING_COPY.label,
+  PREVIEW_COPY.pause,
+  PREVIEW_COPY.play,
 ];
 
 const everything = [...sentences, ...labels];
@@ -95,6 +101,10 @@ describe("copy", () => {
         /\b(could|is|are|was|were|do|does|did|has|have|can) not\b|\bcannot\b/i,
       );
     }
+  });
+
+  it("describes Facilitate the same way on the forms as in the Menu", () => {
+    expect(RUNNING_COPY.note).toBe(HEADER_COPY.facilitateNote);
   });
 
   it("words the result as design.md's table does", () => {

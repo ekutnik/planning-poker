@@ -112,7 +112,7 @@ describe("the Menu, a disclosure", () => {
     expect(control).toContain('aria-checked="true"');
     const note = /aria-describedby="([^"]+)"/.exec(control)?.[1] ?? "";
     expect(html).toContain(
-      `<span id="${note}" class="menu-note">Hides your vote so you can share your screen.</span>`,
+      `<span id="${note}" class="switch-note">Hides your vote so you can share your screen.</span>`,
     );
     expect(inRoom(false, true)).toMatch(
       /role="switch"[^>]*aria-checked="false"/,

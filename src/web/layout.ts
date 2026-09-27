@@ -20,3 +20,23 @@ export function useWide(): boolean {
     () => true,
   );
 }
+
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+/**
+ * Whether the person asked for reduced motion, re-rendering when that
+ * changes. For motion driven by script, which the stylesheets' own
+ * reduced-motion rules cannot reach: the landing preview.
+ */
+export function useReducedMotion(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia(REDUCED_MOTION);
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(REDUCED_MOTION).matches,
+    // Outside a browser (the tests), LandingPreview takes it as a prop.
+    () => false,
+  );
+}
