@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { Deck } from "./Deck.js";
@@ -31,6 +32,7 @@ export function VotingView({
   readonly onAction: (action: RoomAction) => void;
 }) {
   const status = roundStatus(snapshot);
+  const deckArea = useRef<HTMLDivElement>(null);
   const hasVoted =
     snapshot.participants.find((p) => p.id === snapshot.viewerId)?.hasVoted ??
     false;
@@ -60,7 +62,7 @@ export function VotingView({
       />
       {/* The deck's own container, so the deck can choose ten cards in a
           row or two rows of five by the width it actually has. */}
-      <div className="deck-area">
+      <div className="deck-area" ref={deckArea}>
         <Deck
           shown={facilitating ? null : snapshot.yourVote}
           disabled={!live}
@@ -82,7 +84,15 @@ export function VotingView({
           <button
             type="button"
             disabled={!live}
-            onClick={() => onAction({ type: "clearVote" })}
+            onClick={() => {
+              // Clearing removes this block, and the focused button with it.
+              // Choosing a card is next, so focus goes to the deck's Tab
+              // stop: the first card, since this view never marks one.
+              deckArea.current
+                ?.querySelector<HTMLElement>('[tabindex="0"]')
+                ?.focus();
+              onAction({ type: "clearVote" });
+            }}
           >
             {PEOPLE_COPY.clearVote}
           </button>
