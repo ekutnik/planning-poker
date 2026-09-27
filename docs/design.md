@@ -157,14 +157,14 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 
 - One row per participant in join order: the name, then a status pill: Voted, Not yet, or Away.
 - **Someone away who has voted shows Voted, not Away.** Their vote counts, so they are not holding anyone up; Away is only useful for someone who has not voted. The status line counts them the same way.
-- The viewer's own row is included, with "(you)" after the name in Quiet.
+- The viewer's own row is included, with "(you)" after the name in Quiet. A long name is cut short with "…", but "(you)" never is: it sits outside the name and does not shrink, since it is what tells you which row is yours.
 - In the facilitator view, a **Nudge** button sits before the pill of every connected participant who hasn't voted (not for away people, not for yourself). Its accessible name includes the person: "Nudge Cy". After a nudge it reads "Nudged", disabled, for 30 seconds or until they vote or the round ends.
 - After reveal, each person shows a neutral value chip, and "Away" for someone away without a vote.
 
 ### Deck (voting)
 
 - One row of ten 68 px cards when the deck has room for them (788 px); two rows of five otherwise, which is always the case in compact. The deck's own width decides, through a container query, because in wide the room for it depends on the window.
-- **States:** default (Surface, 1.5 px Edge outline); hover, only on a device that can hover (Ink outline, and a 2 px lift only when motion is allowed: with reduced motion nothing moves; on a phone a tap would leave the hover on the card, where it reads as a selection); selected (Cobalt fill, On Cobalt numeral); focus (3 px Cobalt ring, 2 px outside); selected and focused shows both.
+- **States:** default (Surface, 1.5 px Edge outline); hover, only on a device that can hover (Ink outline, except on the selected card, which keeps its Cobalt outline so the hover does not read as a third state; and a 2 px lift only when motion is allowed: with reduced motion nothing moves; on a phone a tap would leave the hover on the card, where it reads as a selection); selected (Cobalt fill, On Cobalt numeral); focus (3 px Cobalt ring, 2 px outside); selected and focused shows both.
 - **A toolbar of toggle buttons** (`aria-pressed`), not a radiogroup: a radiogroup selects on arrow keys, which here would cast and broadcast a vote on every keypress. Arrow keys move between cards, Space or Enter chooses, and Tab moves past the whole deck in one step.
 - In the facilitator view, no card is ever shown as selected.
 
@@ -197,6 +197,7 @@ A per-person view, not a role, so the server does not change and anyone can stil
 - No card shows as selected, visually or in accessibility state. The deck looks and reads the same whether you have voted or not.
 - After voting: **Clear my vote**, then the green "You've voted" pill, in that order, so the pill does not sit beside the other status pills and read as one of them. Before voting: nothing; your row shows "Not yet".
 - The confirmation carries no value, and "Clear my vote" says nothing about what is being cleared.
+- **After Clear my vote, focus goes to the deck's Tab stop,** the first card (this view never marks one). Clearing removes the button that had focus, and choosing a card is the next thing to do.
 
 **Accepted consequence of removing the hidden-vote field.** The facilitator votes by clicking a card on the shared screen, so the team can see the pointer move to a card at the moment of voting. Nothing on screen shows the vote afterwards. This is a deliberate trade of a short, visible moment for less clutter, decided by the team. The screen-level no-leak test stays.
 
@@ -360,7 +361,7 @@ Session 6's first instincts, and what they became:
 - **Layout:** the scale's names never clip (no `max-height` or fixed height on the name stack); compact renders only voted cards; the facilitator bar is pinned only in compact and only when the window is tall enough.
 - **Motion:** a test reads the stylesheets and fails if anything animates outside `prefers-reduced-motion: no-preference`, or for 200 ms or more; the preview loop is the one exemption, and must have a pause control.
 - **Theme:** the no-flash script applies exactly what the app would, for every stored value (unit test); the stored choice is applied before first paint (the Session 8 end-to-end suite).
-- **The Session 8 end-to-end suite** also covers what static markup cannot: the Menu closes on Escape (with focus back on its button), on a click outside and when focus leaves it, and stays open while Facilitate or the theme changes; in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked; the reveal and the next round are each announced once, on the change, and the person who revealed hears "Votes revealed" once, not twice; after a screen change (reveal, "Start next round", joining, a stopped screen arriving from another tab), focus is on the new heading; the title follows the round; and a nudge reaches only its target, with the banner and tab title clearing on voting.
+- **The Session 8 end-to-end suite** also covers what static markup cannot: the Menu closes on Escape (with focus back on its button), on a click outside and when focus leaves it, and stays open while Facilitate or the theme changes; in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked, and after Clear my vote focus is on the first card; pressing a hovered card cancels its lift; the reveal and the next round are each announced once, on the change, and the person who revealed hears "Votes revealed" once, not twice; after a screen change (reveal, "Start next round", joining, a stopped screen arriving from another tab), focus is on the new heading; the title follows the round; and a nudge reaches only its target, with the banner and tab title clearing on voting.
 
 ## Building 7b
 
