@@ -117,13 +117,24 @@ describe("the deck and its cards (7b)", () => {
     expect(Number(ten?.[1])).toBe((10 * 68 + 9 * 12) / 16);
   });
 
-  it("lifts a card on hover only when motion is allowed", () => {
-    const { inside, outside } = split(
+  it("styles hover only where a pointer can hover", () => {
+    // On a phone a tap leaves :hover on the card, which reads as a vote.
+    const { inside, outside } = split(css, "(hover: hover)");
+    expect(inside).toMatch(/\.card:hover/);
+    expect(outside).not.toMatch(/\.card:hover/);
+  });
+
+  it("lifts a card on hover only when motion is allowed, too", () => {
+    const { inside } = split(
       css,
-      "(prefers-reduced-motion: no-preference)",
+      "(hover: hover) and (prefers-reduced-motion: no-preference)",
     );
     expect(inside).toMatch(/\.card:hover:not\(:disabled\)\s*\{\s*transform/);
-    expect(outside).not.toMatch(/\.card[^{]*\{[^}]*transform/);
+    const rest = split(
+      css,
+      "(hover: hover) and (prefers-reduced-motion: no-preference)",
+    ).outside;
+    expect(rest).not.toMatch(/\.card:hover[^{]*\{[^}]*transform/);
   });
 });
 

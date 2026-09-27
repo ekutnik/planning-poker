@@ -215,8 +215,13 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-.card:hover:not(:disabled) {
-  border-color: var(--ink);
+/* Hover only where there is a pointer that hovers: on a phone a tap sets
+   :hover and leaves it on the card until the next tap elsewhere, which
+   reads as a selection while you are choosing a vote. */
+@media (hover: hover) {
+  .card:hover:not(:disabled) {
+    border-color: var(--ink);
+  }
 }
 
 /* The lift only moves with motion allowed; otherwise hover is the outline
@@ -228,13 +233,15 @@ button:disabled {
       border-color 120ms ease-out;
   }
 
-  .card:hover:not(:disabled) {
-    transform: translateY(-2px);
-  }
-
   .card:active:not(:disabled) {
     transform: none;
     transition-duration: 80ms;
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .card:hover:not(:disabled) {
+    transform: translateY(-2px);
   }
 }
 

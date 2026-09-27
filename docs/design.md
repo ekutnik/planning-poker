@@ -164,7 +164,7 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 ### Deck (voting)
 
 - One row of ten 68 px cards when the deck has room for them (788 px); two rows of five otherwise, which is always the case in compact. The deck's own width decides, through a container query, because in wide the room for it depends on the window.
-- **States:** default (Surface, 1.5 px Edge outline); hover (Ink outline, and a 2 px lift only when motion is allowed: with reduced motion nothing moves); selected (Cobalt fill, On Cobalt numeral); focus (3 px Cobalt ring, 2 px outside); selected and focused shows both.
+- **States:** default (Surface, 1.5 px Edge outline); hover, only on a device that can hover (Ink outline, and a 2 px lift only when motion is allowed: with reduced motion nothing moves; on a phone a tap would leave the hover on the card, where it reads as a selection); selected (Cobalt fill, On Cobalt numeral); focus (3 px Cobalt ring, 2 px outside); selected and focused shows both.
 - **A toolbar of toggle buttons** (`aria-pressed`), not a radiogroup: a radiogroup selects on arrow keys, which here would cast and broadcast a vote on every keypress. Arrow keys move between cards, Space or Enter chooses, and Tab moves past the whole deck in one step.
 - In the facilitator view, no card is ever shown as selected.
 
