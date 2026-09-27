@@ -36,6 +36,7 @@ const snapshot: Revealed = {
     spreadSteps: 3,
     wideSpread: true,
     outliers: ["Ada", "Eli"],
+    winners: [],
   },
 };
 

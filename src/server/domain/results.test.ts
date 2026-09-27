@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, createRoom, type Command, type Room } from "./room.js";
-import { computeResults } from "./results.js";
-import type { Card } from "../../shared/deck.js";
+import { computeResults, winningCards } from "./results.js";
+import type { Card, NumericCard } from "../../shared/deck.js";
 
 const NOW = 1_000;
 
@@ -176,7 +176,14 @@ describe("computeResults", () => {
       spreadSteps: null,
       wideSpread: false,
       outliers: [],
+      winners: [],
     });
+  });
+
+  it("reports the winners in the room's results", () => {
+    expect(
+      computeResults(roomWithVotes(["5", "8", "8", "8", "?"])).winners,
+    ).toEqual(["8"]);
   });
 
   it("reports the distribution in deck order, only for cards cast", () => {
@@ -187,4 +194,48 @@ describe("computeResults", () => {
       { card: "?", count: 1 },
     ]);
   });
+});
+
+describe("winningCards: the team's rule (docs/design.md)", () => {
+  // The worked examples, as written in the design.
+  const examples: readonly [
+    string,
+    readonly NumericCard[],
+    readonly NumericCard[],
+  ][] = [
+    ["8 wins", ["5", "8", "8", "8", "13"], ["8"]],
+    ["3 wins", ["3", "3", "3", "5", "8"], ["3"]],
+    ["a draw between 3 and 5", ["2", "3", "3", "5", "5", "13"], ["3", "5"]],
+    ["8 wins from a three-way tie", ["2", "2", "8", "8", "13", "13"], ["8"]],
+    ["no winner: 3 had two votes before dropping", ["3", "3", "8", "13"], []],
+    ["no winner: one vote left", ["3", "5", "8"], []],
+    ["no winner: one each", ["2", "3", "5", "8", "13"], []],
+    ["no winner: nothing left", ["5", "8"], []],
+    ["everyone agrees", ["5", "5", "5", "5", "5"], ["5"]],
+    ["two agreeing votes win, with nothing to drop", ["5", "5"], ["5"]],
+    ["a single vote never wins", ["8"], []],
+    ["no votes, no winner", [], []],
+  ];
+
+  it.each(examples)("%s", (_, votes, winners) => {
+    expect(winningCards(votes)).toEqual(winners);
+  });
+
+  it("finds the same winners in any order the votes arrive", () => {
+    expect(winningCards(["13", "5", "3", "5", "3", "2"])).toEqual(["3", "5"]);
+  });
+
+  it("ignores ? and ☕: 5, 5, 5, ? is a win for 5", () => {
+    const results = computeResults(roomWithVotes(["5", "5", "5", "?"]));
+    expect(results.winners).toEqual(["5"]);
+    expect(results.consensus).toBe(false);
+  });
+
+  it.each([[["?", "?"]], [["5", "?", "?", "?"]], [["☕", "☕"]]] as const)(
+    "lets nothing but numbers win: %j",
+    (votes) => {
+      // Each would win if ? or ☕ counted: agreeing, or the most after dropping.
+      expect(computeResults(roomWithVotes(votes)).winners).toEqual([]);
+    },
+  );
 });

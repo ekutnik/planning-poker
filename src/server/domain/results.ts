@@ -14,6 +14,34 @@ function deckIndex(card: Card): number {
 }
 
 /**
+ * The team's rule for reading a round (docs/design.md, The winning card).
+ * Numeric votes only. If they are all one number, at least two of them, it
+ * wins. Otherwise drop one vote at each end, one on the lowest card and one
+ * on the highest, and the card with the most remaining votes wins if it has
+ * at least two; a tie on that count is a draw. Returns the winning cards in
+ * deck order: one, several for a draw, or none.
+ */
+export function winningCards(numeric: readonly NumericCard[]): NumericCard[] {
+  const [first] = numeric;
+  if (
+    first !== undefined &&
+    numeric.length >= 2 &&
+    numeric.every((card) => card === first)
+  ) {
+    return [first];
+  }
+  const remaining = [...numeric]
+    .sort((a, b) => deckIndex(a) - deckIndex(b))
+    .slice(1, -1);
+  // Sorted, so the counts are in deck order, and so are the winners.
+  const counts = new Map<NumericCard, number>();
+  for (const card of remaining) counts.set(card, (counts.get(card) ?? 0) + 1);
+  const top = Math.max(0, ...counts.values());
+  if (top < 2) return [];
+  return [...counts].filter(([, count]) => count === top).map(([card]) => card);
+}
+
+/**
  * Derive the reveal-time results for a room. Pure: same room in, same results
  * out. Only reports statistics that map back to a card — no mean, no median
  * (a mean of Fibonacci cards isn't a card; a median can fall between two).
@@ -79,5 +107,6 @@ export function computeResults(room: Room): Results {
     spreadSteps,
     wideSpread,
     outliers,
+    winners: winningCards(numeric),
   };
 }

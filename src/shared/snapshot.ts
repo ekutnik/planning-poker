@@ -62,4 +62,10 @@ export interface Results {
   readonly spreadSteps: number | null;
   readonly wideSpread: boolean;
   readonly outliers: readonly ParticipantId[];
+  /**
+   * The winning card by the team's rule (docs/design.md, The winning card):
+   * one card for a winner, several for a draw, none when nothing wins. In
+   * deck order.
+   */
+  readonly winners: readonly NumericCard[];
 }

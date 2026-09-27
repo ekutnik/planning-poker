@@ -41,6 +41,7 @@ function revealed(
       spreadSteps: null,
       wideSpread: false,
       outliers: [],
+      winners: [],
       ...results,
     },
   };
@@ -81,6 +82,7 @@ describe("resultCopy: the reveal in words", () => {
           spreadSteps: 3,
           wideSpread: true,
           outliers: ["Ada", "Eli"],
+          winners: [],
         },
         ["Ada", "3"],
         ["Ben", "8"],
@@ -167,6 +169,7 @@ describe("resultCopy: the reveal in words", () => {
           spreadSteps: 3,
           wideSpread: true,
           outliers: ["Ada", "Ben"],
+          winners: [],
         },
         ["Ada", "3"],
         ["Ben", "13"],
