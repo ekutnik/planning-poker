@@ -81,6 +81,16 @@ describe("the facilitator view before reveal", () => {
     expect(publicParts(voted)).toBe(publicParts(notVoted));
   });
 
+  it("puts the round controls last, after the deck and your own vote", () => {
+    // Keyboard order follows the task: status, people, vote, then reveal
+    // (docs/design.md, The facilitator view).
+    const html = render("13", true);
+    const controls = html.indexOf('<div class="controls">');
+    expect(controls).toBeGreaterThan(html.indexOf('class="own-vote"'));
+    expect(controls).toBeGreaterThan(html.indexOf('role="toolbar"'));
+    expect(html.indexOf('class="own-vote"')).toBeGreaterThan(-1);
+  });
+
   it("has no text field to type a vote into, and no form", () => {
     const html = render("13", true);
     expect(html).not.toContain("<input");
