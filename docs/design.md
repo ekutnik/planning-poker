@@ -48,6 +48,8 @@ What follows from that:
 Before reveal, the deck row is where you choose. After reveal, the same row becomes the result: each person's name sits above the card they chose. Consensus is everyone stacked on one card; a wide spread visibly stretches across the deck. There is no separate results panel. Spread is measured in deck steps, and nothing is shown that does not map back to a card.
 
 - **Wide:** all ten steps across the full width. Names sit above their card as pills, stacked upwards; the stack grows to fit, and a name never shrinks or is cut mid-name. Every card shares one baseline. Empty steps keep a Rule outline and an Ink numeral, so the gaps show the spread and the numbers along the scale still read as its axis ("from 3 to 13") over a compressed share.
+- **Ten across needs room for a name.** A pill holding a long word ("Oppenheimer") is about 100 px, so the scale lays all ten steps across only when it has ten 100 px columns and nine 12 px gaps (1108 px), which the full 1120 px column gives from a 1204 px window up (a classic scrollbar adds its own width to that). Narrower, it uses the compact rows: **windows between 880 and about 1204 px get the row layout,** every name whole, but without the gaps that show the spread. The facilitator shares a full laptop window, which is wider: a 13.6-inch MacBook Air at its default scaling gives a 1470 px full window, which gets ten across (checked). The scale's own width decides, through a container query, like the deck's; the 1108 px is derived from the column in a test, not written down twice.
+- **A long name wraps inside its pill,** between words, and is never hyphenated: an inserted hyphen reads as part of the name (Anne-Marie has a real one), and hyphenation rules do not know names. As a last resort `overflow-wrap: anywhere` breaks a word that cannot fit a line on its own, with no hyphen, so nothing spills out of its column (a 32-character name with no spaces takes three lines at 1470 px). The pill keeps a wrapped name one person, which is what the one-line rule after A-04 was for, before names had pills; its corners are 12 px, half the one-line height, so a wrapped pill is a rounded box rather than an oval.
 - **Compact:** only the cards that got votes, in deck order, one row each: the card, then its name pills wrapping beside it.
 - **Colour lives on the scale only:** the highlighted card or cards and the name pills above them. The value chips in the people list stay neutral.
 - **Names sit above every card, numeric or not.** The scale is itself a list a screen reader can read ("question mark: Cy"); in the DOM each step is the card, then its names in join order, and CSS draws the names above the card.
@@ -159,7 +161,8 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 - **Someone away who has voted shows Voted, not Away.** Their vote counts, so they are not holding anyone up; Away is only useful for someone who has not voted. The status line counts them the same way.
 - The viewer's own row is included, with "(you)" after the name in Quiet. A long name is cut short with "…", but "(you)" never is: it sits outside the name and does not shrink, since it is what tells you which row is yours.
 - In the facilitator view, a **Nudge** button sits before the pill of every connected participant who hasn't voted (not for away people, not for yourself). Its accessible name includes the person: "Nudge Cy". After a nudge it reads "Nudged", disabled, for 30 seconds or until they vote or the round ends.
-- After reveal, each person shows a neutral value chip, and "Away" for someone away without a vote.
+- After reveal, in wide only, the list moves below the sentence, as a row that wraps: each person with a neutral value chip; without a vote, a pill in words: "Away" for someone away, "No vote" (Not yet colours) for someone here.
+- **Compact leaves the revealed list out,** to save height: the scale lists every vote. The trade-off: someone here who did not vote appears nowhere after reveal in compact. Accepted for now, because the person sharing their screen uses the wide layout, where everyone is listed; revisit after dogfooding if anyone misses it.
 
 ### Deck (voting)
 
@@ -171,6 +174,7 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 ### The room's layout
 
 - **Wide:** two columns. The status line and the people list on the left, 280 px; the round on the right. In the facilitator view the right column is the controls (top right), the deck, then your own vote; in the participant view it is the deck, then the controls. The people list spans the rows beside the right column, so it starts right under the status line.
+- **Wide, after reveal:** the status line with the controls to its right, then the scale across both columns, the sentence, and the people.
 - **Compact:** one column in reading order: status, people, deck, your own vote, controls, with the facilitator's controls pinned to the bottom when the window is tall enough. The pinned bar is 72 px (a 44 px button, 12 px above and below, a 1 px rule), and focus scrolls clear of exactly that; a test holds the button, the padding and the rule to the height reserved.
 
 ### Room status
@@ -239,6 +243,7 @@ The scale doesn't mark which votes were dropped: the names stay above their card
 | A draw                                                         | Those cards, Draw (amber) | "Spread from 2 to 13. Draw between 3 and 5." |
 | No winner                                                      | None                      | "Spread from 2 to 13."                       |
 | A single vote                                                  | None                      | "Only one vote: 8."                          |
+| A single numeric vote, with a `?` or ☕ beside it              | None                      | "Only one numeric vote: 8."                  |
 | No numeric votes                                               | None                      | "No numeric votes this round."               |
 | No votes (everyone who voted has left)                         | None                      | "Nobody voted this round."                   |
 
@@ -310,7 +315,7 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 | Not a room            | "There's no room at this link."; "Create a room"                                       |
 | Menu                  | "Facilitate", "Theme", "Leave the room"                                                |
 | Header pill           | "Facilitating"                                                                         |
-| Pills                 | "Voted", "Not yet", "Away", "You've voted"                                             |
+| Pills                 | "Voted", "Not yet", "Away", "You've voted"; after reveal, "No vote"                    |
 | Own row               | "(you)"                                                                                |
 | Status (participant)  | "4 of 5 have voted", or "Everyone has voted"                                           |
 | Status (facilitator)  | "Waiting for Ben and Cy. Fay is away.", or "Everyone has voted. Fay is away."          |

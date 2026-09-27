@@ -8,6 +8,8 @@ import {
   JOIN_COPY,
   NOT_FOUND_COPY,
   NOT_SAVED_COPY,
+  PEOPLE_COPY,
+  RESULT_COPY,
   STOP_ACTION_LABELS,
   STOP_COPY,
 } from "./copy.js";
@@ -25,7 +27,23 @@ const sentences = [
   NOT_SAVED_COPY,
   HEADER_COPY.facilitateNote,
   COPY_LINK_COPY.failed,
+  ...resultLines(),
 ];
+
+/** Every line of the result, as design.md's table writes it. */
+function resultLines(): string[] {
+  return [
+    RESULT_COPY.revealed,
+    RESULT_COPY.everyone("5"),
+    RESULT_COPY.result("5"),
+    RESULT_COPY.spread("5", "13"),
+    RESULT_COPY.draw("3 and 5"),
+    RESULT_COPY.onlyOneVote("8"),
+    RESULT_COPY.onlyOneNumericVote("8"),
+    RESULT_COPY.noNumeric,
+    RESULT_COPY.nobody,
+  ];
+}
 
 /** Headings and button labels: short, no full stop. */
 const labels = [
@@ -42,6 +60,8 @@ const labels = [
   HEADER_COPY.leave,
   COPY_LINK_COPY.copy,
   COPY_LINK_COPY.copied,
+  // Pills and the own-vote button: "Voted", "No vote", "Clear my vote", …
+  ...Object.values(PEOPLE_COPY),
 ];
 
 const everything = [...sentences, ...labels];
@@ -75,6 +95,20 @@ describe("copy", () => {
         /\b(could|is|are|was|were|do|does|did|has|have|can) not\b|\bcannot\b/i,
       );
     }
+  });
+
+  it("words the result as design.md's table does", () => {
+    expect(resultLines()).toEqual([
+      "Votes revealed.",
+      "Everyone chose 5.",
+      "Result: 5.",
+      "Spread from 5 to 13.",
+      "Draw between 3 and 5.",
+      "Only one vote: 8.",
+      "Only one numeric vote: 8.",
+      "No numeric votes this round.",
+      "Nobody voted this round.",
+    ]);
   });
 
   it("states the real limits, from the shared rules", () => {

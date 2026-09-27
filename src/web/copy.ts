@@ -123,6 +123,24 @@ export const PEOPLE_COPY = {
   voted: "Voted",
   notYet: "Not yet",
   away: "Away",
+  noVote: "No vote",
   youVoted: "You've voted",
   clearVote: "Clear my vote",
+} as const;
+
+/**
+ * The result, one sentence that names no one (docs/design.md, Highlight and
+ * sentence): result.ts picks the lines, from the server's results.
+ */
+export const RESULT_COPY = {
+  revealed: "Votes revealed.",
+  nobody: "Nobody voted this round.",
+  noNumeric: "No numeric votes this round.",
+  everyone: (card: string) => `Everyone chose ${card}.`,
+  onlyOneVote: (card: string) => `Only one vote: ${card}.`,
+  // "Only one vote" would be untrue beside a ? or a ☕.
+  onlyOneNumericVote: (card: string) => `Only one numeric vote: ${card}.`,
+  spread: (min: string, max: string) => `Spread from ${min} to ${max}.`,
+  result: (card: string) => `Result: ${card}.`,
+  draw: (cards: string) => `Draw between ${cards}.`,
 } as const;

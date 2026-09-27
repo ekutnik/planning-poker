@@ -7,8 +7,8 @@ import { RoomView } from "./RoomView.js";
 
 type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
 
-// The wide-spread example from docs/design.md: Ada 3, Ben 8, Cy ?, Dee 8,
-// Eli 13, Fay away without a vote.
+// Ada 3, Ben 8, Cy ?, Dee 8, Eli 13, Fay away without a vote. Dropping one
+// vote at each end (3 and 13) leaves 8 and 8: 8 wins.
 const snapshot: Revealed = {
   phase: "revealed",
   roomId: "abcdefghijk",
@@ -34,15 +34,14 @@ const snapshot: Revealed = {
     min: "3",
     max: "13",
     spreadSteps: 3,
-    wideSpread: true,
-    outliers: ["Ada", "Eli"],
+    winners: ["8"],
   },
 };
 
-function render(facilitating = true): string {
+function render(facilitating = true, shown: Revealed = snapshot): string {
   return renderToStaticMarkup(
     <RevealedView
-      snapshot={snapshot}
+      snapshot={shown}
       facilitating={facilitating}
       live
       onAction={() => undefined}
@@ -93,13 +92,36 @@ describe("the deck as the scale", () => {
     expect(html.match(/class="scale-step scale-step--empty"/g)).toHaveLength(6);
   });
 
-  it("colours the outliers, and only them, in Discuss", () => {
+  it("tints the winning card, and the names on it, Win; nothing else", () => {
     const html = render();
-    const discuss = [
-      ...html.matchAll(/class="scale-name scale-name--discuss">([^<]*)</g),
-    ].map(([, name]) => name);
-    expect(discuss).toEqual(["Ada", "Eli"]);
-    expect(html).not.toContain("scale-name--agree");
+    expect(html.match(/scale-step--win/g)).toHaveLength(1);
+    expect(html).toMatch(
+      /<li class="scale-step scale-step--win"><span class="scale-card">8<\/span>/,
+    );
+    expect(html).not.toContain("scale-step--draw");
+  });
+
+  it("tints every card of a draw Draw, and none Win", () => {
+    const draw: Revealed = {
+      ...snapshot,
+      results: { ...snapshot.results, winners: ["3", "8"] },
+    };
+    const html = render(true, draw);
+    const tinted = [
+      ...html.matchAll(
+        /<li class="scale-step scale-step--draw"><span class="scale-card">([^<]*)</g,
+      ),
+    ].map(([, card]) => card);
+    expect(tinted).toEqual(["3", "8"]);
+    expect(html).not.toContain("scale-step--win");
+  });
+
+  it("tints nothing when nothing wins", () => {
+    const none: Revealed = {
+      ...snapshot,
+      results: { ...snapshot.results, winners: [] },
+    };
+    expect(render(true, none)).not.toMatch(/scale-step--(win|draw)/);
   });
 
   it("gives ? and ☕ their words for a screen reader", () => {
@@ -114,23 +136,48 @@ describe("the deck as the scale", () => {
 });
 
 describe("the revealed people list", () => {
-  it("shows each person's card next to their name", () => {
-    const html = render();
-    const people =
-      /<ul class="people[^"]*"[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
-    expect(people).toContain('Ada <span class="person-card">3</span>');
-    expect(people).toContain('Dee <span class="person-card">8</span>');
-    expect(people).toMatch(
-      /Fay<span class="visually-hidden">, no vote<\/span> \(away\)/,
+  const people = (html: string) =>
+    /<ul class="people people--revealed"[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+
+  it("gives each person their card in a neutral chip, and Away to someone away without a vote", () => {
+    expect(people(render())).toBe(
+      '<ul class="people people--revealed" aria-label="Participants">' +
+        '<li class="person"><span class="person-name">Ada</span> <span class="person-you">(you)</span> <span class="chip">3</span></li>' +
+        '<li class="person"><span class="person-name">Ben</span> <span class="chip">8</span></li>' +
+        '<li class="person"><span class="person-name">Cy</span> <span class="chip"><span aria-hidden="true">?</span><span class="visually-hidden">question mark</span></span></li>' +
+        '<li class="person"><span class="person-name">Dee</span> <span class="chip">8</span></li>' +
+        '<li class="person"><span class="person-name">Eli</span> <span class="chip">13</span></li>' +
+        '<li class="person"><span class="person-name">Fay</span> <span class="pill pill--away">Away</span></li>' +
+        "</ul>",
+    );
+  });
+
+  it("keeps colour off the list: no Win or Draw there", () => {
+    expect(people(render())).not.toMatch(/win|draw|voted/);
+  });
+
+  it("says No vote, in a Not yet pill, for someone here who did not vote", () => {
+    const quiet: Revealed = {
+      ...snapshot,
+      participants: [
+        ...snapshot.participants,
+        { id: "Gus", name: "Gus", status: "connected", vote: null },
+      ],
+    };
+    expect(people(render(true, quiet))).toContain(
+      '<li class="person"><span class="person-name">Gus</span> <span class="pill pill--not-yet">No vote</span></li>',
     );
   });
 });
 
 describe("the revealed round", () => {
-  it("says the result in words, coloured by tone", () => {
-    expect(render()).toContain(
-      '<p class="result-summary result-summary--discuss">Spread of 3 steps, from 3 to 13. Ada and Eli, talk through your estimates.</p>',
+  it("says the result in one sentence, in Ink, naming no one", () => {
+    const html = render();
+    expect(html).toContain(
+      '<p class="result">Spread from 3 to 13. Result: 8.</p>',
     );
+    // "Cy voted ?" is gone: the scale shows it.
+    expect(html).not.toContain(" voted ");
   });
 
   it("offers exactly one next action, last in the DOM", () => {

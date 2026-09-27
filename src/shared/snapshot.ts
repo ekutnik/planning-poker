@@ -48,7 +48,7 @@ export type RoomSnapshot =
 /**
  * What the room shows at reveal. Computed once on the server (see
  * `src/server/domain/results.ts`) so every client agrees on what "consensus",
- * "spread" and "outliers" mean.
+ * "spread" and the winning card mean.
  */
 export interface Results {
   readonly voteCount: number;
@@ -60,6 +60,10 @@ export interface Results {
   readonly min: NumericCard | null;
   readonly max: NumericCard | null;
   readonly spreadSteps: number | null;
-  readonly wideSpread: boolean;
-  readonly outliers: readonly ParticipantId[];
+  /**
+   * The winning card by the team's rule (docs/design.md, The winning card):
+   * one card for a winner, several for a draw, none when nothing wins. In
+   * deck order.
+   */
+  readonly winners: readonly NumericCard[];
 }

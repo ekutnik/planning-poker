@@ -4,18 +4,80 @@ import { declarations, readStyles, split } from "./css.node.js";
 
 const css = readStyles();
 
-describe("names on the scale (A-04)", () => {
+describe("names on the scale (7b; A-04 revisited)", () => {
   const scaleName = declarations(css, ".scale-name");
 
-  it("keep each name on one line, cut short visually when too long", () => {
-    expect(scaleName).toMatch(/white-space:\s*nowrap/);
-    expect(scaleName).toMatch(/overflow:\s*hidden/);
-    expect(scaleName).toMatch(/text-overflow:\s*ellipsis/);
+  it("wraps a long name inside its pill, never cuts it", () => {
+    // A-04 cut names to one line, when a wrapped name read as two people.
+    // Each name is a pill now, which keeps its lines one name.
+    expect(scaleName).not.toMatch(/white-space:\s*nowrap/);
+    expect(scaleName).not.toMatch(/text-overflow|overflow:\s*hidden/);
+    expect(scaleName).toMatch(/overflow-wrap:\s*anywhere/);
     expect(scaleName).toMatch(/max-inline-size:\s*100%/);
   });
 
-  it("never break a name mid-word, where it would read as two people", () => {
-    expect(scaleName).not.toMatch(/overflow-wrap|word-break/);
+  it("never hyphenates a name: only a word too long for a line breaks", () => {
+    // An inserted hyphen reads as part of the name. hyphens is inherited,
+    // so nothing anywhere may set it, not only the name's own rule.
+    expect(css).not.toMatch(/hyphens:\s*auto/);
+    expect(scaleName).not.toMatch(/hyphens/);
+  });
+
+  it("lets the stack grow to fit: no height is fixed on it", () => {
+    const sizing =
+      /\.scale-(?:step|names?|card)[^{]*\{[^}]*(?<![\w-])(?:max-)?(?:height|block-size)\s*:/;
+    expect(css).not.toMatch(sizing);
+  });
+
+  it("lays all ten steps across only when each has room for a long word", () => {
+    // The switch is derived, not written down: ten columns as wide as a
+    // name needs, and the nine gaps between them, as the scale declares.
+    const across =
+      /@container scale \(min-width: ([\d.]+)rem\) \{([\s\S]*?)\n\}/.exec(css);
+    const body = across?.[2] ?? "";
+    const column = Number(
+      /repeat\(10, minmax\(([\d.]+)rem, 1fr\)\)/.exec(body)?.[1],
+    );
+    const gapToken = /column-gap:\s*var\((--space-\d+)\)/.exec(body)?.[1] ?? "";
+    const gap = Number(
+      new RegExp(`${gapToken}:\\s*([\\d.]+)rem`).exec(css)?.[1],
+    );
+    expect(column * 16).toBe(100);
+    expect(Number(across?.[1])).toBe(10 * column + 9 * gap);
+    expect(body).toMatch(/\.scale-step--empty\s*\{[^}]*display:\s*flex/);
+  });
+
+  it("otherwise shows only the cards that got votes, as always in compact", () => {
+    const outside = css.replace(/@container scale[\s\S]*?\n\}/, "");
+    expect(declarations(outside, ".scale-step--empty")).toMatch(
+      /display:\s*none/,
+    );
+    expect(outside).not.toMatch(/\.scale-step--empty\s*\{[^}]*display:\s*flex/);
+  });
+});
+
+describe("the revealed round (7b)", () => {
+  const { inside, outside } = split(css, WIDE_QUERY);
+
+  it("lists the people with their cards in wide only", () => {
+    expect(declarations(outside, ".people--revealed")).toMatch(
+      /display:\s*none/,
+    );
+    expect(declarations(inside, ".people--revealed")).toMatch(
+      /display:\s*flex/,
+    );
+  });
+
+  it("gives the scale the full width in wide, the people below the sentence", () => {
+    const areas = /\.round--revealed\s*\{\s*grid-template-areas:([^;]*);/.exec(
+      inside,
+    )?.[1];
+    expect(areas?.match(/"[^"]*"/g)).toEqual([
+      '"status controls"',
+      '"scale scale"',
+      '"result result"',
+      '"people people"',
+    ]);
   });
 });
 
