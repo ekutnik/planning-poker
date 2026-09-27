@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { CloseCode } from "../shared/close-codes.js";
 import { DISCONNECT_GRACE_MS } from "./domain/room.js";
 import type { ServerMessage } from "../shared/protocol.js";
-import { roomLogId } from "./identity.js";
+import { derivePublicId, roomLogId } from "./identity.js";
+import { NUDGE_COOLDOWN_MS } from "./nudge.js";
 import type { Connection, Limits, RoomLog } from "./room-service.js";
 import {
   JOIN_TIMEOUT_MS,
@@ -83,6 +84,14 @@ function setup(
     );
   };
   return { service, connect, join, logs, warns, log, advance, tick };
+}
+
+/** A nudge for the person with this session token, in ROOM. */
+function nudge(token: string, roomId = ROOM): string {
+  return JSON.stringify({
+    type: "nudge",
+    participantId: derivePublicId(roomId, token),
+  });
 }
 
 function snapshots(conn: FakeConnection) {
@@ -324,6 +333,8 @@ describe("RoomService", () => {
     join(aliceTab2, ALICE, "Alice"); // supersedes `alice`, which closes
     const bob = connect("bob");
     join(bob, BOB, "Bob");
+    service.message(aliceTab2, nudge(BOB)); // a cooldown the sweep must forget
+    expect(bob.sent.at(-1)).toEqual({ type: "nudged" });
     service.message(bob, JSON.stringify({ type: "leave" })); // leaves, which closes
     const carol = connect("carol", "bbbbbbbbbbb");
     join(carol, "SESSIONTOKEN_CAROL_00001", "Carol");
@@ -354,6 +365,7 @@ describe("RoomService", () => {
       sockets: 0,
       lastSent: 0,
       liveness: 0,
+      nudges: 0,
     });
   });
 
@@ -993,5 +1005,128 @@ describe("RoomService — app-level ping (#20)", () => {
     const stray = new FakeConnection("stray");
     service.message(stray, ping);
     expect(stray.sent).toEqual([]);
+  });
+});
+
+describe("RoomService — nudges (ADR 0007)", () => {
+  const CAROL = "SESSIONTOKEN_CAROL_00001";
+
+  /** Ada, Bob and Carol in one room; nobody has voted; every inbox empty. */
+  function room() {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    const bob = ctx.connect("bob");
+    const carol = ctx.connect("carol");
+    ctx.join(alice, ALICE, "Alice");
+    ctx.join(bob, BOB, "Bob");
+    ctx.join(carol, CAROL, "Carol");
+    for (const conn of [alice, bob, carol]) conn.sent.length = 0;
+    return { ...ctx, alice, bob, carol };
+  }
+
+  it("reaches the person nudged, and nobody else", () => {
+    const { service, alice, bob, carol } = room();
+    service.message(alice, nudge(BOB));
+    expect(bob.sent).toEqual([{ type: "nudged" }]);
+    // Not the sender, not a bystander: no echo, no error, no snapshot.
+    expect(alice.sent).toEqual([]);
+    expect(carol.sent).toEqual([]);
+  });
+
+  it("never says who sent it: the same bare message, whoever sends", () => {
+    const { service, alice, bob, carol, tick } = room();
+    service.message(alice, nudge(BOB));
+    tick(NUDGE_COOLDOWN_MS);
+    service.message(carol, nudge(BOB));
+    expect(bob.sent).toEqual([{ type: "nudged" }, { type: "nudged" }]);
+    const [first, second] = bob.sent.map((message) => JSON.stringify(message));
+    expect(first).toBe(second);
+    expect(first).toBe('{"type":"nudged"}');
+  });
+
+  it("changes nothing in the room: no snapshot, no version", () => {
+    const { service, alice, bob } = room();
+    service.message(alice, nudge(BOB));
+    service.message(bob, JSON.stringify({ type: "castVote", card: "5" }));
+    const update = snapshots(alice).at(-1);
+    expect(update?.type === "snapshot" && update.snapshot.version).toBe(4);
+    expect(JSON.stringify(update)).not.toMatch(/nudge/i);
+  });
+
+  it("holds each person to one nudge in 30 seconds, whoever sends it", () => {
+    const { service, alice, bob, carol, advance, logs } = room();
+    service.message(alice, nudge(BOB));
+    advance(NUDGE_COOLDOWN_MS - 1);
+    service.message(carol, nudge(BOB));
+    expect(bob.sent).toEqual([{ type: "nudged" }]);
+    expect(logs.at(-1)).toMatchObject({
+      type: "nudge-ignored",
+      code: "COOLDOWN",
+    });
+    advance(1);
+    service.message(carol, nudge(BOB));
+    expect(bob.sent).toEqual([{ type: "nudged" }, { type: "nudged" }]);
+  });
+
+  it("drops a nudge that breaks a rule, logs why, and tells the sender nothing", () => {
+    const { service, alice, bob, carol, logs } = room();
+    service.message(carol, JSON.stringify({ type: "castVote", card: "5" }));
+    for (const conn of [alice, bob, carol]) conn.sent.length = 0;
+
+    service.message(alice, nudge(ALICE));
+    service.message(alice, nudge(CAROL));
+    service.message(alice, nudge("SESSIONTOKEN_NOBODY_0001"));
+    const ignored = logs.filter(({ type }) => type === "nudge-ignored");
+    expect(ignored.map(({ type, code }) => [type, code])).toEqual([
+      ["nudge-ignored", "SELF"],
+      ["nudge-ignored", "HAS_VOTED"],
+      ["nudge-ignored", "NO_SUCH_PERSON"],
+    ]);
+    for (const conn of [alice, bob, carol]) expect(conn.sent).toEqual([]);
+  });
+
+  it("drops a nudge once the round is revealed", () => {
+    const { service, alice, bob, logs } = room();
+    service.message(alice, JSON.stringify({ type: "castVote", card: "5" }));
+    service.message(alice, JSON.stringify({ type: "reveal" }));
+    bob.sent.length = 0;
+    service.message(alice, nudge(BOB));
+    expect(bob.sent).toEqual([]);
+    expect(logs.at(-1)).toMatchObject({ code: "NOT_VOTING" });
+  });
+
+  it("drops a nudge to someone away", () => {
+    const { service, alice, bob, logs } = room();
+    service.close(bob);
+    service.message(alice, nudge(BOB));
+    expect(logs.at(-1)).toMatchObject({ code: "AWAY" });
+  });
+
+  it("refuses a nudge from a socket that has not joined", () => {
+    const { service, connect, bob } = room();
+    const stranger = connect("stranger");
+    service.message(stranger, nudge(BOB));
+    expect(stranger.sent).toEqual([{ type: "error", code: "NOT_JOINED" }]);
+    expect(bob.sent).toEqual([]);
+  });
+
+  it("forgets a cooldown once it has passed, through the sweep", () => {
+    const { service, alice, tick } = room();
+    service.message(alice, nudge(BOB));
+    expect(service.bookkeeping().nudges).toBe(1);
+    tick(NUDGE_COOLDOWN_MS - SWEEP_INTERVAL_MS);
+    expect(service.bookkeeping().nudges).toBe(1);
+    tick(SWEEP_INTERVAL_MS);
+    expect(service.bookkeeping().nudges).toBe(0);
+  });
+
+  it("never logs who nudged whom", () => {
+    const { service, alice, logs } = room();
+    service.message(alice, nudge(BOB));
+    service.message(alice, nudge(BOB));
+    const ids = [ALICE, BOB].map((token) => derivePublicId(ROOM, token));
+    for (const line of logs) {
+      for (const id of ids) expect(JSON.stringify(line)).not.toContain(id);
+    }
   });
 });

@@ -13,6 +13,7 @@ describe("parseClientMessage — valid messages", () => {
     { type: "reset" },
     { type: "leave" },
     { type: "ping" },
+    { type: "nudge", participantId: "AbCdEfGh_-123456" },
   ])("accepts $type", (message) => {
     expect(parseClientMessage(JSON.stringify(message))).toEqual(message);
   });
@@ -27,6 +28,25 @@ describe("parseClientMessage — rejections", () => {
     expect(
       parseClientMessage(JSON.stringify({ type: "reveal", extra: 1 })),
     ).toBeNull();
+  });
+
+  it.each([
+    ["no target", { type: "nudge" }],
+    [
+      "a target that is not a public id",
+      { type: "nudge", participantId: "Cy" },
+    ],
+    // The sender is the socket; a message cannot claim to be from someone.
+    [
+      "a sender",
+      {
+        type: "nudge",
+        participantId: "AbCdEfGh_-123456",
+        from: "AbCdEfGh_-654321",
+      },
+    ],
+  ])("rejects a nudge with %s", (_, message) => {
+    expect(parseClientMessage(JSON.stringify(message))).toBeNull();
   });
 
   it("rejects a ping that carries anything", () => {

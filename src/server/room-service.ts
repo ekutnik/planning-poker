@@ -14,6 +14,7 @@ import {
 } from "./domain/room.js";
 import { project } from "./domain/projection.js";
 import { derivePublicId, roomLogId } from "./identity.js";
+import { NUDGE_COOLDOWN_MS, nudgeRefusal } from "./nudge.js";
 
 /**
  * One client socket, as the service sees it. Implementations must not throw:
@@ -133,8 +134,11 @@ export interface ServiceOptions {
   readonly roomTtlMs?: number;
 }
 
-/** A message that acts on a room: everything except joining and liveness. */
-type RoomMessage = Exclude<ClientMessage, { type: "join" | "ping" }>;
+/**
+ * A message that changes a room: everything except joining, liveness and
+ * nudges, which never touch room state.
+ */
+type RoomMessage = Exclude<ClientMessage, { type: "join" | "ping" | "nudge" }>;
 
 interface Pending {
   readonly roomId: string;
@@ -166,6 +170,10 @@ export class RoomService {
   // When each room became empty. The domain has no timestamp for that; only
   // store() and evict() write it, together with `rooms` (#18).
   private readonly emptySince = new Map<string, number>();
+  // When each person was last nudged, by nudgeKey: the cooldown (ADR 0007).
+  // Kept here, not in the room, since a nudge never enters room state; the
+  // sweep forgets an entry once its cooldown has passed.
+  private readonly nudgedAt = new Map<string, number>();
   // Weak on purpose: it dedupes a second close() without keeping any connection
   // alive, so it cannot leak. A WeakSet can't be sized, which is why
   // bookkeeping() doesn't report it.
@@ -237,6 +245,10 @@ export class RoomService {
       this.sendError(conn, "ALREADY_JOINED", binding.roomId);
       return;
     }
+    if (message.type === "nudge") {
+      this.nudge(conn, binding, message.participantId);
+      return;
+    }
     this.dispatch(conn, binding, message);
   }
 
@@ -284,6 +296,10 @@ export class RoomService {
    * - Room TTL (#18): evict a room that has been empty for roomTtlMs. A room
    *   with participants is never evicted; heartbeat and grace removal make an
    *   abandoned room empty within about 105s.
+   * - Nudge cooldowns (ADR 0007): forget when someone was nudged once the
+   *   cooldown has passed. A nudge checks the time itself, so this only
+   *   frees memory, and it runs through a stall too: forgetting early can
+   *   never let a nudge through before its time.
    *
    * Every rule compares timestamps, never a count of sweeps, so changing the
    * interval changes only the lateness. The cost is precision: a deadline fires
@@ -335,6 +351,11 @@ export class RoomService {
       }
     }
 
+    const cooled: string[] = [];
+    for (const [key, at] of this.nudgedAt) {
+      if (now - at >= NUDGE_COOLDOWN_MS) cooled.push(key);
+    }
+
     const evicted: string[] = [];
     if (!stalled) {
       for (const [roomId, since] of this.emptySince) {
@@ -350,6 +371,7 @@ export class RoomService {
     for (const [, beat] of due) beat.lastPingAt = now;
     for (const roomId of evicted) this.evict(roomId);
     for (const room of expiredRooms) this.store(room, now);
+    for (const key of cooled) this.nudgedAt.delete(key);
 
     for (const [conn, { roomId }] of expired) {
       this.log.info({ conn: conn.id, room: roomId, type: "join-timeout" });
@@ -380,6 +402,7 @@ export class RoomService {
     sockets: number;
     lastSent: number;
     liveness: number;
+    nudges: number;
   } {
     let sockets = 0;
     for (const room of this.current.values()) sockets += room.size;
@@ -394,6 +417,7 @@ export class RoomService {
       sockets,
       lastSent: this.lastSent.size,
       liveness: this.liveness.size,
+      nudges: this.nudgedAt.size,
     };
   }
 
@@ -474,6 +498,44 @@ export class RoomService {
     this.broadcast(result.room);
   }
 
+  /**
+   * A nudge (ADR 0007): delivered to the person nudged alone, as a message
+   * that says nothing of who sent it, and never to anyone else. A nudge
+   * that breaks a rule (nudgeRefusal) is dropped and logged at info, with no
+   * error to the sender: "Cy voted a moment ago" is a harmless race, not a
+   * mistake to report. Nothing in the room changes, so nothing broadcasts.
+   */
+  private nudge(
+    conn: Connection,
+    binding: Binding,
+    target: ParticipantId,
+  ): void {
+    const room = this.rooms.get(binding.roomId);
+    if (!room) return;
+    const key = nudgeKey(binding.roomId, target);
+    const now = this.clock();
+    const refusal = nudgeRefusal(
+      room,
+      binding.participantId,
+      target,
+      this.nudgedAt.get(key),
+      now,
+    );
+    // Connected means a current socket; checked anyway, rather than assumed.
+    const to = this.current.get(binding.roomId)?.get(target);
+    if (refusal !== null || to === undefined) {
+      this.log.info({
+        conn: conn.id,
+        room: binding.roomId,
+        type: "nudge-ignored",
+        code: refusal ?? "NO_SOCKET",
+      });
+      return;
+    }
+    this.nudgedAt.set(key, now);
+    to.send({ type: "nudged" });
+  }
+
   private broadcast(room: Room, except?: Connection): void {
     const sockets = this.current.get(room.id);
     if (!sockets) return;
@@ -550,4 +612,9 @@ function toCommand(
     case "leave":
       return { type: "leave", participantId };
   }
+}
+
+/** One cooldown per person per room. Neither id can contain a space. */
+function nudgeKey(roomId: string, participantId: ParticipantId): string {
+  return `${roomId} ${participantId}`;
 }
