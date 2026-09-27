@@ -234,14 +234,19 @@ button:disabled {
   }
 
   .card:active:not(:disabled) {
-    transform: none;
     transition-duration: 80ms;
   }
 }
 
+/* Pressing settles the lifted card back down. After the lift: both rules
+   weigh the same, so the later one wins. */
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .card:hover:not(:disabled) {
     transform: translateY(-2px);
+  }
+
+  .card:active:not(:disabled) {
+    transform: none;
   }
 }
 

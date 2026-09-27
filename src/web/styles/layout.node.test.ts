@@ -136,6 +136,19 @@ describe("the deck and its cards (7b)", () => {
     ).outside;
     expect(rest).not.toMatch(/\.card:hover[^{]*\{[^}]*transform/);
   });
+
+  it("settles a pressed card back down, after the lift so it wins", () => {
+    const { inside } = split(
+      css,
+      "(hover: hover) and (prefers-reduced-motion: no-preference)",
+    );
+    const lift = inside.search(/\.card:hover:not\(:disabled\)\s*\{/);
+    const press = inside.search(
+      /\.card:active:not\(:disabled\)\s*\{\s*transform:\s*none/,
+    );
+    expect(lift).toBeGreaterThanOrEqual(0);
+    expect(press).toBeGreaterThan(lift);
+  });
 });
 
 describe("the room's status line (7b)", () => {
