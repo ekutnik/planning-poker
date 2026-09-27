@@ -298,8 +298,8 @@ export class RoomService {
    *   abandoned room empty within about 105s.
    * - Nudge cooldowns (ADR 0007): forget when someone was nudged once the
    *   cooldown has passed. A nudge checks the time itself, so this only
-   *   frees memory, and it runs through a stall too: forgetting early can
-   *   never let a nudge through before its time.
+   *   frees memory. It runs through a stall too: it forgets only cooldowns
+   *   that are already over, so it can never let a nudge through early.
    *
    * Every rule compares timestamps, never a count of sweeps, so changing the
    * interval changes only the lateness. The cost is precision: a deadline fires
