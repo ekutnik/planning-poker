@@ -70,9 +70,10 @@ export function People({
 }
 
 /**
- * After reveal: the name, then a neutral chip with the card, or "Away" for
- * someone away without a vote. Colour stays on the scale. Someone here who
- * did not vote gets no chip; a screen reader hears "no vote".
+ * After reveal: the name, then a neutral chip with the card. Without a
+ * vote, a pill says so in words, the same to the eye and the ear: "Away"
+ * for someone away, "No vote" in the Not yet colours for someone here.
+ * Colour stays on the scale.
  */
 function RevealedPerson({
   person,
@@ -98,7 +99,7 @@ function RevealedPerson({
       ) : person.status === "disconnected" ? (
         <span className="pill pill--away">{PEOPLE_COPY.away}</span>
       ) : (
-        <span className="visually-hidden">no vote</span>
+        <span className="pill pill--not-yet">{PEOPLE_COPY.noVote}</span>
       )}
     </li>
   );

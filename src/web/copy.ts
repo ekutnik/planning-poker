@@ -123,6 +123,7 @@ export const PEOPLE_COPY = {
   voted: "Voted",
   notYet: "Not yet",
   away: "Away",
+  noVote: "No vote",
   youVoted: "You've voted",
   clearVote: "Clear my vote",
 } as const;

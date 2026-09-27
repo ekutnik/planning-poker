@@ -156,7 +156,7 @@ describe("the revealed people list", () => {
     expect(people(render())).not.toMatch(/win|draw|voted/);
   });
 
-  it("says no vote, to a screen reader, for someone here who did not vote", () => {
+  it("says No vote, in a Not yet pill, for someone here who did not vote", () => {
     const quiet: Revealed = {
       ...snapshot,
       participants: [
@@ -165,7 +165,7 @@ describe("the revealed people list", () => {
       ],
     };
     expect(people(render(true, quiet))).toContain(
-      '<li class="person"><span class="person-name">Gus</span> <span class="visually-hidden">no vote</span></li>',
+      '<li class="person"><span class="person-name">Gus</span> <span class="pill pill--not-yet">No vote</span></li>',
     );
   });
 });

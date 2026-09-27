@@ -8,6 +8,7 @@ import {
   JOIN_COPY,
   NOT_FOUND_COPY,
   NOT_SAVED_COPY,
+  PEOPLE_COPY,
   STOP_ACTION_LABELS,
   STOP_COPY,
 } from "./copy.js";
@@ -42,6 +43,8 @@ const labels = [
   HEADER_COPY.leave,
   COPY_LINK_COPY.copy,
   COPY_LINK_COPY.copied,
+  // Pills and the own-vote button: "Voted", "No vote", "Clear my vote", …
+  ...Object.values(PEOPLE_COPY),
 ];
 
 const everything = [...sentences, ...labels];
