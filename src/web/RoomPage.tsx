@@ -157,7 +157,7 @@ export function JoinScreen({
   return (
     <main className="page page--join">
       <ScreenHeading>{JOIN_COPY.heading}</ScreenHeading>
-      <p>{JOIN_COPY.intro}</p>
+      <p className="page-intro">{JOIN_COPY.intro}</p>
       <NameForm
         initial={null}
         submitLabel={JOIN_COPY.submit}
