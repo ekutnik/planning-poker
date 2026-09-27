@@ -116,3 +116,13 @@ export const COPY_LINK_COPY = {
   copied: "Link copied",
   failed: "Couldn't copy. Copy the address from your browser.",
 } as const;
+
+/** The people list while voting, and your own vote in the facilitator view. */
+export const PEOPLE_COPY = {
+  you: "(you)",
+  voted: "Voted",
+  notYet: "Not yet",
+  away: "Away",
+  youVoted: "You've voted",
+  clearVote: "Clear my vote",
+} as const;

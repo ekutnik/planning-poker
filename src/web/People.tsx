@@ -3,49 +3,96 @@ import type {
   VotingParticipantView,
 } from "../shared/snapshot.js";
 import { CardText } from "./CardText.js";
+import { PEOPLE_COPY } from "./copy.js";
+
+export type PersonStatus = "voted" | "not-yet" | "away";
 
 /**
- * Everyone in the room, in join order. Before reveal a filled dot says who
- * has voted; after reveal each person's card sits next to their name
- * ("● Ada 3"), so everyone can read their own row. "Away" is a word.
+ * A person's pill while voting. A vote wins over being away: someone away
+ * who has voted still counts, as the status line counts them
+ * (docs/design.md, Who the round waits for).
+ */
+export function personStatus(person: VotingParticipantView): PersonStatus {
+  if (person.hasVoted) return "voted";
+  return person.status === "disconnected" ? "away" : "not-yet";
+}
+
+const STATUS_LABEL: Readonly<Record<PersonStatus, string>> = {
+  voted: PEOPLE_COPY.voted,
+  "not-yet": PEOPLE_COPY.notYet,
+  away: PEOPLE_COPY.away,
+};
+
+/**
+ * Everyone in the room, in join order. While voting, one row each: the name
+ * ("(you)" after your own), then a pill that says Voted, Not yet or Away in
+ * words, so colour is never the only signal. After reveal, each person's
+ * card sits next to their name, so everyone can read their own row.
  */
 export function People({
   participants,
+  viewerId,
 }: {
   readonly participants: readonly (
     VotingParticipantView | RevealedParticipantView
   )[];
+  readonly viewerId: string;
 }) {
+  const revealed = participants.some((p) => "vote" in p);
   return (
-    <ul className="people" aria-label="Participants">
-      {participants.map((p) => {
-        // undefined before reveal, when nobody's card is known.
-        const card = "vote" in p ? p.vote : undefined;
-        const voted = "vote" in p ? p.vote !== null : p.hasVoted;
-        return (
-          <li key={p.id}>
-            <span className="dot" aria-hidden="true">
-              {voted ? "●" : "○"}
-            </span>
-            {p.name}
-            {card === undefined ? (
-              <span className="visually-hidden">
-                , {voted ? "voted" : "not voted"}
-              </span>
-            ) : card === null ? (
-              <span className="visually-hidden">, no vote</span>
-            ) : (
+    <ul
+      className={revealed ? "people people--revealed" : "people"}
+      aria-label="Participants"
+    >
+      {participants.map((p) =>
+        "vote" in p ? (
+          <RevealedPerson key={p.id} person={p} />
+        ) : (
+          <li key={p.id} className="person">
+            {/* "(you)" sits outside the name, so shortening a long name
+                never cuts it: it is what tells you which row is yours. The
+                space between them is for a screen reader; flex drops it. */}
+            <span className="person-name">{p.name}</span>
+            {p.id === viewerId && (
               <>
                 {" "}
-                <span className="person-card">
-                  <CardText card={card} />
-                </span>
+                <span className="person-you">{PEOPLE_COPY.you}</span>
               </>
             )}
-            {p.status === "disconnected" && " (away)"}
+            <span className={`pill pill--${personStatus(p)}`}>
+              {STATUS_LABEL[personStatus(p)]}
+            </span>
           </li>
-        );
-      })}
+        ),
+      )}
     </ul>
+  );
+}
+
+/** Until PR 4 of 7b moves the revealed list below the scale, with chips. */
+function RevealedPerson({
+  person,
+}: {
+  readonly person: RevealedParticipantView;
+}) {
+  const card = person.vote;
+  return (
+    <li>
+      <span className="dot" aria-hidden="true">
+        {card !== null ? "●" : "○"}
+      </span>
+      {person.name}
+      {card === null ? (
+        <span className="visually-hidden">, no vote</span>
+      ) : (
+        <>
+          {" "}
+          <span className="person-card">
+            <CardText card={card} />
+          </span>
+        </>
+      )}
+      {person.status === "disconnected" && " (away)"}
+    </li>
   );
 }

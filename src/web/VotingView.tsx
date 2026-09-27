@@ -1,7 +1,8 @@
+import { useRef } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { Deck } from "./Deck.js";
-import { MaskedVote } from "./MaskedVote.js";
+import { PEOPLE_COPY } from "./copy.js";
 import { People } from "./People.js";
 import { ScreenHeading } from "./ScreenHeading.js";
 import { roundStatus } from "./status.js";
@@ -31,6 +32,7 @@ export function VotingView({
   readonly onAction: (action: RoomAction) => void;
 }) {
   const status = roundStatus(snapshot);
+  const deckArea = useRef<HTMLDivElement>(null);
   const hasVoted =
     snapshot.participants.find((p) => p.id === snapshot.viewerId)?.hasVoted ??
     false;
@@ -54,25 +56,48 @@ export function VotingView({
       <ScreenHeading className="status" onShown={onHeadingShown}>
         {facilitating ? status.facilitatorLine : status.participantLine}
       </ScreenHeading>
-      <People participants={snapshot.participants} />
-      <Deck
-        shown={facilitating ? null : snapshot.yourVote}
-        disabled={!live}
-        onChoose={(card) =>
-          onAction(
-            facilitating
-              ? { type: "castVote", card }
-              : voteFor(snapshot.yourVote, card),
-          )
-        }
+      <People
+        participants={snapshot.participants}
+        viewerId={snapshot.viewerId}
       />
-      {facilitating && (
-        <MaskedVote
+      {/* The deck's own container, so the deck can choose ten cards in a
+          row or two rows of five by the width it actually has. */}
+      <div className="deck-area" ref={deckArea}>
+        <Deck
+          shown={facilitating ? null : snapshot.yourVote}
           disabled={!live}
-          hasVoted={hasVoted}
-          onVote={(card) => onAction({ type: "castVote", card })}
-          onClear={() => onAction({ type: "clearVote" })}
+          onChoose={(card) =>
+            onAction(
+              facilitating
+                ? { type: "castVote", card }
+                : voteFor(snapshot.yourVote, card),
+            )
+          }
         />
+      </div>
+      {/* Your own vote, facilitator view: Clear my vote, then the pill, in
+          that order, so the pill does not sit beside the people's pills and
+          read as one of them. Nothing before voting: your row says Not yet.
+          Never the card: the screen is shared. */}
+      {facilitating && hasVoted && (
+        <div className="own-vote">
+          <button
+            type="button"
+            disabled={!live}
+            onClick={() => {
+              // Clearing removes this block, and the focused button with it.
+              // Choosing a card is next, so focus goes to the deck's Tab
+              // stop: the first card, since this view never marks one.
+              deckArea.current
+                ?.querySelector<HTMLElement>('[tabindex="0"]')
+                ?.focus();
+              onAction({ type: "clearVote" });
+            }}
+          >
+            {PEOPLE_COPY.clearVote}
+          </button>
+          <span className="pill pill--voted">{PEOPLE_COPY.youVoted}</span>
+        </div>
       )}
       {/* Last in the DOM, so keyboard order follows the task: read the
           status, see who is in, vote, then reveal. Wide shows the controls

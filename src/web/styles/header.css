@@ -57,16 +57,6 @@
   padding-inline: var(--space-12);
 }
 
-.pill {
-  display: inline-block;
-  padding: 0.125rem 0.625rem; /* 2px 10px */
-  border-radius: var(--radius-pill);
-  font-size: var(--text-pill);
-  font-weight: var(--weight-strong);
-  line-height: 1.25rem;
-  white-space: nowrap;
-}
-
 .pill--facilitating {
   background: var(--facilitating-bg);
   color: var(--facilitating-text);
