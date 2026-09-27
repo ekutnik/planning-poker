@@ -17,6 +17,15 @@ describe("motion (docs/design.md: calm by default)", () => {
     expect([...outside.matchAll(MOTION)].map(([rule]) => rule)).toEqual([]);
   });
 
+  it("fades every new screen in, over 150ms", () => {
+    expect(inside).toMatch(
+      /\.page,\s*\.round\s*\{\s*animation:\s*screen-in 150ms/,
+    );
+    expect(css).toMatch(
+      /@keyframes screen-in\s*\{\s*from\s*\{\s*opacity:\s*0;?\s*\}/,
+    );
+  });
+
   it("has the settle, so the checks here are not vacuous", () => {
     expect(inside).toMatch(/animation:\s*settle var\(--settle\)/);
   });

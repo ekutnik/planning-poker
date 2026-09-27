@@ -33,6 +33,23 @@ h2 {
   outline-offset: 2px;
 }
 
+/* Between screens (docs/design.md, Motion): each new screen fades in over
+   150ms. A screen is a page outside the room, or the round inside it,
+   which React replaces when voting gives way to the reveal and back, and
+   never for an update within a phase. */
+@media (prefers-reduced-motion: no-preference) {
+  .page,
+  .round {
+    animation: screen-in 150ms ease-out;
+  }
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* A safety net for any motion a screen adds without using --settle. */
 @media (prefers-reduced-motion: reduce) {
   *,
