@@ -282,7 +282,7 @@ button:disabled {
 /* The scale: the deck row after reveal. All ten steps across, names
    stacked above each card, when the scale has room for ten 100px columns:
    the width of a pill holding a long word such as "Oppenheimer", so names
-   wrap only between words. Otherwise, as always in compact, only the cards
+   wrap between words (only a longer word breaks inside). Otherwise, as always in compact, only the cards
    that got votes, one row each: the card, then its names wrapping beside
    it. The scale's own width decides, like the deck's. Across, cards nobody
    chose keep their place with a Rule outline and an Ink numeral, so the
