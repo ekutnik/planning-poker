@@ -274,6 +274,13 @@ Two columns in wide, stacked in compact:
 - **Left:** "Estimate together"; "Everyone votes on their own screen, and the votes stay hidden until someone reveals them."; "Your name" (no hint underneath); the switch "I'm running this session", **on** by default, with "Hides your vote so you can share your screen." on one line; **Create a room**; "You'll get a link to share with your team."
 - **Right** (below in compact): a looping preview of one round, hidden from screen readers, with **Pause preview** / **Play preview**. With reduced motion it shows its revealed frame, still.
 - No autofocus on the name field: the focus rule leaves a fresh load alone.
+- **The switch saves on submit.** Each form starts from its own default, on to create and off to join, not from the saved Facilitate setting; creating or joining saves the switch's value, as the Menu's Facilitate would. Someone who creates rooms gets the facilitator view there; the same person joining a colleague's room from a link gets the participant view unless they switch it on.
+
+**How the preview is built.** It is not a video: a script of five fake rooms (Ada has voted, the others vote one by one, then the reveal; about ten seconds) drawn by the room's own `People`, `Deck` and `Scale`, with the real status line and result sentence. So it follows the theme and the tokens, and cannot drift from the room.
+
+- **Out of the way:** the fake room is `inert` and `aria-hidden`, so nothing in it takes focus, a click, or a screen reader's attention. Pause preview, outside it, is the one control. A test renders every frame and fails if anything focusable sits outside the inert room but Pause.
+- **Pause** stops on the frame showing; **Play** carries on from there. With reduced motion there is nothing to pause: the revealed frame shows, still, and there is no button.
+- **At 80%,** through CSS `zoom`, so the real components shrink as a whole. Its height is held by its tallest frame, drawn invisibly in the same place, so the form beside it and Pause below it never move as it plays.
 
 ### Join (from a link)
 
@@ -294,7 +301,10 @@ The same header, one heading, a sentence or two, and one Cobalt action. An inval
 | Names settling at reveal | 180 ms                                      |
 | Landing preview          | A loop of one round, about 10 s, with Pause |
 
-No flip and no rolling counts. Nothing moves because of someone else's action except the reveal settle and the nudge banner appearing (the banner itself does not animate). With reduced motion, nothing moves. The CSS motion test exempts only the preview loop, and still requires it to be guarded by reduced motion and to have a pause control.
+No flip and no rolling counts. Nothing moves because of someone else's action except the reveal settle and the nudge banner appearing (the banner itself does not animate). With reduced motion, nothing moves.
+
+- **Between screens** means a page outside the room, or the round inside it: React replaces the round when voting gives way to the reveal and back, never for an update within a phase, so a vote arriving does not replay the fade.
+- **The preview loop is played by script, not CSS,** so the CSS motion test has nothing to exempt. Its own tests hold the rest: it never moves with reduced motion, and it has Pause.
 
 ## Copy
 
@@ -366,7 +376,7 @@ Session 6's first instincts, and what they became:
 - **Layout:** the scale's names never clip (no `max-height` or fixed height on the name stack); compact renders only voted cards; the facilitator bar is pinned only in compact and only when the window is tall enough.
 - **Motion:** a test reads the stylesheets and fails if anything animates outside `prefers-reduced-motion: no-preference`, or for 200 ms or more; the preview loop is the one exemption, and must have a pause control.
 - **Theme:** the no-flash script applies exactly what the app would, for every stored value (unit test); the stored choice is applied before first paint (the Session 8 end-to-end suite).
-- **The Session 8 end-to-end suite** also covers what static markup cannot: the Menu closes on Escape (with focus back on its button), on a click outside and when focus leaves it, and stays open while Facilitate or the theme changes; in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked, and after Clear my vote focus is on the first card; pressing a hovered card cancels its lift; the reveal and the next round are each announced once, on the change, and the person who revealed hears "Votes revealed" once, not twice; after a screen change (reveal, "Start next round", joining, a stopped screen arriving from another tab), focus is on the new heading; the title follows the round; and a nudge reaches only its target, with the banner and tab title clearing on voting.
+- **The Session 8 end-to-end suite** also covers what static markup cannot: the Menu closes on Escape (with focus back on its button), on a click outside and when focus leaves it, and stays open while Facilitate or the theme changes; in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked, and after Clear my vote focus is on the first card; pressing a hovered card cancels its lift; the reveal and the next round are each announced once, on the change, and the person who revealed hears "Votes revealed" once, not twice; after a screen change (reveal, "Start next round", joining, a stopped screen arriving from another tab), focus is on the new heading; the title follows the round; creating a room with "I'm running this session" on opens the facilitator view, and joining with it off the participant view; the landing preview advances on its own, Pause stops it on the frame showing, and nothing inside it can be reached with Tab or clicked; and a nudge reaches only its target, with the banner and tab title clearing on voting.
 
 ## Building 7b
 
