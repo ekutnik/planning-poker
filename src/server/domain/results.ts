@@ -4,7 +4,6 @@ import {
   type Card,
   type NumericCard,
 } from "../../shared/deck.js";
-import type { ParticipantId } from "../../shared/ids.js";
 import type { Results } from "../../shared/snapshot.js";
 import type { Room } from "./room.js";
 
@@ -47,13 +46,10 @@ export function winningCards(numeric: readonly NumericCard[]): NumericCard[] {
  * (a mean of Fibonacci cards isn't a card; a median can fall between two).
  */
 export function computeResults(room: Room): Results {
-  // Every cast vote, in join order (Map preserves insertion order). A vote from a
-  // disconnected participant still counts.
-  const cast: { readonly id: ParticipantId; readonly card: Card }[] = [];
+  // Every cast vote. A vote from a disconnected participant still counts.
+  const cast: Card[] = [];
   for (const participant of room.participants.values()) {
-    if (participant.vote !== null) {
-      cast.push({ id: participant.id, card: participant.vote });
-    }
+    if (participant.vote !== null) cast.push(participant.vote);
   }
 
   const voteCount = cast.length;
@@ -61,23 +57,20 @@ export function computeResults(room: Room): Results {
   // Distribution: canonical deck order, only cards that were actually cast.
   const distribution = DECK.map((card) => ({
     card,
-    count: cast.filter((entry) => entry.card === card).length,
+    count: cast.filter((vote) => vote === card).length,
   })).filter((entry) => entry.count > 0);
 
   // Consensus: at least two voters, and every cast vote is the same numeric card.
   // A ? or ☕ anywhere breaks it — everyone who voted must have agreed on a number.
-  const first = cast[0]?.card;
+  const first = cast[0];
   const consensus =
     voteCount >= 2 &&
     first !== undefined &&
     isNumericCard(first) &&
-    cast.every((entry) => entry.card === first);
+    cast.every((vote) => vote === first);
 
   // min / max / spread are over numeric votes only.
-  const numeric: NumericCard[] = [];
-  for (const entry of cast) {
-    if (isNumericCard(entry.card)) numeric.push(entry.card);
-  }
+  const numeric = cast.filter(isNumericCard);
 
   let min: NumericCard | null = null;
   let max: NumericCard | null = null;
@@ -88,15 +81,6 @@ export function computeResults(room: Room): Results {
 
   const spreadSteps =
     min !== null && max !== null ? deckIndex(max) - deckIndex(min) : null;
-  const wideSpread = spreadSteps !== null && spreadSteps >= 2;
-
-  // Outliers: only meaningful on a wide spread — the min and max voters, the
-  // conventional "explain your estimate" set, in join order.
-  const outliers: ParticipantId[] = wideSpread
-    ? cast
-        .filter((entry) => entry.card === min || entry.card === max)
-        .map((entry) => entry.id)
-    : [];
 
   return {
     voteCount,
@@ -105,8 +89,6 @@ export function computeResults(room: Room): Results {
     min,
     max,
     spreadSteps,
-    wideSpread,
-    outliers,
     winners: winningCards(numeric),
   };
 }

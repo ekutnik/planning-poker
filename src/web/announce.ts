@@ -26,7 +26,7 @@ export function phaseAnnouncement(
   if (previous === snapshot.phase) return null;
   if (snapshot.phase === "revealed") {
     const copy = resultCopy(snapshot);
-    return { full: copy.announcement, afterHeading: copy.spokenResult };
+    return { full: copy.announcement, afterHeading: copy.summary };
   }
   // The new heading says who is missing, not that a round started: no repeat.
   return { full: NEXT_ROUND, afterHeading: NEXT_ROUND };

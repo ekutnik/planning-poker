@@ -342,14 +342,25 @@ button:disabled {
   white-space: nowrap;
 }
 
-/* Colour is never the only signal: the sentence below says it in words. */
-.scale-name--agree,
-.result-summary--agree {
+/* The winning card, or the cards of a draw, and the names on them. Colour
+   is never the only signal: the sentence below says it in words. */
+.scale-step--win .scale-card {
+  border-color: var(--win-border);
+  background: var(--win-fill);
+  color: var(--win-numeral);
+}
+
+.scale-step--win .scale-name {
   color: var(--voted-text);
 }
 
-.scale-name--discuss,
-.result-summary--discuss {
+.scale-step--draw .scale-card {
+  border-color: var(--draw-border);
+  background: var(--draw-fill);
+  color: var(--draw-numeral);
+}
+
+.scale-step--draw .scale-name {
   color: var(--draw-text);
 }
 
@@ -368,19 +379,12 @@ button:disabled {
   }
 }
 
+/* The sentence, in Ink at regular weight: the colour is on the scale. */
 .result {
   grid-area: result;
-  display: grid;
-  gap: var(--space-4);
-}
-
-.result p {
   margin: 0;
-}
-
-.result-summary {
   font-size: var(--text-result);
-  font-weight: var(--weight-strong);
+  line-height: 1.5;
 }
 
 @media (min-width: 55em) {

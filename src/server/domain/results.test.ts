@@ -54,8 +54,6 @@ describe("computeResults", () => {
       min: "5",
       max: "5",
       spreadSteps: 0,
-      wideSpread: false,
-      outliers: [],
     },
     {
       name: "a single voter is never consensus",
@@ -64,8 +62,6 @@ describe("computeResults", () => {
       min: "5",
       max: "5",
       spreadSteps: 0,
-      wideSpread: false,
-      outliers: [],
     },
     {
       name: "a ? breaks consensus",
@@ -74,8 +70,6 @@ describe("computeResults", () => {
       min: "5",
       max: "5",
       spreadSteps: 0,
-      wideSpread: false,
-      outliers: [],
     },
     {
       name: "adjacent cards are a narrow spread",
@@ -84,18 +78,14 @@ describe("computeResults", () => {
       min: "3",
       max: "5",
       spreadSteps: 1,
-      wideSpread: false,
-      outliers: [],
     },
     {
-      name: "two steps apart is a wide spread with outliers",
+      name: "spread is counted in deck steps",
       votes: ["3", "5", "8"],
       consensus: false,
       min: "3",
       max: "8",
       spreadSteps: 2,
-      wideSpread: true,
-      outliers: ["p0", "p2"],
     },
     {
       name: "13 and 21 are adjacent in deck steps, not arithmetic",
@@ -104,18 +94,14 @@ describe("computeResults", () => {
       min: "13",
       max: "21",
       spreadSteps: 1,
-      wideSpread: false,
-      outliers: [],
     },
     {
-      name: "everyone is an outlier when the whole room splits min/max",
+      name: "a room split between two cards spans every step between them",
       votes: ["1", "1", "13", "13"],
       consensus: false,
       min: "1",
       max: "13",
       spreadSteps: 5,
-      wideSpread: true,
-      outliers: ["p0", "p1", "p2", "p3"],
     },
     {
       name: "non-numeric votes only → no min/max/spread",
@@ -124,24 +110,17 @@ describe("computeResults", () => {
       min: null,
       max: null,
       spreadSteps: null,
-      wideSpread: false,
-      outliers: [],
     },
   ] as const;
 
-  it.each(rows)(
-    "$name",
-    ({ votes, consensus, min, max, spreadSteps, wideSpread, outliers }) => {
-      const results = computeResults(roomWithVotes(votes));
-      expect(results.voteCount).toBe(votes.length);
-      expect(results.consensus).toBe(consensus);
-      expect(results.min).toBe(min);
-      expect(results.max).toBe(max);
-      expect(results.spreadSteps).toBe(spreadSteps);
-      expect(results.wideSpread).toBe(wideSpread);
-      expect(results.outliers).toEqual(outliers);
-    },
-  );
+  it.each(rows)("$name", ({ votes, consensus, min, max, spreadSteps }) => {
+    const results = computeResults(roomWithVotes(votes));
+    expect(results.voteCount).toBe(votes.length);
+    expect(results.consensus).toBe(consensus);
+    expect(results.min).toBe(min);
+    expect(results.max).toBe(max);
+    expect(results.spreadSteps).toBe(spreadSteps);
+  });
 
   it("counts a disconnected participant's vote", () => {
     const room = run(
@@ -174,8 +153,6 @@ describe("computeResults", () => {
       min: null,
       max: null,
       spreadSteps: null,
-      wideSpread: false,
-      outliers: [],
       winners: [],
     });
   });

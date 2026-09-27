@@ -1,24 +1,13 @@
-import { DECK, isNumericCard, type Card } from "../shared/deck.js";
+import { isNumericCard, type Card } from "../shared/deck.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import { listNames } from "./status.js";
 
 type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
 
-/** The colour of the summary: Agree, Discuss, or plain Ink. Words carry it too. */
-export type Tone = "agree" | "discuss" | "neutral";
-
 export interface ResultCopy {
-  /** The one sentence about the numbers. */
+  /** The one sentence about the numbers, in Ink: the colour is on the scale. */
   readonly summary: string;
-  readonly tone: Tone;
-  /** Who chose each non-numeric card, in deck order: "Cy voted ?". */
-  readonly others: readonly {
-    readonly names: string;
-    readonly card: Card;
-  }[];
-  /** The result as spoken: the summary, then who chose each non-numeric card. */
-  readonly spokenResult: string;
-  /** What the live region says at reveal: "Votes revealed.", then the result. */
+  /** What the live region says at reveal: "Votes revealed.", then the sentence. */
   readonly announcement: string;
 }
 
@@ -38,68 +27,35 @@ export function spokenCard(card: Card): string {
 }
 
 /**
- * The reveal in words (docs/design.md, Copy). Only the server's results are
- * used, so every client says the same thing: nothing here that does not map
- * back to a card, and no mean or median.
+ * The reveal in words (docs/design.md, Highlight and sentence). Only the
+ * server's results are used, so every client says the same thing, and the
+ * server alone decides what wins. It names no one: the scale shows who
+ * chose what, and a screen reader can read it as a list.
  */
-export function resultCopy(snapshot: Revealed): ResultCopy {
-  const { participants } = snapshot;
-  const namesFor = (card: Card) =>
-    participants.filter((p) => p.vote === card).map((p) => p.name);
-
-  const others = DECK.filter((card) => !isNumericCard(card)).flatMap((card) => {
-    const names = namesFor(card);
-    return names.length === 0 ? [] : [{ names: listNames(names), card }];
-  });
-
-  const { summary, tone } = summarise(snapshot, namesFor);
-  const spokenResult = [
-    summary,
-    ...others.map(({ names, card }) => `${names} voted ${spokenCard(card)}.`),
-  ].join(" ");
-  const announcement = `Votes revealed. ${spokenResult}`;
-
-  return { summary, tone, others, spokenResult, announcement };
+export function resultCopy({ results }: Revealed): ResultCopy {
+  const summary = sentence(results);
+  return { summary, announcement: `Votes revealed. ${summary}` };
 }
 
-function summarise(
-  { participants, results }: Revealed,
-  namesFor: (card: Card) => string[],
-): { readonly summary: string; readonly tone: Tone } {
-  const { min, max, spreadSteps } = results;
-  if (min === null || max === null || spreadSteps === null) {
-    return {
-      summary:
-        results.voteCount === 0
-          ? "Nobody voted this round."
-          : "No numeric votes this round.",
-      tone: "neutral",
-    };
+function sentence(results: Revealed["results"]): string {
+  const { min, max, winners } = results;
+  if (results.voteCount === 0) return "Nobody voted this round.";
+  if (min === null || max === null) return "No numeric votes this round.";
+  if (results.consensus) return `Everyone chose ${min}.`;
+  const numericVotes = results.distribution
+    .filter(({ card }) => isNumericCard(card))
+    .reduce((sum, { count }) => sum + count, 0);
+  if (numericVotes === 1) {
+    // "Only one vote" would be untrue beside a ? or a ☕.
+    return results.voteCount === 1
+      ? `Only one vote: ${min}.`
+      : `Only one numeric vote: ${min}.`;
   }
-  if (results.consensus) {
-    return { summary: `Everyone chose ${min}.`, tone: "agree" };
-  }
-  if (spreadSteps === 0) {
-    // One number, but not consensus: a single numeric voter, or a ? or ☕
-    // beside an otherwise agreed number.
-    const numeric = namesFor(min);
-    const summary =
-      numeric.length > 1
-        ? `All numbers agree: ${min}.`
-        : results.voteCount === 1
-          ? `Only ${numeric[0] ?? "one person"} voted: ${min}.`
-          : `Only ${numeric[0] ?? "one person"} chose a number: ${min}.`;
-    return { summary, tone: "neutral" };
-  }
-  if (!results.wideSpread) {
-    return { summary: `Close: ${min} and ${max}.`, tone: "neutral" };
-  }
-  const nameOf = (id: string) =>
-    participants.find((p) => p.id === id)?.name ?? "Someone";
-  return {
-    summary:
-      `Spread of ${spreadSteps} steps, from ${min} to ${max}. ` +
-      `${listNames(results.outliers.map(nameOf))}, talk through your estimates.`,
-    tone: "discuss",
-  };
+  // The spread is the full range, dropped votes included, and only when
+  // there is one. Two or more numeric votes that agree always win, so the
+  // sentence is never empty.
+  const parts = min === max ? [] : [`Spread from ${min} to ${max}.`];
+  if (winners.length === 1) parts.push(`Result: ${winners[0] ?? ""}.`);
+  if (winners.length > 1) parts.push(`Draw between ${listNames(winners)}.`);
+  return parts.join(" ");
 }

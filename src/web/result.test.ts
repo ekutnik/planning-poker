@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Card } from "../shared/deck.js";
+import { DECK, type Card } from "../shared/deck.js";
 import type { Results, RoomSnapshot } from "../shared/snapshot.js";
 import {
   freshAnnouncement,
@@ -12,20 +12,20 @@ import { resultCopy, spokenCard } from "./result.js";
 type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
 
 /**
- * A revealed snapshot from [name, card] pairs in join order. The results are
- * written out per case, as the server would compute them (its own tests
- * cover that); the web may not import server code.
+ * A revealed snapshot from votes, one participant per vote, in join order
+ * (Ada, Ben, Cy, …; null is someone who did not vote). The distribution is
+ * counted here; the rest of the results are written out per case, as the
+ * server would compute them (its own tests cover that): the web may not
+ * import server code.
  */
 function revealed(
   results: Partial<Results>,
-  ...votes: [string, Card | null][]
+  votes: readonly (Card | null)[],
 ): Revealed {
-  const participants = votes.map(([name, vote]) => ({
-    id: name,
-    name,
-    status: "connected" as const,
-    vote,
-  }));
+  const participants = votes.map((vote, i) => {
+    const name = NAMES[i] ?? `P${String(i)}`;
+    return { id: name, name, status: "connected" as const, vote };
+  });
   return {
     phase: "revealed",
     roomId: "abcdefghijk",
@@ -33,154 +33,121 @@ function revealed(
     viewerId: "Ada",
     participants,
     results: {
-      voteCount: votes.filter(([, vote]) => vote !== null).length,
-      distribution: [],
+      voteCount: votes.filter((vote) => vote !== null).length,
+      distribution: DECK.map((card) => ({
+        card,
+        count: votes.filter((vote) => vote === card).length,
+      })).filter(({ count }) => count > 0),
       consensus: false,
       min: null,
       max: null,
       spreadSteps: null,
-      wideSpread: false,
-      outliers: [],
       winners: [],
       ...results,
     },
   };
 }
 
-describe("resultCopy: the reveal in words", () => {
-  it("says consensus in Agree", () => {
-    const copy = resultCopy(
-      revealed(
-        { consensus: true, min: "5", max: "5", spreadSteps: 0 },
-        ["Ada", "5"],
-        ["Ben", "5"],
-        ["Cy", "5"],
-      ),
-    );
-    expect(copy).toMatchObject({ summary: "Everyone chose 5.", tone: "agree" });
-    expect(copy.announcement).toBe("Votes revealed. Everyone chose 5.");
+const NAMES = ["Ada", "Ben", "Cy", "Dee", "Eli", "Fay", "Gus", "Hal"];
+
+// docs/design.md, Highlight and sentence: one row per situation.
+const table: readonly [string, Revealed, string][] = [
+  [
+    "everyone chose one number",
+    revealed({ consensus: true, min: "5", max: "5", winners: ["5"] }, [
+      "5",
+      "5",
+      "5",
+    ]),
+    "Everyone chose 5.",
+  ],
+  [
+    "the numbers agree, with a ? beside them",
+    revealed({ min: "5", max: "5", winners: ["5"] }, ["5", "5", "?"]),
+    "Result: 5.",
+  ],
+  [
+    "a winner",
+    revealed({ min: "5", max: "13", winners: ["8"] }, [
+      "5",
+      "8",
+      "8",
+      "8",
+      "13",
+    ]),
+    "Spread from 5 to 13. Result: 8.",
+  ],
+  [
+    "a draw",
+    revealed({ min: "2", max: "13", winners: ["3", "5"] }, [
+      "2",
+      "3",
+      "3",
+      "5",
+      "5",
+      "13",
+    ]),
+    "Spread from 2 to 13. Draw between 3 and 5.",
+  ],
+  [
+    "a three-way draw",
+    revealed({ min: "1", max: "8", winners: ["2", "3", "5"] }, [
+      "1",
+      "2",
+      "2",
+      "3",
+      "3",
+      "5",
+      "5",
+      "8",
+    ]),
+    "Spread from 1 to 8. Draw between 2, 3 and 5.",
+  ],
+  [
+    "no winner",
+    revealed({ min: "2", max: "13" }, ["2", "3", "5", "8", "13"]),
+    "Spread from 2 to 13.",
+  ],
+  [
+    "a single vote",
+    revealed({ min: "8", max: "8" }, ["8", null]),
+    "Only one vote: 8.",
+  ],
+  [
+    "a single number, beside a ?",
+    revealed({ min: "8", max: "8" }, ["8", "?"]),
+    "Only one numeric vote: 8.",
+  ],
+  [
+    "no numeric votes",
+    revealed({}, ["?", "☕"]),
+    "No numeric votes this round.",
+  ],
+  ["no votes", revealed({}, [null, null]), "Nobody voted this round."],
+];
+
+describe("resultCopy: the reveal in one sentence", () => {
+  it.each(table)("%s", (_, snapshot, sentence) => {
+    const copy = resultCopy(snapshot);
+    expect(copy.summary).toBe(sentence);
+    expect(copy.announcement).toBe(`Votes revealed. ${sentence}`);
   });
 
-  it("calls one step apart close, in plain Ink", () => {
-    const copy = resultCopy(
-      revealed(
-        { min: "3", max: "5", spreadSteps: 1 },
-        ["Ada", "3"],
-        ["Ben", "5"],
-        ["Cy", "5"],
-      ),
-    );
-    expect(copy).toMatchObject({ summary: "Close: 3 and 5.", tone: "neutral" });
+  it("names no one", () => {
+    for (const [, snapshot] of table) {
+      const { summary } = resultCopy(snapshot);
+      for (const { name } of snapshot.participants) {
+        expect(summary).not.toContain(name);
+      }
+    }
   });
 
-  it("names the outliers on a wide spread, in Discuss", () => {
-    const copy = resultCopy(
-      revealed(
-        {
-          min: "3",
-          max: "13",
-          spreadSteps: 3,
-          wideSpread: true,
-          outliers: ["Ada", "Eli"],
-          winners: [],
-        },
-        ["Ada", "3"],
-        ["Ben", "8"],
-        ["Cy", "?"],
-        ["Dee", "8"],
-        ["Eli", "13"],
-      ),
-    );
-    expect(copy).toMatchObject({
-      summary:
-        "Spread of 3 steps, from 3 to 13. Ada and Eli, talk through your estimates.",
-      tone: "discuss",
-    });
-  });
-
-  it("says who chose each non-numeric card, in deck order", () => {
-    const copy = resultCopy(
-      revealed(
-        { min: "5", max: "5", spreadSteps: 0 },
-        ["Ada", "☕"],
-        ["Ben", "5"],
-        ["Cy", "?"],
-        ["Dee", "5"],
-        ["Eli", "?"],
-      ),
-    );
-    expect(copy.others).toEqual([
-      { names: "Cy and Eli", card: "?" },
-      { names: "Ada", card: "☕" },
-    ]);
-  });
-
-  it("does not call it consensus when a ? sits beside an agreed number", () => {
-    const copy = resultCopy(
-      revealed(
-        { min: "5", max: "5", spreadSteps: 0 },
-        ["Ada", "5"],
-        ["Ben", "5"],
-        ["Cy", "?"],
-      ),
-    );
-    expect(copy).toMatchObject({
-      summary: "All numbers agree: 5.",
-      tone: "neutral",
-    });
-  });
-
-  it("names a single numeric voter", () => {
-    expect(
-      resultCopy(
-        revealed(
-          { min: "8", max: "8", spreadSteps: 0 },
-          ["Ada", "8"],
-          ["Ben", null],
-        ),
-      ).summary,
-    ).toBe("Only Ada voted: 8.");
-    expect(
-      resultCopy(
-        revealed(
-          { min: "8", max: "8", spreadSteps: 0 },
-          ["Ada", "8"],
-          ["Ben", "?"],
-        ),
-      ).summary,
-    ).toBe("Only Ada chose a number: 8.");
-  });
-
-  it("tells no numeric votes from no votes at all", () => {
-    expect(resultCopy(revealed({}, ["Ada", "?"], ["Ben", "☕"])).summary).toBe(
-      "No numeric votes this round.",
-    );
-    expect(resultCopy(revealed({}, ["Ada", null], ["Ben", null])).summary).toBe(
-      "Nobody voted this round.",
-    );
-  });
-
-  it("speaks ? and ☕ as words, and says everything that is on screen", () => {
-    const copy = resultCopy(
-      revealed(
-        {
-          min: "3",
-          max: "13",
-          spreadSteps: 3,
-          wideSpread: true,
-          outliers: ["Ada", "Ben"],
-          winners: [],
-        },
-        ["Ada", "3"],
-        ["Ben", "13"],
-        ["Cy", "?"],
-        ["Dee", "☕"],
-      ),
-    );
-    expect(copy.announcement).toBe(
-      "Votes revealed. Spread of 3 steps, from 3 to 13. Ada and Ben, talk " +
-        "through your estimates. Cy voted question mark. Dee voted coffee.",
-    );
+  it("leaves the non-numeric votes to the scale, and says none of the removed lines", () => {
+    for (const [, snapshot] of table) {
+      expect(resultCopy(snapshot).announcement).not.toMatch(
+        /voted (question mark|coffee)|Close:|agree:|talk through|chose a number|Most votes/,
+      );
+    }
   });
 
   it.each([
@@ -194,9 +161,8 @@ describe("resultCopy: the reveal in words", () => {
 
 describe("phaseAnnouncement: only a change of phase is announced", () => {
   const result = revealed(
-    { consensus: true, min: "5", max: "5", spreadSteps: 0 },
-    ["Ada", "5"],
-    ["Ben", "5"],
+    { consensus: true, min: "5", max: "5", spreadSteps: 0, winners: ["5"] },
+    ["5", "5"],
   );
   const voting: RoomSnapshot = {
     phase: "voting",
@@ -236,14 +202,12 @@ describe("phaseAnnouncement: only a change of phase is announced", () => {
 
 describe("announcementFor: said once, not twice (A-06)", () => {
   const copy = {
-    full: "Votes revealed. Close: 3 and 5. Cy voted question mark.",
-    afterHeading: "Close: 3 and 5. Cy voted question mark.",
+    full: "Votes revealed. Spread from 3 to 13. Result: 5.",
+    afterHeading: "Spread from 3 to 13. Result: 5.",
   };
 
   it("leaves out what the heading that took focus has just said", () => {
-    expect(announcementFor(true, copy)).toBe(
-      "Close: 3 and 5. Cy voted question mark.",
-    );
+    expect(announcementFor(true, copy)).toBe("Spread from 3 to 13. Result: 5.");
   });
 
   it("says it whole to everyone whose focus stayed put", () => {
@@ -253,12 +217,7 @@ describe("announcementFor: said once, not twice (A-06)", () => {
   it("keeps the whole result either way, only the heading's words differ", () => {
     const revealedCopy = phaseAnnouncement(
       "voting",
-      revealed(
-        { min: "3", max: "5", spreadSteps: 1 },
-        ["Ada", "3"],
-        ["Ben", "5"],
-        ["Cy", "?"],
-      ),
+      revealed({ min: "3", max: "5", spreadSteps: 1 }, ["3", "5", "?"]),
     );
     expect(revealedCopy).not.toBeNull();
     if (revealedCopy === null) return;

@@ -62,8 +62,6 @@ describe("document titles (A-03)", () => {
           min: "13",
           max: "13",
           spreadSteps: 0,
-          wideSpread: false,
-          outliers: [],
           winners: [],
         },
       }),
