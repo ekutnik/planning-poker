@@ -1160,4 +1160,15 @@ describe("RoomService — nudges (ADR 0007)", () => {
     service.message(alice, nudge(BOB));
     expect(bob.sent).toEqual([{ type: "nudged" }]);
   });
+
+  it("ends a cooldown when that person leaves, so one who rejoins can be nudged", () => {
+    const { service, connect, join, alice, bob } = room();
+    service.message(alice, nudge(BOB));
+    service.message(bob, JSON.stringify({ type: "leave" }));
+    const again = connect("bob-again");
+    join(again, BOB, "Bob");
+    again.sent.length = 0;
+    service.message(alice, nudge(BOB));
+    expect(again.sent).toEqual([{ type: "nudged" }]);
+  });
 });

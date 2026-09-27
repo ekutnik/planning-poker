@@ -541,12 +541,12 @@ export class RoomService {
 
   /**
    * A cooldown also ends early, when its reason does (ADR 0007): the person
-   * nudged votes, or the round ends (reveal, reset). The client's "Nudged"
-   * button comes back at the same moments, so the two agree: a Nudge button
-   * on screen is a nudge the server will deliver.
+   * nudged votes or leaves, or the round ends (reveal, reset). The client's
+   * "Nudged" button comes back at the same moments, so the two agree: a
+   * Nudge button on screen is a nudge the server will deliver.
    */
   private endCooldowns(roomId: string, command: Command): void {
-    if (command.type === "castVote") {
+    if (command.type === "castVote" || command.type === "leave") {
       this.nudgedAt.delete(nudgeKey(roomId, command.participantId));
     }
     if (command.type === "reveal" || command.type === "reset") {
