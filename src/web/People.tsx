@@ -49,12 +49,16 @@ export function People({
           <RevealedPerson key={p.id} person={p} />
         ) : (
           <li key={p.id} className="person">
-            <span className="person-name">
-              {p.name}
-              {p.id === viewerId && (
-                <span className="person-you"> {PEOPLE_COPY.you}</span>
-              )}
-            </span>
+            {/* "(you)" sits outside the name, so shortening a long name
+                never cuts it: it is what tells you which row is yours. The
+                space between them is for a screen reader; flex drops it. */}
+            <span className="person-name">{p.name}</span>
+            {p.id === viewerId && (
+              <>
+                {" "}
+                <span className="person-you">{PEOPLE_COPY.you}</span>
+              </>
+            )}
             <span className={`pill pill--${personStatus(p)}`}>
               {STATUS_LABEL[personStatus(p)]}
             </span>

@@ -36,7 +36,7 @@ describe("the people list while voting", () => {
     expect(html).toBe(
       '<ul class="people" aria-label="Participants">' +
         '<li class="person"><span class="person-name">Ben</span><span class="pill pill--voted">Voted</span></li>' +
-        '<li class="person"><span class="person-name">Ada<span class="person-you"> (you)</span></span><span class="pill pill--not-yet">Not yet</span></li>' +
+        '<li class="person"><span class="person-name">Ada</span> <span class="person-you">(you)</span><span class="pill pill--not-yet">Not yet</span></li>' +
         '<li class="person"><span class="person-name">Fay</span><span class="pill pill--away">Away</span></li>' +
         "</ul>",
     );
@@ -45,5 +45,11 @@ describe("the people list while voting", () => {
   it("marks only the viewer's own row, and keeps join order", () => {
     expect(html.match(/\(you\)/g)).toHaveLength(1);
     expect(html.indexOf("Ben")).toBeLessThan(html.indexOf("Ada"));
+  });
+
+  it('keeps "(you)" out of the name, so a long name is never cut there', () => {
+    // .person-name is the part that shrinks with "…".
+    expect(html).not.toMatch(/<span class="person-name">[^<]*<span/);
+    expect(html).toMatch(/<\/span> <span class="person-you">\(you\)<\/span>/);
   });
 });

@@ -130,9 +130,9 @@ button:disabled {
   min-height: 2rem; /* 32px */
 }
 
-/* A long name is cut short, not wrapped: the row stays one person. */
+/* A long name is cut short, not wrapped: the row stays one person. Only
+   the name shrinks; "(you)" and the pill keep their size. */
 .person-name {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -140,7 +140,13 @@ button:disabled {
 }
 
 .person-you {
+  flex: none;
   color: var(--quiet);
+}
+
+/* The pill sits at the end of the row, however long the name. */
+.person > .pill {
+  margin-inline-start: auto;
 }
 
 .pill--voted {
