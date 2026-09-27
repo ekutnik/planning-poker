@@ -156,6 +156,7 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 ### People list
 
 - One row per participant in join order: the name, then a status pill: Voted, Not yet, or Away.
+- **Someone away who has voted shows Voted, not Away.** Their vote counts, so they are not holding anyone up; Away is only useful for someone who has not voted. The status line counts them the same way.
 - The viewer's own row is included, with "(you)" after the name in Quiet.
 - In the facilitator view, a **Nudge** button sits before the pill of every connected participant who hasn't voted (not for away people, not for yourself). Its accessible name includes the person: "Nudge Cy". After a nudge it reads "Nudged", disabled, for 30 seconds or until they vote or the round ends.
 - After reveal, each person shows a neutral value chip, and "Away" for someone away without a vote.
