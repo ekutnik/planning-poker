@@ -23,12 +23,21 @@ describe("names on the scale (7b; A-04 revisited)", () => {
   });
 
   it("lays all ten steps across only when each has room for a long word", () => {
-    // Ten 100px columns (a pill holding "Oppenheimer") and nine 12px gaps.
+    // The switch is derived, not written down: ten columns as wide as a
+    // name needs, and the nine gaps between them, as the scale declares.
     const across =
       /@container scale \(min-width: ([\d.]+)rem\) \{([\s\S]*?)\n\}/.exec(css);
-    expect(Number(across?.[1])).toBe((10 * 100 + 9 * 12) / 16);
-    expect(across?.[2]).toMatch(/\.scale-step--empty\s*\{[^}]*display:\s*flex/);
-    expect(across?.[2]).toMatch(/repeat\(10, minmax\(0, 1fr\)\)/);
+    const body = across?.[2] ?? "";
+    const column = Number(
+      /repeat\(10, minmax\(([\d.]+)rem, 1fr\)\)/.exec(body)?.[1],
+    );
+    const gapToken = /column-gap:\s*var\((--space-\d+)\)/.exec(body)?.[1] ?? "";
+    const gap = Number(
+      new RegExp(`${gapToken}:\\s*([\\d.]+)rem`).exec(css)?.[1],
+    );
+    expect(column * 16).toBe(100);
+    expect(Number(across?.[1])).toBe(10 * column + 9 * gap);
+    expect(body).toMatch(/\.scale-step--empty\s*\{[^}]*display:\s*flex/);
   });
 
   it("otherwise shows only the cards that got votes, as always in compact", () => {

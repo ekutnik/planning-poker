@@ -466,10 +466,14 @@ button:disabled {
   }
 }
 
-/* Ten 100px columns and nine 12px gaps: 1108px. All on one baseline. */
+/* All ten across, on one baseline, once every column can be as wide as a
+   name needs: 100px, a pill holding a long word such as "Oppenheimer"
+   (81px of text and 10px of padding each side). Ten of those and nine
+   12px gaps make the width this switches at, 1108px; a test derives it
+   from the column and the gap. */
 @container scale (min-width: 69.25rem) {
   .scale {
-    grid-template-columns: repeat(10, minmax(0, 1fr));
+    grid-template-columns: repeat(10, minmax(6.25rem, 1fr));
     column-gap: var(--space-12);
     align-items: end;
   }
