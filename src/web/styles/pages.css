@@ -151,3 +151,16 @@
   color: var(--quiet);
   font-size: var(--text-status);
 }
+
+/* A nudge, above the room's heading: the Facilitating colours, a
+   container's corners. The region around it stays in the page, empty and
+   boxless, so the banner appearing is announced. */
+.nudge-banner {
+  margin: 0;
+  padding: var(--space-12) 0.875rem; /* 12px 14px */
+  border-radius: var(--radius-container);
+  background: var(--facilitating-bg);
+  color: var(--facilitating-text);
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
+}

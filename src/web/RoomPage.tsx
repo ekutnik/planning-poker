@@ -85,7 +85,7 @@ function Room({
       }),
     [roomId, sessionToken, name],
   );
-  const { state, notice } = useSyncExternalStore(
+  const { state, notice, nudged } = useSyncExternalStore(
     session.subscribe,
     session.getSnapshot,
   );
@@ -136,6 +136,7 @@ function Room({
         banner={bannerFor(state)}
         notice={notice}
         persistent={identity.persistent}
+        nudged={nudged}
         onAction={(action) => session.send(action)}
       />
     </>
