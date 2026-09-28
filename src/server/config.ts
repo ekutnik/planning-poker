@@ -50,6 +50,11 @@ const Env = z.object({
     Math.min(MAX_SWEEP_INTERVAL_MS, JOIN_TIMEOUT_MS),
   ).default(SWEEP_INTERVAL_MS),
   ROOM_TTL_MS: whole(1).default(ROOM_TTL_MS),
+  // "production" makes a missing client build fatal (see main.ts); any
+  // other value, or none, is development.
+  NODE_ENV: z.string().optional(),
+  // Where the built client is; unset means dist/web beside the source.
+  WEB_ROOT: z.string().min(1).optional(),
 });
 
 export interface Config {
@@ -58,6 +63,8 @@ export interface Config {
   readonly limits: Limits;
   readonly sweepIntervalMs: number;
   readonly roomTtlMs: number;
+  readonly production: boolean;
+  readonly webRoot: string | undefined;
 }
 
 export type ConfigResult =
@@ -81,6 +88,8 @@ export function parseConfig(
       limits: { maxRooms: vars.MAX_ROOMS, maxPending: vars.MAX_PENDING },
       sweepIntervalMs: vars.SWEEP_INTERVAL_MS,
       roomTtlMs: vars.ROOM_TTL_MS,
+      production: vars.NODE_ENV === "production",
+      webRoot: vars.WEB_ROOT,
     },
   };
 }

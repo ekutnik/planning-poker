@@ -1,4 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createServer } from "node:net";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { DEFAULT_LIMITS } from "./app.js";
@@ -19,6 +22,8 @@ describe("parseConfig (#18)", () => {
         limits: DEFAULT_LIMITS,
         sweepIntervalMs: SWEEP_INTERVAL_MS,
         roomTtlMs: ROOM_TTL_MS,
+        production: false,
+        webRoot: undefined,
       },
     });
   });
@@ -32,6 +37,8 @@ describe("parseConfig (#18)", () => {
         MAX_PENDING: "20",
         SWEEP_INTERVAL_MS: "1000",
         ROOM_TTL_MS: "60000",
+        NODE_ENV: "production",
+        WEB_ROOT: "/srv/web",
       }),
     ).toEqual({
       ok: true,
@@ -41,6 +48,8 @@ describe("parseConfig (#18)", () => {
         limits: { maxRooms: 50, maxPending: 20 },
         sweepIntervalMs: 1000,
         roomTtlMs: 60_000,
+        production: true,
+        webRoot: "/srv/web",
       },
     });
   });
@@ -103,6 +112,75 @@ describe("main", () => {
     expect(run.status).toBe(1);
     expect(run.stderr).toContain("Invalid configuration");
     expect(run.stderr).toContain("MAX_ROOMS");
+  });
+
+  describe("the client build", () => {
+    // Vitest runs with NODE_ENV=test; each case sets its own.
+    const { NODE_ENV: _ignored, ...base } = process.env;
+    const missing = join(tmpdir(), "planning-poker-no-build-here");
+
+    it("refuses to start in production without it, and says why", () => {
+      const run = spawnSync(
+        process.execPath,
+        ["--import", "tsx", "src/server/main.ts"],
+        {
+          env: {
+            ...base,
+            NODE_ENV: "production",
+            WEB_ROOT: missing,
+            PORT: "3999", // valid; it exits before listening
+          },
+          encoding: "utf8",
+          timeout: 15_000,
+        },
+      );
+      expect(run.status).toBe(1);
+      expect(run.stderr).toContain(`No client build at ${missing}`);
+    });
+
+    it("starts without it in development, as the API alone", async () => {
+      const port = await freePort();
+      const child = spawn(
+        process.execPath,
+        ["--import", "tsx", "src/server/main.ts"],
+        { env: { ...base, WEB_ROOT: missing, PORT: String(port) } },
+      );
+      onTestFinished(() => {
+        child.kill();
+      });
+      await firstLine(child.stdout, "no client build: API only", 4_000);
+    });
+
+    it("serves it in production when it is there", async () => {
+      const root = mkdtempSync(join(tmpdir(), "planning-poker-build-"));
+      writeFileSync(
+        join(root, "index.html"),
+        "<!doctype html><title>Built</title>",
+      );
+      const port = await freePort();
+      const child = spawn(
+        process.execPath,
+        ["--import", "tsx", "src/server/main.ts"],
+        {
+          env: {
+            ...base,
+            NODE_ENV: "production",
+            WEB_ROOT: root,
+            PORT: String(port),
+          },
+        },
+      );
+      onTestFinished(() => {
+        child.kill();
+        rmSync(root, { recursive: true, force: true });
+      });
+      await firstLine(child.stdout, "Server listening", 4_000);
+      const page = await fetch(`http://127.0.0.1:${String(port)}/`, {
+        headers: { accept: "text/html" },
+      });
+      expect(page.status).toBe(200);
+      expect(await page.text()).toContain("<title>Built</title>");
+    });
   });
 
   it("logs the effective config at startup, so a misspelled variable shows", async () => {
