@@ -1206,6 +1206,23 @@ describe("RoomService — shutdown (#29)", () => {
     expect(bob.sent).toEqual([]);
   });
 
+  it("sweeps nothing once it is shutting down, while sockets finish closing", () => {
+    const { service, connect, join, advance } = setup();
+    const alice = connect("alice");
+    const bob = connect("bob");
+    join(alice, ALICE, "Alice");
+    join(bob, BOB, "Bob");
+    bob.close(1000, "bye"); // Bob is in his grace period
+    alice.onClose = null; // Alice's close handshake is still going
+    service.shutdown();
+    alice.sent.length = 0;
+    const pings = alice.pings;
+    advance(DISCONNECT_GRACE_MS + PING_INTERVAL_MS);
+    service.sweep();
+    expect(alice.sent).toEqual([]); // no grace-removal broadcast
+    expect(alice.pings).toBe(pings);
+  });
+
   it("turns away a socket that opens once it is shutting down", () => {
     const { service, connect } = setup();
     service.shutdown();

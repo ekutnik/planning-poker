@@ -342,6 +342,9 @@ export class RoomService {
    * only sends due pings; the next sweep runs after the queue is read.
    */
   sweep(): void {
+    // Shutting down: every socket is closing, so a ping or a grace-removal
+    // broadcast could only reach one mid-close and log a warning.
+    if (this.stopping) return;
     const now = this.clock();
     const gapMs = now - (this.lastSweepAt ?? now);
     const stalled = gapMs > this.stallAfterMs;
