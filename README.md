@@ -16,7 +16,7 @@ Requires Node 24 (see `.nvmrc`).
 
 ```bash
 npm install       # also installs the git hooks
-npm run check     # typecheck (server and client), lint, format check, tests and client build, as CI runs them
+npm run check     # typecheck (server and client), lint, format check, tests, client build and server build, as CI runs them
 ```
 
 Run the server and the client in two terminals, then open http://localhost:5173:
@@ -48,6 +48,18 @@ The server reads its settings from environment variables. Unset means the defaul
 | `SHUTDOWN_TIMEOUT_MS` | `10000`     | How long a shutdown may take before the process exits anyway, with 1 (at least 3000: the two-second close grace plus a second) |
 | `NODE_ENV`            | unset       | `production` makes a missing client build fatal: the server refuses to start rather than serve only the API                    |
 | `WEB_ROOT`            | `dist/web`  | Where the built client is                                                                                                      |
+
+## Docker
+
+```bash
+docker build -t planning-poker .
+docker run --rm -p 3000:3000 planning-poker   # then open http://localhost:3000
+docker stop -t 15 <container>
+```
+
+The image builds the client with Vite and the server with `tsc` (`npm run build:server`, into `dist/server`), then keeps only those and the production dependencies on `node:24-slim`. It runs `node dist/server/main.js` directly, not `npm start`, since npm doesn't reliably pass SIGTERM on and the graceful shutdown needs it. It runs as the image's unprivileged `node` user, with `NODE_ENV=production` (so a missing client build refuses to start) and `HOST=0.0.0.0` (so the platform's proxy can reach it).
+
+`docker stop` waits 10 seconds before it kills the process, the same as the server's own `SHUTDOWN_TIMEOUT_MS` backstop, so give it 15 with `-t 15`: then Docker never kills a shutdown that is still draining. The deploy's stop timeout is set the same way.
 
 ## Shutdown
 

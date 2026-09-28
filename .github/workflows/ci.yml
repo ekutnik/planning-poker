@@ -31,3 +31,4 @@ jobs:
       # Same steps, same order as `npm run check`, which the pre-push hook runs.
       - run: npm run build:web
       - run: npm run check:bundle
+      - run: npm run build:server
