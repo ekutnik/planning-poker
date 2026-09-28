@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
 import { SHUTDOWN_TIMEOUT_MS } from "./config.js";
 
@@ -9,60 +10,49 @@ import { SHUTDOWN_TIMEOUT_MS } from "./config.js";
  * quietly cost more, so raising it is a decision made in review.
  */
 
-const toml = readFileSync(new URL("../../fly.toml", import.meta.url), "utf8");
-
-/** The uncommented lines, so a comment can't satisfy or break a check. */
-const lines = toml
-  .split("\n")
-  .map((line) => line.replace(/#.*$/, "").trim())
-  .filter((line) => line !== "");
-
-/** The value of `key = value` in the table named `table` ("" for the top). */
-function value(table: string, key: string): string | undefined {
-  let current = "";
-  for (const line of lines) {
-    const header = /^\[\[?([^\]]+)\]\]?$/.exec(line);
-    if (header) {
-      current = header[1] ?? "";
-      continue;
-    }
-    const pair = /^([\w.-]+)\s*=\s*(.+)$/.exec(line);
-    if (current === table && pair?.[1] === key) return pair[2];
-  }
-  return undefined;
-}
+const config = parse(
+  readFileSync(new URL("../../fly.toml", import.meta.url), "utf8"),
+) as Record<string, unknown>;
 
 describe("fly.toml stays within the budget", () => {
   it("is one small machine: shared-cpu-1x with 256 MB", () => {
-    expect(value("vm", "size")).toBe('"shared-cpu-1x"');
-    expect(value("vm", "memory")).toBe('"256mb"');
-    expect(lines.filter((line) => line === "[[vm]]")).toHaveLength(1);
+    expect(config.vm).toEqual([{ size: "shared-cpu-1x", memory: "256mb" }]);
   });
 
   it("runs in one region, Frankfurt", () => {
-    expect(value("", "primary_region")).toBe('"fra"');
+    expect(config.primary_region).toBe("fra");
   });
 
   it("keeps that one machine running, and never starts another", () => {
-    expect(value("http_service", "min_machines_running")).toBe("1");
-    expect(value("http_service", "auto_stop_machines")).toBe('"off"');
-    expect(value("http_service", "auto_start_machines")).toBe("false");
+    expect(config.http_service).toMatchObject({
+      min_machines_running: 1,
+      auto_stop_machines: "off",
+      auto_start_machines: false,
+    });
   });
 
-  it("has no volume, which would bill even while stopped", () => {
-    expect(lines.some((line) => /^\[\[?mounts\]\]?$/.test(line))).toBe(false);
+  it("has nothing that adds machines or bills while stopped", () => {
+    // [processes] and [[services]] can each add machines; a volume bills
+    // even while its machine is stopped.
+    for (const section of ["processes", "services", "mounts"]) {
+      expect(config, section).not.toHaveProperty(section);
+    }
   });
 
-  it("gives the graceful shutdown time to finish, and caps Node's heap below the machine's 207 MiB", () => {
-    expect(Number(value("", "kill_timeout"))).toBeGreaterThan(
-      SHUTDOWN_TIMEOUT_MS / 1000,
-    );
-    expect(value("env", "NODE_OPTIONS")).toBe('"--max-old-space-size=128"');
+  it("restarts the one machine's process after a crash", () => {
+    expect(config.restart).toEqual([{ policy: "on-failure", retries: 10 }]);
   });
 
-  it("holds at most 200 rooms, so full rooms fit in that heap", () => {
+  it("gives the graceful shutdown time to finish", () => {
+    expect(config.kill_timeout).toBeGreaterThan(SHUTDOWN_TIMEOUT_MS / 1000);
+  });
+
+  it("caps Node's heap below the machine's 207 MiB, and holds at most 200 rooms, so full rooms fit in it", () => {
     // Measured: 200 rooms of 30, plus 1,000 sockets not yet joined, use
     // 86.9 MiB of heap; the default 10,000 rooms would run out of it.
-    expect(value("env", "MAX_ROOMS")).toBe('"200"');
+    expect(config.env).toMatchObject({
+      NODE_OPTIONS: "--max-old-space-size=128",
+      MAX_ROOMS: "200",
+    });
   });
 });

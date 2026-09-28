@@ -1,8 +1,8 @@
 name: Budget
 
 # Fly has no spending cap and no billing alert. Once a week, check the app
-# is still what the budget pays for: one shared-cpu-1x machine with 256 MB
-# and no dedicated IPv4. A change made outside a deploy (fly scale from a
+# is still what the budget pays for: one shared-cpu-1x machine with 256 MB,
+# no dedicated IPv4 and no volume. A change made outside a deploy (fly scale from a
 # laptop, say) fails this, and GitHub emails the failure. Scheduled runs
 # use the workflow on the default branch, develop.
 on:
@@ -16,6 +16,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       # Pinned to the commit of its tag 1.6, as in deploy.yml.

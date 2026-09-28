@@ -18,18 +18,14 @@ kill_timeout = 15
 [env]
   # The client's address comes from Fly-Client-IP (src/server/client-ip.ts).
   PROXY = "fly"
-  # Node's heap well below the machine's memory, so Node collects garbage
-  # long before the machine runs out: running out of memory should never
-  # be what stops the server. A 256 MB machine has 207 MiB usable; the
-  # server takes about 82 MiB there, and 400 people in 50 rooms add little
-  # (68 MiB in all, locally). 128 caps the heap at about 131 MiB, leaving
-  # room for the rest; 192 would have let it grow past what's free.
+  # Memory. The 256 MB machine has 207 MiB usable. Node's heap is capped at
+  # 128 (a limit of about 131 MiB), so V8 collects hard long before the
+  # machine runs out. MAX_ROOMS keeps the heap inside that: each person in a
+  # room costs about 10.5 KiB of heap, and at the limit, 200 rooms of 30
+  # plus 1,000 sockets not yet joined, it measured 86.9 MiB of heap and
+  # 169 MiB for the whole process. The default, 10,000 rooms, would not
+  # fit: 400 full rooms ran the heap out.
   NODE_OPTIONS = "--max-old-space-size=128"
-  # What keeps the heap inside that cap. Each person in a room costs about
-  # 10.5 KiB of heap (measured), so the default 10,000 rooms of 30 would be
-  # about 3 GiB: 400 full rooms already ran out of heap. At 200 rooms, full
-  # (6,000 people) plus 1,000 sockets not yet joined, the heap measured
-  # 86.9 MiB and the process 169 MiB, in a container limited to 207 MiB.
   MAX_ROOMS = "200"
 
 [http_service]
@@ -45,6 +41,14 @@ kill_timeout = 15
     interval = "15s"
     timeout = "2s"
     grace_period = "10s"
+
+# One machine, so a crashed process is the whole app down: restart it.
+# on-failure restarts after any non-zero exit (a crash, or running out of
+# heap) and not after the deliberate exit 0 of a deploy's SIGTERM. It is
+# Fly's default, set here so it can't change unnoticed.
+[[restart]]
+  policy = "on-failure"
+  retries = 10
 
 [[vm]]
   size = "shared-cpu-1x"

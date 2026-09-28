@@ -3,6 +3,12 @@ name: Deploy
 # Deploys main to Fly.io, only after CI has passed on that push, and exactly
 # the commit CI checked. Rooms live in memory, so every deploy restarts the
 # one machine: see the README's Deploy section before merging to main.
+#
+# Which version of this file runs: a workflow_run workflow always runs the
+# copy on the default branch, develop, while the code it checks out and
+# deploys comes from main (head_sha below). So a change to this file takes
+# effect for main's deploys as soon as it lands on develop, before any
+# release.
 on:
   workflow_run:
     workflows: [CI]
@@ -20,11 +26,17 @@ concurrency:
 
 jobs:
   deploy:
-    # A push to main that passed CI; not a pull request that targets main.
+    # A push to main that passed CI. The event check matters: branches:
+    # [main] above only compares branch names, so a pull request from a fork
+    # whose branch is called main would pass it. Only a push to this
+    # repository's main may reach the deploy token.
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
+    # A hung deploy would otherwise hold the deploy group for GitHub's
+    # default of six hours, and the next deploy would wait behind it.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -41,7 +53,7 @@ jobs:
       - run: flyctl deploy --local-only --ha=false
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      # Still one small machine and no paid IPv4 (README, Deploy).
+      # Still one small machine, no paid IPv4 and no volume (README, Deploy).
       - run: scripts/check-fly-budget.sh
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
