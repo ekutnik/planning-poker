@@ -18,10 +18,13 @@ kill_timeout = 15
 [env]
   # The client's address comes from Fly-Client-IP (src/server/client-ip.ts).
   PROXY = "fly"
-  # Node's heap well below the machine's 256 MB, so Node collects garbage
+  # Node's heap well below the machine's memory, so Node collects garbage
   # long before the machine runs out: running out of memory should never
-  # be what stops the server. It uses about 70 MB with 400 people in rooms.
-  NODE_OPTIONS = "--max-old-space-size=192"
+  # be what stops the server. A 256 MB machine has 207 MiB usable; the
+  # server takes about 82 MiB there, and 400 people in 50 rooms add little
+  # (68 MiB in all, locally). 128 caps the heap at about 131 MiB, leaving
+  # room for the rest; 192 would have let it grow past what's free.
+  NODE_OPTIONS = "--max-old-space-size=128"
 
 [http_service]
   internal_port = 3000

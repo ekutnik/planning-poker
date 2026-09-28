@@ -53,10 +53,10 @@ describe("fly.toml stays within the budget", () => {
     expect(lines.some((line) => /^\[\[?mounts\]\]?$/.test(line))).toBe(false);
   });
 
-  it("gives the graceful shutdown time to finish, and Node room below 256 MB", () => {
+  it("gives the graceful shutdown time to finish, and caps Node's heap below the machine's 207 MiB", () => {
     expect(Number(value("", "kill_timeout"))).toBeGreaterThan(
       SHUTDOWN_TIMEOUT_MS / 1000,
     );
-    expect(value("env", "NODE_OPTIONS")).toBe('"--max-old-space-size=192"');
+    expect(value("env", "NODE_OPTIONS")).toBe('"--max-old-space-size=128"');
   });
 });
