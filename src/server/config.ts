@@ -7,6 +7,7 @@ import {
   SWEEP_INTERVAL_MS,
   type Limits,
 } from "./room-service.js";
+import { PROXIES, type Proxy } from "./client-ip.js";
 import { CLOSE_GRACE_MS } from "./shutdown.js";
 
 /**
@@ -85,6 +86,10 @@ const Env = z.object({
   NODE_ENV: z.string().optional(),
   // Where the built client is; unset means dist/web beside the source.
   WEB_ROOT: z.string().min(1).optional(),
+  // The proxy in front, whose header names the client (client-ip.ts). Set
+  // only where that proxy really is: "fly" in fly.toml. Anywhere else a
+  // client could send the header itself.
+  PROXY: z.enum(PROXIES).optional(),
 });
 
 export interface Config {
@@ -97,6 +102,7 @@ export interface Config {
   readonly shutdownTimeoutMs: number;
   readonly production: boolean;
   readonly webRoot: string | undefined;
+  readonly proxy: Proxy | undefined;
 }
 
 export type ConfigResult =
@@ -124,6 +130,7 @@ export function parseConfig(
       shutdownTimeoutMs: vars.SHUTDOWN_TIMEOUT_MS,
       production: vars.NODE_ENV === "production",
       webRoot: vars.WEB_ROOT,
+      proxy: vars.PROXY,
     },
   };
 }

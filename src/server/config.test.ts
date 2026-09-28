@@ -31,6 +31,7 @@ describe("parseConfig (#18)", () => {
         shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
         production: false,
         webRoot: undefined,
+        proxy: undefined,
       },
     });
   });
@@ -48,6 +49,7 @@ describe("parseConfig (#18)", () => {
         SHUTDOWN_TIMEOUT_MS: "5000",
         NODE_ENV: "production",
         WEB_ROOT: "/srv/web",
+        PROXY: "fly",
       }),
     ).toEqual({
       ok: true,
@@ -61,6 +63,7 @@ describe("parseConfig (#18)", () => {
         shutdownTimeoutMs: 5000,
         production: true,
         webRoot: "/srv/web",
+        proxy: "fly",
       },
     });
   });
@@ -81,6 +84,9 @@ describe("parseConfig (#18)", () => {
     ["HOST", ""],
     ["HOST", " 0.0.0.0"],
     ["HOST", "999.0.0.1"],
+    // Only a proxy the server knows how to read.
+    ["PROXY", "nginx"],
+    ["PROXY", ""],
     // Number() would accept all of these; plain decimal digits only.
     ["MAX_ROOMS", "0x10"],
     ["MAX_ROOMS", "1e4"],
@@ -211,6 +217,10 @@ describe("main", () => {
       });
       expect(page.status).toBe(200);
       expect(await page.text()).toContain("<title>Built</title>");
+      // Production turns on HSTS (headers.ts), as the config says.
+      expect(page.headers.get("strict-transport-security")).toBe(
+        "max-age=31536000",
+      );
     });
   });
 
@@ -236,6 +246,35 @@ describe("main", () => {
       fetch(`http://[::1]:${String(port)}/health`),
     ).rejects.toThrow();
     expect(output.match(/Server listening/g)).toEqual(["Server listening"]);
+  });
+
+  it("with PROXY=fly, logs the client from Fly-Client-IP", async () => {
+    const port = await freePort();
+    const child = spawn(
+      process.execPath,
+      ["--import", "tsx", "src/server/main.ts"],
+      {
+        env: {
+          ...process.env,
+          PORT: String(port),
+          HOST: "127.0.0.1",
+          LOG_LEVEL: "info",
+          PROXY: "fly",
+        },
+      },
+    );
+    onTestFinished(() => {
+      child.kill();
+    });
+    await firstLine(child.stdout, "Server listening", 4_000);
+    const logged = firstLine(child.stdout, "incoming request", 4_000);
+    await fetch(`http://127.0.0.1:${String(port)}/health`, {
+      headers: { "fly-client-ip": "203.0.113.7" },
+    });
+    const line = JSON.parse(await logged) as {
+      req: { remoteAddress: string };
+    };
+    expect(line.req.remoteAddress).toBe("203.0.113.7");
   });
 
   it("logs the effective config at startup, so a misspelled variable shows", async () => {

@@ -30,6 +30,15 @@ export const PAGE_CSP = [
  */
 export const SVG_CSP = "default-src 'none'; style-src 'unsafe-inline'";
 
+/**
+ * HTTPS only, for a year, on production responses. Nothing more: no
+ * includeSubDomains or preload, since the domain (fly.dev) is not ours to
+ * make promises for. Development runs over plain HTTP, where browsers
+ * ignore it anyway, but it is left out there so a local server never
+ * claims what it doesn't serve.
+ */
+export const HSTS = "max-age=31536000";
+
 /** Features the app never uses, switched off for this origin and any frame. */
 export const PERMISSIONS_POLICY =
   "camera=(), microphone=(), geolocation=(), payment=(), usb=()";
@@ -38,9 +47,14 @@ export const PERMISSIONS_POLICY =
  * Headers on every response. The room link is the only credential, so
  * Referrer-Policy matters most here: with no-referrer, following a link out
  * of the app never sends the room's URL, with its id, to another site.
+ * `production` adds HSTS.
  */
-export function securityHeaders(app: FastifyInstance): void {
+export function securityHeaders(
+  app: FastifyInstance,
+  { production }: { readonly production: boolean },
+): void {
   app.addHook("onSend", (_request, reply, payload, done) => {
+    if (production) reply.header("Strict-Transport-Security", HSTS);
     reply.header("Referrer-Policy", "no-referrer");
     reply.header("X-Content-Type-Options", "nosniff");
     reply.header("Permissions-Policy", PERMISSIONS_POLICY);

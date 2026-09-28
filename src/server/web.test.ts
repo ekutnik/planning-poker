@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { brotliDecompressSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildServer } from "./app.js";
-import { PAGE_CSP, PERMISSIONS_POLICY, SVG_CSP } from "./headers.js";
+import { HSTS, PAGE_CSP, PERMISSIONS_POLICY, SVG_CSP } from "./headers.js";
 import { IMMUTABLE, REVALIDATE } from "./web.js";
 
 /** A built client in miniature: the page, a hashed asset, and public files. */
@@ -30,8 +30,8 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-async function serving() {
-  const app = buildServer({ webRoot: root });
+async function serving({ production = false } = {}) {
+  const app = buildServer({ webRoot: root, production });
   await app.ready();
   return app;
 }
@@ -146,6 +146,32 @@ describe("security headers", () => {
       expect(headers["x-content-type-options"]).toBe("nosniff");
       // The page's policy is for documents; JSON and scripts need none.
       expect(headers["content-security-policy"]).toBeUndefined();
+    }
+    await app.close();
+  });
+
+  it("asks for HTTPS on every production response: the page, a room, the API, a file, a 404", async () => {
+    const app = await serving({ production: true });
+    for (const url of [
+      "/",
+      ROOM,
+      "/health",
+      "/assets/index-abc123.js",
+      "/nope",
+    ]) {
+      const { headers } = await app.inject({ url, headers: html });
+      expect(headers["strict-transport-security"], url).toBe(HSTS);
+    }
+    // A year; nothing for subdomains or the preload list: fly.dev isn't ours.
+    expect(HSTS).toBe("max-age=31536000");
+    await app.close();
+  });
+
+  it("sends no HSTS in development, which runs over plain HTTP", async () => {
+    const app = await serving();
+    for (const url of ["/", "/health"]) {
+      const { headers } = await app.inject({ url, headers: html });
+      expect(headers["strict-transport-security"], url).toBeUndefined();
     }
     await app.close();
   });
