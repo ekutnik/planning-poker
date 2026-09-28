@@ -12,7 +12,7 @@ Real-time scrum estimation for distributed teams. Votes stay hidden until reveal
 
 ## Development
 
-Requires Node 24 (see `.nvmrc`).
+Requires Node 24 (see `.nvmrc`). `npm install` refuses any other version (`engines` with `engine-strict` in `.npmrc`), so local results mean what CI's do.
 
 ```bash
 npm install       # also installs the git hooks
