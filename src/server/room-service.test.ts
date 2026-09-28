@@ -1172,3 +1172,45 @@ describe("RoomService — nudges (ADR 0007)", () => {
     expect(again.sent).toEqual([{ type: "nudged" }]);
   });
 });
+
+describe("RoomService — shutdown (#29)", () => {
+  it("closes every socket, joined or not, as going away", () => {
+    const { service, connect, join } = setup();
+    const alice = connect("alice");
+    const bob = connect("bob");
+    join(alice, ALICE, "Alice");
+    join(bob, BOB, "Bob");
+    const lurker = connect("lurker"); // never joined
+    service.shutdown();
+    for (const conn of [alice, bob, lurker]) {
+      expect(conn.closedWith).toEqual({ code: 1001, reason: "going away" });
+    }
+    expect(service.bookkeeping()).toMatchObject({
+      pending: 0,
+      bindings: 0,
+      sockets: 0,
+      liveness: 0,
+    });
+  });
+
+  it("tells nobody about the others leaving: every socket is closing", () => {
+    const { service, connect, join } = setup();
+    const alice = connect("alice");
+    const bob = connect("bob");
+    join(alice, ALICE, "Alice");
+    join(bob, BOB, "Bob");
+    alice.sent.length = 0;
+    bob.sent.length = 0;
+    service.shutdown();
+    expect(alice.sent).toEqual([]);
+    expect(bob.sent).toEqual([]);
+  });
+
+  it("turns away a socket that opens once it is shutting down", () => {
+    const { service, connect } = setup();
+    service.shutdown();
+    const late = connect("late");
+    expect(late.closedWith).toEqual({ code: 1001, reason: "going away" });
+    expect(service.bookkeeping().pending).toBe(0);
+  });
+});

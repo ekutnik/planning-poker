@@ -20,6 +20,13 @@ import { notFound, serveClient } from "./web.js";
 
 export const DEFAULT_LIMITS: Limits = { maxRooms: 10_000, maxPending: 1_000 };
 
+/**
+ * At shutdown, how long sockets get to finish their close handshake before
+ * they are dropped (#29). A browser answers at once; a closed laptop never
+ * does, and ws would otherwise wait 30 seconds for it.
+ */
+export const CLOSE_GRACE_MS = 2_000;
+
 export interface ServerOptions {
   /** Omit to disable logging; `stream` lets tests capture the lines. */
   readonly logger?: {
@@ -132,6 +139,33 @@ export function buildServer(options: ServerOptions = {}) {
   app.addHook("onClose", (_instance, done) => {
     clearInterval(sweeper);
     done();
+  });
+
+  // Shutdown (#29). Added here, before the websocket plugin loads, so it
+  // runs before the plugin's own preClose, which would close every client
+  // with no code at all. Every socket gets 1001 from the service; the ones
+  // that have not finished closing after the grace period are dropped.
+  app.addHook("preClose", (done) => {
+    rooms.shutdown();
+    const open = [...app.websocketServer.clients].filter(
+      (socket) => socket.readyState !== socket.CLOSED,
+    );
+    if (open.length === 0) {
+      done();
+      return;
+    }
+    const drop = setTimeout(() => {
+      for (const socket of open) socket.terminate();
+    }, CLOSE_GRACE_MS);
+    let closing = open.length;
+    for (const socket of open) {
+      socket.once("close", () => {
+        closing -= 1;
+        if (closing > 0) return;
+        clearTimeout(drop);
+        done();
+      });
+    }
   });
 
   void app.register(websocket, {

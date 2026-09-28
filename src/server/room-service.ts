@@ -186,6 +186,8 @@ export class RoomService {
   private readonly stallAfterMs: number;
   private readonly roomTtlMs: number;
   private lastSweepAt: number | undefined;
+  // Set by shutdown(): from then on every socket is closed as going away.
+  private stopping = false;
 
   constructor(
     private readonly clock: () => number,
@@ -202,6 +204,10 @@ export class RoomService {
   }
 
   open(conn: Connection, roomId: string): void {
+    if (this.stopping) {
+      conn.close(1001, "going away");
+      return;
+    }
     if (this.closed.has(conn) || this.pending.has(conn)) return;
     if (this.bindings.has(conn)) return;
     if (this.pending.size >= this.limits.maxPending) {
@@ -257,6 +263,12 @@ export class RoomService {
   close(conn: Connection): void {
     if (this.closed.has(conn)) return;
     this.closed.add(conn);
+    if (this.stopping) {
+      // The rooms are going with the process (ADR 0001): no disconnect to
+      // dispatch, and nobody to tell, since every socket is closing.
+      this.forget(conn);
+      return;
+    }
 
     const binding = this.bindings.get(conn);
     const stillCurrent =
@@ -277,6 +289,20 @@ export class RoomService {
     if (!result.ok || result.room === room) return;
     this.store(result.room, now);
     this.broadcast(result.room);
+  }
+
+  /**
+   * The process is going away (#29): close every socket, joined or not, with
+   * 1001, which the client reads as "the server is restarting" and answers
+   * by reconnecting with backoff, and turn away any that opens from now on.
+   * Rooms are in memory and go with the process (ADR 0001); this only makes
+   * the exit deliberate instead of a wall of 1006.
+   */
+  shutdown(): void {
+    this.stopping = true;
+    const everyone = [...this.pending.keys(), ...this.bindings.keys()];
+    this.log.info({ type: "shutdown" });
+    for (const conn of everyone) conn.close(1001, "going away");
   }
 
   /** Records a pong from a joined connection; others are ignored (#13). */

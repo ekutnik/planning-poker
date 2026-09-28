@@ -45,6 +45,40 @@ app.log.info(
   serving ? "serving the built client" : "no client build: API only",
 );
 
+// Shutdown (#29): a deploy sends SIGTERM, Ctrl-C in npm run dev sends
+// SIGINT, and both mean the same. Close gracefully: every socket gets 1001,
+// so the client says the server is restarting, the sweep interval stops,
+// and the process exits with 0. A second signal, or a shutdown still going
+// after SHUTDOWN_TIMEOUT_MS, exits at once with 1.
+let stopping = false;
+const shutdown = (signal: NodeJS.Signals) => {
+  if (stopping) {
+    app.log.warn({ signal }, "second signal: exiting now");
+    process.exit(1);
+  }
+  stopping = true;
+  app.log.info({ signal }, "shutting down");
+  setTimeout(() => {
+    app.log.error(
+      { timeoutMs: config.shutdownTimeoutMs },
+      "shutdown took too long: exiting now",
+    );
+    process.exit(1);
+  }, config.shutdownTimeoutMs).unref();
+  app.close().then(
+    () => {
+      app.log.info("shut down");
+      process.exit(0);
+    },
+    (error: unknown) => {
+      app.log.error(error, "shutdown failed");
+      process.exit(1);
+    },
+  );
+};
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+
 try {
   await app.listen({ port: config.port });
 } catch (error) {
