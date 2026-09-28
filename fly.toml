@@ -2,7 +2,7 @@
 # always running: a second machine would split the rooms between them, and
 # a stopped one would drop them. So every deploy restarts it (see the
 # README's Deploy section).
-app = "planning-poker-du9d3o"
+app = "estimate-together"
 primary_region = "fra"
 
 # SIGTERM starts the graceful shutdown (#29). Fly's default wait is 5 s;
