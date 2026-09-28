@@ -59,4 +59,10 @@ describe("fly.toml stays within the budget", () => {
     );
     expect(value("env", "NODE_OPTIONS")).toBe('"--max-old-space-size=128"');
   });
+
+  it("holds at most 200 rooms, so full rooms fit in that heap", () => {
+    // Measured: 200 rooms of 30, plus 1,000 sockets not yet joined, use
+    // 86.9 MiB of heap; the default 10,000 rooms would run out of it.
+    expect(value("env", "MAX_ROOMS")).toBe('"200"');
+  });
 });

@@ -92,7 +92,7 @@ The app runs on [Fly.io](https://fly.io) (`fly.toml`): one machine in Frankfurt,
 
 **Don't deploy during your team's planning sessions.** There is one machine, and rooms live in its memory (ADR 0001), so every deploy restarts it and every room loses its round in progress. Each page says "The server is restarting. Reconnecting…" and rejoins on its own within seconds, but the votes cast so far are gone and the round starts again. A second machine wouldn't help: the rooms would be split between them.
 
-On Fly the server sends `Strict-Transport-Security: max-age=31536000` (production only; nothing for subdomains or preloading, since `fly.dev` isn't ours), Fly waits 15 s after SIGTERM (`kill_timeout`, above the 10 s shutdown backstop), checks `/health`, and `PROXY=fly` takes the client's address from `Fly-Client-IP`.
+On Fly the server sends `Strict-Transport-Security: max-age=31536000` (production only; nothing for subdomains or preloading, since `fly.dev` isn't ours), Fly waits 15 s after SIGTERM (`kill_timeout`, above the 10 s shutdown backstop), checks `/health`, and `PROXY=fly` takes the client's address from `Fly-Client-IP`. Memory is bounded by `MAX_ROOMS=200` and `NODE_OPTIONS=--max-old-space-size=128`: 200 full rooms (6,000 people) plus 1,000 sockets not yet joined measured 86.9 MiB of heap in a container limited to the machine's 207 MiB, where the default 10,000 rooms ran out of heap at 400 full rooms. A team needs a room or two.
 
 ## Shutdown
 

@@ -25,6 +25,12 @@ kill_timeout = 15
   # (68 MiB in all, locally). 128 caps the heap at about 131 MiB, leaving
   # room for the rest; 192 would have let it grow past what's free.
   NODE_OPTIONS = "--max-old-space-size=128"
+  # What keeps the heap inside that cap. Each person in a room costs about
+  # 10.5 KiB of heap (measured), so the default 10,000 rooms of 30 would be
+  # about 3 GiB: 400 full rooms already ran out of heap. At 200 rooms, full
+  # (6,000 people) plus 1,000 sockets not yet joined, the heap measured
+  # 86.9 MiB and the process 169 MiB, in a container limited to 207 MiB.
+  MAX_ROOMS = "200"
 
 [http_service]
   internal_port = 3000
