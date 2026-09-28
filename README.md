@@ -26,7 +26,7 @@ npm run dev       # terminal 1: the server on http://localhost:3000, restarts on
 npm run dev:web   # terminal 2: the client on http://localhost:5173, reloads on change
 ```
 
-The client's dev server proxies `/api` and `/ws` to the server, so the browser talks to one origin. Two terminals keep each process's output readable and avoid a process-runner dependency. `npm run build:web` builds the client into `dist/web`; `npm run check` and CI both run it. When a build is there, the server serves it too, as in production: open http://localhost:3000 for the built client, with its caching and compression. Without one, the server is the API alone and logs that it is.
+The client's dev server proxies `/api` and `/ws` to the server, so the browser talks to one origin. Two terminals keep each process's output readable and avoid a process-runner dependency. `npm run build:web` builds the client into `dist/web`; `npm run check` and CI both run it. When a build is there, the server serves it too, as in production: open http://localhost:3000 for the built client, with its caching, compression and security headers (see Security headers below). Without one, the server is the API alone and logs that it is.
 
 The server (`src/server`) and the client (`src/web`) have separate TypeScript configs: `tsconfig.json` is Node, with Node types and no DOM types, and `tsconfig.web.json` is the browser, with DOM types and no Node types. Both include `src/shared`, so shared code is typechecked as Node code and as browser code, and can only use what both runtimes provide. The client cannot import server code (a lint rule enforces it).
 
@@ -44,6 +44,10 @@ The server reads its settings from environment variables. Unset means the defaul
 | `MAX_PENDING`       | `1000`   | Sockets that have not joined yet; more are refused with `1013`                                       |
 | `SWEEP_INTERVAL_MS` | `5000`   | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls) |
 | `ROOM_TTL_MS`       | `600000` | How long a room may stay empty before it is evicted                                                  |
+
+## Security headers
+
+The room link is the only credential, so the headers guard it first. Every response carries `Referrer-Policy: no-referrer`, so following a link out of the app never sends the room's URL to another site, plus `X-Content-Type-Options: nosniff` and a `Permissions-Policy` that switches off the camera, microphone, location, payment and USB. Pages carry a strict `Content-Security-Policy`: everything from this origin, nothing inline, no framing (`src/server/headers.ts`, where each directive is explained). The favicon SVG gets its own policy, which allows its inline style and nothing else. Hashed files under `/assets/` are cached for a year; everything else, `index.html` included, is revalidated on every load, so a deploy shows at once.
 
 ## Architecture
 

@@ -8,6 +8,7 @@ import type { WebSocket } from "ws";
 import { CloseCode } from "../shared/close-codes.js";
 import { PROTOCOL_VERSION } from "../shared/protocol.js";
 import { ROOM_ID_PATTERN } from "../shared/rules.js";
+import { securityHeaders } from "./headers.js";
 import { generateRoomId } from "./identity.js";
 import {
   RoomService,
@@ -96,6 +97,7 @@ export function buildServer(options: ServerOptions = {}) {
       serializers: { req: serializeRequest },
     },
   });
+  securityHeaders(app);
   if (options.webRoot !== undefined) serveClient(app, options.webRoot);
   // The default 404 handler logs the raw URL; this one does not.
   app.setNotFoundHandler(notFound(options.webRoot !== undefined));
