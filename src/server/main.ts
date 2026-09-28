@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildServer } from "./app.js";
 import { parseConfig } from "./config.js";
@@ -12,9 +13,21 @@ if (!parsed.ok) {
 const { config } = parsed;
 
 // The built client (npm run build:web). In development there is usually
-// none, and Vite serves the page, so the server is the API alone.
-const webRoot = fileURLToPath(new URL("../../dist/web/", import.meta.url));
-const serving = existsSync(`${webRoot}index.html`);
+// none, and Vite serves the page, so the server is the API alone. In
+// production that would be a silent failure: /health passes, the deploy
+// goes green, and every visitor gets an empty 404. So there, as with a bad
+// setting, the server refuses to start.
+const webRoot =
+  config.webRoot ?? fileURLToPath(new URL("../../dist/web/", import.meta.url));
+const serving = existsSync(join(webRoot, "index.html"));
+if (!serving && config.production) {
+  console.error(
+    `No client build at ${webRoot}. In production the server must serve ` +
+      "the client: run npm run build:web, or check that the image copies " +
+      "dist/web (or set WEB_ROOT to where it is).",
+  );
+  process.exit(1);
+}
 
 const app = buildServer({
   webRoot: serving ? webRoot : undefined,
