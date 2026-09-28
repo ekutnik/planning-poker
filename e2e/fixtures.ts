@@ -1,3 +1,13 @@
+/**
+ * Shared fixtures for the end-to-end suite.
+ *
+ * One rule for every test: before asserting that something is absent
+ * (toHaveCount(0), not.toContainText, a list without an item), first wait
+ * for something present from the same update. A check that nothing is
+ * there passes the moment it runs, so it can pass before the update it
+ * means to check has arrived. The privacy test's "no card chosen" did just
+ * that until it waited for "You've voted"; a mutation run caught it.
+ */
 import {
   test as base,
   expect,

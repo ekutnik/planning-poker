@@ -1,3 +1,4 @@
+import { expectAccessible } from "./axe.js";
 import { expect, test, watch } from "./fixtures.js";
 
 /**
@@ -38,4 +39,19 @@ test("the guard sees a CSP violation and an uncaught error", async ({
     .poll(() => problems.at(-1))
     .toBe("uncaught error: from the page");
   await context.close();
+});
+
+/**
+ * The axe helper checks both themes by switching the system's colour
+ * scheme, which a stored theme would override. It must refuse that page,
+ * not report two checks of one theme as light and dark.
+ */
+test("the axe helper refuses a page with a stored theme", async ({
+  people,
+}) => {
+  const person = await people.open("/", { theme: "dark" });
+  await expect(person.heading).toHaveText("Estimate together");
+  await expect(expectAccessible(person.page, "landing")).rejects.toThrow(
+    'expectAccessible needs the theme to follow the system, but "landing" has a stored theme (data-theme="dark")',
+  );
 });
