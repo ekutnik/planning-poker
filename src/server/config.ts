@@ -1,12 +1,13 @@
 import * as z from "zod";
-import { CLOSE_GRACE_MS, DEFAULT_LIMITS } from "./app.js";
 import {
+  DEFAULT_LIMITS,
   JOIN_TIMEOUT_MS,
   MAX_SWEEP_INTERVAL_MS,
   ROOM_TTL_MS,
   SWEEP_INTERVAL_MS,
   type Limits,
 } from "./room-service.js";
+import { CLOSE_GRACE_MS } from "./shutdown.js";
 
 /**
  * A shutdown still running after this long exits anyway, with 1 (#29). The
@@ -53,6 +54,16 @@ const whole = (min: number, max = Number.MAX_SAFE_INTEGER) =>
  */
 const Env = z.object({
   PORT: whole(1, 65_535).default(3000),
+  // The address to listen on, as an IP address. 127.0.0.1 by default, so a
+  // dev server is never reachable from the network. In a container that is
+  // the container itself, out of the platform proxy's reach: the Dockerfile
+  // sets 0.0.0.0. Not a hostname: "localhost" can mean ::1 or 127.0.0.1,
+  // and Fastify would listen on both.
+  HOST: z
+    .union([z.ipv4(), z.ipv6()], {
+      error: "expected an IP address, such as 127.0.0.1 or 0.0.0.0",
+    })
+    .default("127.0.0.1"),
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
   MAX_ROOMS: whole(1).default(DEFAULT_LIMITS.maxRooms),
   MAX_PENDING: whole(1).default(DEFAULT_LIMITS.maxPending),
@@ -78,6 +89,7 @@ const Env = z.object({
 
 export interface Config {
   readonly port: number;
+  readonly host: string;
   readonly logLevel: (typeof LOG_LEVELS)[number];
   readonly limits: Limits;
   readonly sweepIntervalMs: number;
@@ -104,6 +116,7 @@ export function parseConfig(
     ok: true,
     config: {
       port: vars.PORT,
+      host: vars.HOST,
       logLevel: vars.LOG_LEVEL,
       limits: { maxRooms: vars.MAX_ROOMS, maxPending: vars.MAX_PENDING },
       sweepIntervalMs: vars.SWEEP_INTERVAL_MS,

@@ -31,3 +31,28 @@ jobs:
       # Same steps, same order as `npm run check`, which the pre-push hook runs.
       - run: npm run build:web
       - run: npm run check:bundle
+      - run: npm run build:server
+
+  # The Docker image, built as the deploy builds it (BuildKit), and nothing
+  # published. Then a smoke test of what a deploy relies on: it starts in
+  # production, answers /health from outside the container, and stops with
+  # 0 inside the stop timeout.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --tag planning-poker:ci .
+        env:
+          DOCKER_BUILDKIT: 1
+      - run: docker run --detach --name app --publish 3000:3000 planning-poker:ci
+      - run: |
+          for attempt in $(seq 1 20); do
+            curl --silent --fail http://127.0.0.1:3000/health && exit 0
+            sleep 0.5
+          done
+          docker logs app
+          exit 1
+      - run: |
+          docker stop --time 15 app
+          docker logs app | tail -n 3
+          test "$(docker inspect app --format '{{.State.ExitCode}}')" = 0

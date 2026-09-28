@@ -12,11 +12,11 @@ Real-time scrum estimation for distributed teams. Votes stay hidden until reveal
 
 ## Development
 
-Requires Node 24 (see `.nvmrc`).
+Requires Node 24 (see `.nvmrc`). `npm install` refuses any other version (`engines` with `engine-strict` in `.npmrc`), so local results mean what CI's do.
 
 ```bash
 npm install       # also installs the git hooks
-npm run check     # typecheck (server and client), lint, format check, tests and client build, as CI runs them
+npm run check     # typecheck (server and client), lint, format check, tests, client build and server build, as CI runs them
 ```
 
 Run the server and the client in two terminals, then open http://localhost:5173:
@@ -36,17 +36,30 @@ The server (`src/server`) and the client (`src/web`) have separate TypeScript co
 
 The server reads its settings from environment variables. Unset means the default. A set but invalid value, including an empty string, stops it from starting, with a message that names every bad variable. Numbers must be plain decimal digits (`0x10`, `1e4` and ` 5` are refused). The effective configuration is logged once at startup, so a misspelled variable, which is simply ignored, shows up as its default.
 
-| Variable              | Default    | Meaning                                                                                                                        |
-| --------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `PORT`                | `3000`     | HTTP and WebSocket port                                                                                                        |
-| `LOG_LEVEL`           | `info`     | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`                                                                 |
-| `MAX_ROOMS`           | `10000`    | Rooms held in memory; a join that would create one more is refused                                                             |
-| `MAX_PENDING`         | `1000`     | Sockets that have not joined yet; more are refused with `1013`                                                                 |
-| `SWEEP_INTERVAL_MS`   | `5000`     | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls)                           |
-| `ROOM_TTL_MS`         | `600000`   | How long a room may stay empty before it is evicted                                                                            |
-| `SHUTDOWN_TIMEOUT_MS` | `10000`    | How long a shutdown may take before the process exits anyway, with 1 (at least 3000: the two-second close grace plus a second) |
-| `NODE_ENV`            | unset      | `production` makes a missing client build fatal: the server refuses to start rather than serve only the API                    |
-| `WEB_ROOT`            | `dist/web` | Where the built client is                                                                                                      |
+| Variable              | Default     | Meaning                                                                                                                        |
+| --------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `PORT`                | `3000`      | HTTP and WebSocket port                                                                                                        |
+| `HOST`                | `127.0.0.1` | The IP address to listen on. The default keeps a dev server off the network; the Docker image sets `0.0.0.0`                   |
+| `LOG_LEVEL`           | `info`      | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`                                                                 |
+| `MAX_ROOMS`           | `10000`     | Rooms held in memory; a join that would create one more is refused                                                             |
+| `MAX_PENDING`         | `1000`      | Sockets that have not joined yet; more are refused with `1013`                                                                 |
+| `SWEEP_INTERVAL_MS`   | `5000`      | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls)                           |
+| `ROOM_TTL_MS`         | `600000`    | How long a room may stay empty before it is evicted                                                                            |
+| `SHUTDOWN_TIMEOUT_MS` | `10000`     | How long a shutdown may take before the process exits anyway, with 1 (at least 3000: the two-second close grace plus a second) |
+| `NODE_ENV`            | unset       | `production` makes a missing client build fatal: the server refuses to start rather than serve only the API                    |
+| `WEB_ROOT`            | `dist/web`  | Where the built client is                                                                                                      |
+
+## Docker
+
+```bash
+docker build -t planning-poker .
+docker run --rm -p 3000:3000 planning-poker   # then open http://localhost:3000
+docker stop -t 15 <container>
+```
+
+The image builds the client with Vite and the server with `tsc` (`npm run build:server`, into `dist/server`), then keeps only those and the production dependencies on `node:24-slim`, pinned to an exact version and digest so two builds of one commit are the same; Dependabot proposes updates as pull requests. It runs `node dist/server/main.js` directly, not `npm start`, since npm doesn't reliably pass SIGTERM on and the graceful shutdown needs it. It runs as the image's unprivileged `node` user, with `NODE_ENV=production` (so a missing client build refuses to start) and `HOST=0.0.0.0` (so the platform's proxy can reach it).
+
+`docker stop` waits 10 seconds before it kills the process, the same as the server's own `SHUTDOWN_TIMEOUT_MS` backstop, so give it 15 with `-t 15`: then Docker never kills a shutdown that is still draining. The deploy's stop timeout is set the same way.
 
 ## Shutdown
 

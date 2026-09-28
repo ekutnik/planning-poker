@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { connect } from "node:net";
 import { describe, expect, it, onTestFinished } from "vitest";
 import WebSocket from "ws";
 import { socketPath } from "../shared/protocol.js";
@@ -109,15 +110,21 @@ async function server(env: Record<string, string> = {}) {
   const child = spawn(
     process.execPath,
     ["--import", "tsx", "src/server/main.ts"],
-    { env: { ...base, PORT: String(port), LOG_LEVEL: "info", ...env } },
+    {
+      env: {
+        ...base,
+        PORT: String(port),
+        HOST: "127.0.0.1",
+        LOG_LEVEL: "info",
+        ...env,
+      },
+    },
   );
   onTestFinished(() => {
     child.kill("SIGKILL");
   });
   const exited = once(child, "exit") as Promise<[number | null, string | null]>;
-  // Fastify listens on ::1 and 127.0.0.1 and logs each: wait for the one
-  // the client connects to, or it can be refused in between.
-  await firstLine(child.stdout, "Server listening at http://127.0.0.1", 6_000);
+  await firstLine(child.stdout, "Server listening", 6_000);
   return { port, child, exited };
 }
 
@@ -170,6 +177,43 @@ describe("shutdown in the real process (#29)", () => {
     const [code] = await exited;
     expect(code).toBe(0);
     expect(seconds(start)).toBeGreaterThan(1.5); // waited the 2s grace
+  });
+
+  it("closes a connection that arrives during the grace, so it can't hold up the exit", async () => {
+    const { port, child, exited } = await server();
+    const { socket } = await client(port);
+    socket.pause(); // a closed laptop keeps the grace running
+    const start = performance.now();
+    child.kill("SIGTERM");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    // A browser reconnecting after its 1001, which leaves its side open
+    // after the answer, as a browser may.
+    const late = connect(
+      { port, host: "127.0.0.1", allowHalfOpen: true },
+      () => {
+        late.write(
+          [
+            `GET ${socketPath(ROOM)} HTTP/1.1`,
+            "Host: 127.0.0.1",
+            "Connection: Upgrade",
+            "Upgrade: websocket",
+            "Sec-WebSocket-Version: 13",
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            "",
+            "",
+          ].join("\r\n"),
+        );
+      },
+    );
+    onTestFinished(() => {
+      late.destroy();
+    });
+    const [answer] = (await once(late, "data")) as [Buffer];
+    expect(answer.toString()).toMatch(/^HTTP\/1\.1 503 /);
+    await once(late, "end"); // the server closed its side
+    const [code] = await exited;
+    expect(code).toBe(0);
+    expect(seconds(start)).toBeLessThan(4); // the grace, not the 10s timeout
   });
 
   it("exits at once, with 1, on a second signal", async () => {

@@ -1,0 +1,13 @@
+# Updates to the Docker base image, as pull requests to review. Node stays
+# on 24, the LTS the project targets (.nvmrc, engines): a new major is a
+# decision, not an update.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]

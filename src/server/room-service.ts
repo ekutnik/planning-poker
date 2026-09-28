@@ -94,6 +94,8 @@ export interface Limits {
   readonly maxPending: number;
 }
 
+export const DEFAULT_LIMITS: Limits = { maxRooms: 10_000, maxPending: 1_000 };
+
 interface LogFields {
   conn?: string;
   room?: string;
