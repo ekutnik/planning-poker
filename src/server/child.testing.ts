@@ -1,4 +1,5 @@
 import { createServer } from "node:net";
+import { CONFIG_VARIABLES } from "./config.js";
 
 /**
  * Helpers for tests that start the real server in a child process (the
@@ -43,4 +44,17 @@ export function firstLine(
       reject(new Error(`no line containing ${containing}`)),
     );
   });
+}
+
+/**
+ * The environment for a child server: this process's, without any variable
+ * the server reads, then the test's own. A NODE_ENV or MAX_ROOMS set in
+ * someone's shell (or Vitest's NODE_ENV=test) never reaches the server.
+ */
+export function serverEnv(
+  env: Readonly<Record<string, string>> = {},
+): NodeJS.ProcessEnv {
+  const inherited: NodeJS.ProcessEnv = { ...process.env };
+  for (const name of CONFIG_VARIABLES) delete inherited[name];
+  return { ...inherited, ...env };
 }

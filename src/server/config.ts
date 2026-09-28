@@ -92,6 +92,13 @@ const Env = z.object({
   PROXY: z.enum(PROXIES).optional(),
 });
 
+/**
+ * Every environment variable the server reads. Tests start child servers
+ * without these (child.testing.ts), so a setting in someone's shell can't
+ * change what a test runs against.
+ */
+export const CONFIG_VARIABLES: readonly string[] = Object.keys(Env.shape);
+
 export interface Config {
   readonly port: number;
   readonly host: string;

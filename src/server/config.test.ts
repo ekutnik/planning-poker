@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { freePort, firstLine } from "./child.testing.js";
+import { freePort, firstLine, serverEnv } from "./child.testing.js";
 import {
   MIN_SHUTDOWN_TIMEOUT_MS,
   parseConfig,
@@ -140,7 +140,7 @@ describe("main", () => {
       process.execPath,
       ["--import", "tsx", "src/server/main.ts"],
       {
-        env: { ...process.env, MAX_ROOMS: "abc", PORT: "0" },
+        env: serverEnv({ MAX_ROOMS: "abc", PORT: "0" }),
         encoding: "utf8",
         timeout: 15_000,
       },
@@ -151,8 +151,6 @@ describe("main", () => {
   });
 
   describe("the client build", () => {
-    // Vitest runs with NODE_ENV=test; each case sets its own.
-    const { NODE_ENV: _ignored, ...base } = process.env;
     const missing = join(tmpdir(), "planning-poker-no-build-here");
 
     it("refuses to start in production without it, and says why", () => {
@@ -160,12 +158,11 @@ describe("main", () => {
         process.execPath,
         ["--import", "tsx", "src/server/main.ts"],
         {
-          env: {
-            ...base,
+          env: serverEnv({
             NODE_ENV: "production",
             WEB_ROOT: missing,
             PORT: "3999", // valid; it exits before listening
-          },
+          }),
           encoding: "utf8",
           timeout: 15_000,
         },
@@ -179,7 +176,7 @@ describe("main", () => {
       const child = spawn(
         process.execPath,
         ["--import", "tsx", "src/server/main.ts"],
-        { env: { ...base, WEB_ROOT: missing, PORT: String(port) } },
+        { env: serverEnv({ WEB_ROOT: missing, PORT: String(port) }) },
       );
       onTestFinished(() => {
         child.kill();
@@ -198,13 +195,12 @@ describe("main", () => {
         process.execPath,
         ["--import", "tsx", "src/server/main.ts"],
         {
-          env: {
-            ...base,
+          env: serverEnv({
             NODE_ENV: "production",
             WEB_ROOT: root,
             PORT: String(port),
             HOST: "127.0.0.1",
-          },
+          }),
         },
       );
       onTestFinished(() => {
@@ -229,7 +225,7 @@ describe("main", () => {
     const child = spawn(
       process.execPath,
       ["--import", "tsx", "src/server/main.ts"],
-      { env: { ...process.env, PORT: String(port), HOST: "127.0.0.1" } },
+      { env: serverEnv({ PORT: String(port), HOST: "127.0.0.1" }) },
     );
     let output = "";
     child.stdout.on("data", (chunk: Buffer) => {
@@ -254,13 +250,12 @@ describe("main", () => {
       process.execPath,
       ["--import", "tsx", "src/server/main.ts"],
       {
-        env: {
-          ...process.env,
+        env: serverEnv({
           PORT: String(port),
           HOST: "127.0.0.1",
           LOG_LEVEL: "info",
           PROXY: "fly",
-        },
+        }),
       },
     );
     onTestFinished(() => {
@@ -283,12 +278,11 @@ describe("main", () => {
       process.execPath,
       ["--import", "tsx", "src/server/main.ts"],
       {
-        env: {
-          ...process.env,
+        env: serverEnv({
           PORT: String(port),
           LOG_LEVEL: "info",
           MAX_ROOM: "7", // typo for MAX_ROOMS: ignored, so the default applies
-        },
+        }),
       },
     );
     // Runs even if the test times out, so a failure never leaks a server.

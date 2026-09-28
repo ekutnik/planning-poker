@@ -4,7 +4,7 @@ import { connect } from "node:net";
 import { describe, expect, it, onTestFinished } from "vitest";
 import WebSocket from "ws";
 import { socketPath } from "../shared/protocol.js";
-import { firstLine, freePort } from "./child.testing.js";
+import { firstLine, freePort, serverEnv } from "./child.testing.js";
 import { onShutdownSignal } from "./shutdown.js";
 
 /**
@@ -102,8 +102,6 @@ describe("onShutdownSignal (#29)", () => {
 });
 
 const ROOM = "abcdefghijk";
-// Vitest runs with NODE_ENV=test; the server here is in development mode.
-const { NODE_ENV: _ignored, ...base } = process.env;
 
 async function server(env: Record<string, string> = {}) {
   const port = await freePort();
@@ -111,13 +109,12 @@ async function server(env: Record<string, string> = {}) {
     process.execPath,
     ["--import", "tsx", "src/server/main.ts"],
     {
-      env: {
-        ...base,
+      env: serverEnv({
         PORT: String(port),
         HOST: "127.0.0.1",
         LOG_LEVEL: "info",
         ...env,
-      },
+      }),
     },
   );
   onTestFinished(() => {
