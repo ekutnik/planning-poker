@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
-import { PRODUCT_NAME } from "./copy.js";
+import { NUDGE_COPY, PRODUCT_NAME } from "./copy.js";
 import { roundStatus } from "./status.js";
 
 const APP = PRODUCT_NAME;
@@ -26,6 +26,22 @@ export function roomTitle(snapshot: RoomSnapshot): string {
   if (snapshot.phase === "revealed") return "Votes revealed";
   const waiting = roundStatus(snapshot).waitingFor.length;
   return waiting === 0 ? "Everyone voted" : `${waiting} waiting`;
+}
+
+/**
+ * The room's tab title and its nudge banner, decided together so they can
+ * never disagree: while a nudge stands, the title asks for your vote and
+ * the banner says the room is waiting; otherwise the title carries the
+ * round and there is no banner. Both are fixed words chosen by a yes or no,
+ * so nothing about who nudged, or anyone else, can reach them.
+ */
+export function roomTitleAndBanner(
+  round: string,
+  nudged: boolean,
+): { readonly title: string; readonly banner: string | null } {
+  return nudged
+    ? { title: NUDGE_COPY.title, banner: NUDGE_COPY.banner }
+    : { title: round, banner: null };
 }
 
 /** Sets the document title while this screen is shown. */

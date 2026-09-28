@@ -347,6 +347,33 @@ describe("RoomConnection — reconnecting", () => {
     expect(connection.getState()).toMatchObject({ snapshot: snapshot(3) });
   });
 
+  it("passes a nudge to its listeners, and changes nothing else", () => {
+    const { connection, latest, joined } = setup();
+    joined(1);
+    const before = connection.getState();
+    let nudges = 0;
+    const stop = connection.onNudged(() => (nudges += 1));
+    latest().receive({ type: "nudged" });
+    expect(nudges).toBe(1);
+    expect(connection.getState()).toBe(before);
+    stop();
+    latest().receive({ type: "nudged" });
+    expect(nudges).toBe(1);
+  });
+
+  it("delivers no nudge once disposed, as after leaving", () => {
+    // Disposing detaches the socket, so this holds whatever the listener
+    // set does; dispose() also clears the set, only to free memory.
+    const { connection, latest, joined } = setup();
+    joined(1);
+    let nudges = 0;
+    connection.onNudged(() => (nudges += 1));
+    const socket = latest();
+    connection.dispose();
+    socket.receive({ type: "nudged" });
+    expect(nudges).toBe(0);
+  });
+
   it("ignores unknown server message types and malformed frames", () => {
     const { connection, latest, joined } = setup();
     joined(1);

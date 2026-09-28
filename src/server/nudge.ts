@@ -16,7 +16,8 @@ export type NudgeRefusal =
  * Whether a nudge may reach its target, and if not, why (docs/design.md,
  * Nudges; ADR 0007). The room must be voting; the sender must be in it; the
  * target must be someone else in the same room, connected, with no vote;
- * and nobody may have nudged them in the last NUDGE_COOLDOWN_MS.
+ * and nobody may have nudged them in the last NUDGE_COOLDOWN_MS (the room
+ * service ends a cooldown early when they vote or the round ends).
  *
  * Pure, and outside the domain on purpose: a nudge is transient and never
  * enters room state. The room service keeps the cooldown and sends it.

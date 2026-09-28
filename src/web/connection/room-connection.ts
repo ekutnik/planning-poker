@@ -109,6 +109,7 @@ export class RoomConnection {
   };
   private readonly listeners = new Set<() => void>();
   private readonly errorListeners = new Set<(code: ErrorCode) => void>();
+  private readonly nudgeListeners = new Set<() => void>();
 
   // The current socket and what is scoped to it. Every socket's events carry
   // the generation they were opened with; older generations are ignored.
@@ -149,6 +150,12 @@ export class RoomConnection {
     return () => this.errorListeners.delete(listener);
   }
 
+  /** Someone nudged this person (ADR 0007). The message says nothing more. */
+  onNudged(listener: () => void): () => void {
+    this.nudgeListeners.add(listener);
+    return () => this.nudgeListeners.delete(listener);
+  }
+
   start(): void {
     if (this.disposed || this.socket || this.retryTimer !== null) return;
     if (this.state.status === "stopped") return;
@@ -181,6 +188,7 @@ export class RoomConnection {
     this.abandonSocket("dispose");
     this.listeners.clear();
     this.errorListeners.clear();
+    this.nudgeListeners.clear();
   }
 
   leave(): void {
@@ -260,6 +268,9 @@ export class RoomConnection {
         this.handleError(message.code);
         return;
       case "pong":
+        return;
+      case "nudged":
+        for (const listener of this.nudgeListeners) listener();
         return;
     }
   }
@@ -407,6 +418,10 @@ function parseServerMessage(data: string): ServerMessage | null {
   }
   if (typeof value !== "object" || value === null) return null;
   const { type } = value as { type?: unknown };
-  const known = type === "snapshot" || type === "error" || type === "pong";
+  const known =
+    type === "snapshot" ||
+    type === "error" ||
+    type === "pong" ||
+    type === "nudged";
   return known ? (value as ServerMessage) : null;
 }

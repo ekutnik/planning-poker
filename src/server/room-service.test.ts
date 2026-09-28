@@ -1129,4 +1129,46 @@ describe("RoomService — nudges (ADR 0007)", () => {
       for (const id of ids) expect(JSON.stringify(line)).not.toContain(id);
     }
   });
+
+  it("ends a cooldown early when that person votes, so a Nudge button that comes back works", () => {
+    const { service, alice, bob } = room();
+    service.message(alice, nudge(BOB));
+    service.message(bob, JSON.stringify({ type: "castVote", card: "5" }));
+    service.message(bob, JSON.stringify({ type: "clearVote" }));
+    bob.sent.length = 0;
+    service.message(alice, nudge(BOB));
+    expect(bob.sent).toContainEqual({ type: "nudged" });
+  });
+
+  it("ends every cooldown in the room when the round ends, and none elsewhere", () => {
+    const { service, connect, join, alice, bob } = room();
+    const other = "bbbbbbbbbbb";
+    const dee = connect("dee", other);
+    const eli = connect("eli", other);
+    join(dee, "SESSIONTOKEN_DEE_0000001", "Dee");
+    join(eli, "SESSIONTOKEN_ELI_0000001", "Eli");
+    service.message(dee, nudge("SESSIONTOKEN_ELI_0000001", other));
+    service.message(alice, nudge(BOB));
+    expect(service.bookkeeping().nudges).toBe(2);
+
+    service.message(alice, JSON.stringify({ type: "castVote", card: "5" }));
+    service.message(alice, JSON.stringify({ type: "reveal" }));
+    // Only this room's cooldown ended: Eli's, in the other room, stands.
+    expect(service.bookkeeping().nudges).toBe(1);
+    service.message(alice, JSON.stringify({ type: "reset" }));
+    bob.sent.length = 0;
+    service.message(alice, nudge(BOB));
+    expect(bob.sent).toEqual([{ type: "nudged" }]);
+  });
+
+  it("ends a cooldown when that person leaves, so one who rejoins can be nudged", () => {
+    const { service, connect, join, alice, bob } = room();
+    service.message(alice, nudge(BOB));
+    service.message(bob, JSON.stringify({ type: "leave" }));
+    const again = connect("bob-again");
+    join(again, BOB, "Bob");
+    again.sent.length = 0;
+    service.message(alice, nudge(BOB));
+    expect(again.sent).toEqual([{ type: "nudged" }]);
+  });
 });

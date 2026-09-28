@@ -8,6 +8,7 @@ import {
   JOIN_COPY,
   NOT_FOUND_COPY,
   NOT_SAVED_COPY,
+  NUDGE_COPY,
   PEOPLE_COPY,
   PREVIEW_COPY,
   RESULT_COPY,
@@ -30,6 +31,7 @@ const sentences = [
   HEADER_COPY.facilitateNote,
   COPY_LINK_COPY.failed,
   RUNNING_COPY.note,
+  NUDGE_COPY.banner,
   ...resultLines(),
 ];
 
@@ -68,6 +70,9 @@ const labels = [
   RUNNING_COPY.label,
   PREVIEW_COPY.pause,
   PREVIEW_COPY.play,
+  NUDGE_COPY.title,
+  NUDGE_COPY.nudge,
+  NUDGE_COPY.nudged,
 ];
 
 const everything = [...sentences, ...labels];

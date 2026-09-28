@@ -161,3 +161,14 @@ export const PREVIEW_COPY = {
   play: "Play preview",
   revealed: "Votes revealed",
 } as const;
+
+/**
+ * A nudge (ADR 0007): what the person nudged sees, and the facilitator's
+ * button. Fixed words: nothing here takes a name, so none can be added.
+ */
+export const NUDGE_COPY = {
+  banner: "The room is waiting for your vote.",
+  title: "Your vote, please",
+  nudge: "Nudge",
+  nudged: "Nudged",
+} as const;

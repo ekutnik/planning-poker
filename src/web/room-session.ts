@@ -10,6 +10,7 @@ export interface SessionConnection {
   getState(): ConnectionState;
   subscribe(listener: () => void): () => void;
   onServerError(listener: (code: ErrorCode) => void): () => void;
+  onNudged(listener: () => void): () => void;
   start(): void;
   restart(): void;
   retryNow(): void;
@@ -22,6 +23,11 @@ export interface SessionView {
   readonly state: ConnectionState;
   /** Copy for the last server error, until the person's next action. */
   readonly notice: string | null;
+  /**
+   * Someone nudged you, and it still stands (nudgeEnded): the banner and
+   * the tab title show it. Anonymous: nothing here says who (ADR 0007).
+   */
+  readonly nudged: boolean;
 }
 
 export interface SessionDeps {
@@ -33,7 +39,26 @@ export interface SessionDeps {
 const BEFORE_CONNECT: SessionView = {
   state: { status: "connecting", attempt: 0, snapshot: null },
   notice: null,
+  nudged: false,
 };
+
+/**
+ * Whether this state ends a nudge: you have voted, the round is revealed
+ * (a reset comes through the reveal), or the connection has stopped. A
+ * connection still finding its feet, with no snapshot yet, ends nothing.
+ * Leaving ends it too, by ending the session. Once ended, it stays ended
+ * until the next nudge, even if you clear your vote.
+ */
+export function nudgeEnded(state: ConnectionState): boolean {
+  if (state.status === "stopped") return true;
+  const { snapshot } = state;
+  if (snapshot === null) return false;
+  if (snapshot.phase !== "voting") return true;
+  return (
+    snapshot.participants.find((p) => p.id === snapshot.viewerId)?.hasVoted ??
+    false
+  );
+}
 
 /**
  * One room screen's connection lifecycle, for useSyncExternalStore. A
@@ -62,13 +87,23 @@ export class RoomSession {
     const connection = this.deps.connect();
     this.connection = connection;
     this.listener = listener;
-    const update = (notice: string | null) => {
+    const update = (notice: string | null, nudge = false) => {
       const state = connection.getState();
-      if (state === this.view.state && notice === this.view.notice) return;
-      this.view = { state, notice };
+      const nudged = (nudge || this.view.nudged) && !nudgeEnded(state);
+      if (
+        state === this.view.state &&
+        notice === this.view.notice &&
+        nudged === this.view.nudged
+      ) {
+        return;
+      }
+      this.view = { state, notice, nudged };
       listener();
     };
     const stopState = connection.subscribe(() => update(this.view.notice));
+    const stopNudges = connection.onNudged(() =>
+      update(this.view.notice, true),
+    );
     const stopErrors = connection.onServerError((code) => {
       const copy = ERROR_COPY[code];
       if (copy !== null) update(copy);
@@ -77,6 +112,7 @@ export class RoomSession {
     connection.start();
     return () => {
       stopWatching();
+      stopNudges();
       stopErrors();
       stopState();
       connection.dispose();

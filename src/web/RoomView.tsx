@@ -6,7 +6,7 @@ import {
   type PhaseCopy,
 } from "./announce.js";
 import { NOT_SAVED_COPY } from "./copy.js";
-import { roomTitle, useDocumentTitle } from "./title.js";
+import { roomTitle, roomTitleAndBanner, useDocumentTitle } from "./title.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { RevealedView } from "./RevealedView.js";
 import { VotingView } from "./VotingView.js";
@@ -22,6 +22,7 @@ export function RoomView({
   banner,
   notice,
   persistent,
+  nudged = false,
   onAction,
 }: {
   readonly snapshot: RoomSnapshot;
@@ -30,9 +31,15 @@ export function RoomView({
   readonly banner: string | null;
   readonly notice: string | null;
   readonly persistent: boolean;
+  /** Someone nudged you, and it still stands (RoomSession). */
+  readonly nudged?: boolean;
   readonly onAction: (action: RoomAction) => void;
 }) {
-  useDocumentTitle(roomTitle(snapshot));
+  const { title, banner: nudgeBanner } = roomTitleAndBanner(
+    roomTitle(snapshot),
+    nudged,
+  );
+  useDocumentTitle(title);
 
   // The live region must exist before it changes, so it lives here, above
   // both phases. A phase change (React's "adjust state when a prop changes"
@@ -71,6 +78,11 @@ export function RoomView({
         </p>
       )}
       {!persistent && <p className="room-message">{NOT_SAVED_COPY}</p>}
+      {/* Always in the page, so the banner appearing is a change it speaks,
+          as the room's other live region is (A-06). It takes no focus. */}
+      <div role="status" className="nudge-region">
+        {nudgeBanner && <p className="nudge-banner">{nudgeBanner}</p>}
+      </div>
       {snapshot.phase === "voting" ? (
         <VotingView
           snapshot={snapshot}

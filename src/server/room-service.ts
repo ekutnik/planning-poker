@@ -173,7 +173,8 @@ export class RoomService {
   private readonly emptySince = new Map<string, number>();
   // When each person was last nudged, by nudgeKey: the cooldown (ADR 0007).
   // Kept here, not in the room, since a nudge never enters room state; the
-  // sweep forgets an entry once its cooldown has passed.
+  // sweep forgets an entry once its cooldown has passed, and endCooldowns
+  // once its person votes or the round ends.
   private readonly nudgedAt = new Map<string, number>();
   // Weak on purpose: it dedupes a second close() without keeping any connection
   // alive, so it cannot leak. A WeakSet can't be sized, which is why
@@ -490,6 +491,7 @@ export class RoomService {
     if (result.room === room) return;
 
     this.store(result.room, now);
+    this.endCooldowns(binding.roomId, command);
     if (command.type === "leave") {
       this.forget(conn);
       this.broadcast(result.room);
@@ -535,6 +537,23 @@ export class RoomService {
     }
     this.nudgedAt.set(key, now);
     to.send({ type: "nudged" });
+  }
+
+  /**
+   * A cooldown also ends early, when its reason does (ADR 0007): the person
+   * nudged votes or leaves, or the round ends (reveal, reset). The client's
+   * "Nudged" button comes back at the same moments, so the two agree: a
+   * Nudge button on screen is a nudge the server will deliver.
+   */
+  private endCooldowns(roomId: string, command: Command): void {
+    if (command.type === "castVote" || command.type === "leave") {
+      this.nudgedAt.delete(nudgeKey(roomId, command.participantId));
+    }
+    if (command.type === "reveal" || command.type === "reset") {
+      for (const key of this.nudgedAt.keys()) {
+        if (key.startsWith(`${roomId} `)) this.nudgedAt.delete(key);
+      }
+    }
   }
 
   private broadcast(room: Room, except?: Connection): void {

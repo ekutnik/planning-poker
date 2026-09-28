@@ -12,7 +12,7 @@ When the round waits on someone, the facilitator has to say their name on the ca
 A nudge is a message, not state. The client sends `{ "type": "nudge", "participantId": "<public id>" }`. If the rules allow it, the server sends `{ "type": "nudged" }` to that person's socket and to nobody else. The message carries nothing more: not who sent it, and nothing about them.
 
 - **Transient.** A nudge never enters the room, its snapshots or its version. The one thing kept is when each person was last nudged, in the room service, for the cooldown; the sweep forgets it once the cooldown has passed, and `bookkeeping()` counts it, so the leak test covers it.
-- **The rules:** the room is voting; the sender has joined it; the target is someone else in the same room, connected, with no vote; and nobody has nudged them in the last 30 seconds, whoever sent it.
+- **The rules:** the room is voting; the sender has joined it; the target is someone else in the same room, connected, with no vote; and nobody has nudged them in the last 30 seconds, whoever sent it. A cooldown ends early when its reason does: the person votes or leaves, or the round ends (reveal or reset). Those are the moments the client's "Nudged" button comes back, so the two agree: a Nudge button on screen is always a nudge the server will deliver.
 - **A nudge that breaks a rule is dropped** and logged at info with the reason (`SELF`, `HAS_VOTED`, `COOLDOWN` and so on), never with either person's id. The sender gets no error.
 - **Anyone can nudge,** as anyone can reveal (ADR 0005). The button appears only in the facilitator view, which is a per-browser view the server does not know about.
 
@@ -33,5 +33,8 @@ What we accept:
 - A nudge to someone whose socket drops at that moment is lost: there is no queue and no retry. They still show "Not yet", and the facilitator can nudge again once the cooldown has passed.
 - A modified client can nudge without the facilitator view. The cooldown bounds that to one nudge per person every 30 seconds, however many people send them. The per-connection message limit (#16), when it lands, counts a nudge like any other message.
 - Clearing the banner when the person votes, the round is revealed or reset, or they leave is the client's job, since the server sends nothing when a nudge ends.
+- **A reset clears every cooldown in the room,** so a modified client could reset and nudge, over and over. Accepted: every reset visibly wipes the round for everyone in the room, which makes it self-limiting, and the per-connection message limit (#16) will cap it.
+- **A reset in the middle of voting** clears the server's cooldowns, but the facilitator's voting screen stays on the page, so a "Nudged" button stays until its own timer ends. Accepted, because that is the safe direction: the button comes back late, never early, when a click would do nothing.
+- **A dropped connection keeps its cooldown on both sides, correctly and without extra code.** If Cy disconnects and reconnects within 30 seconds, the server's cooldown is still running, and the client's entry for Cy survives too, because Cy is still in the room, only away. The button comes back as "Nudged", matching the server. This holds only while both sides end a cooldown on leaving, not on disconnecting: making either end it on a disconnect would break the match.
 
 What would change this decision: roles (ADR 0005 revisited), or a need for a nudge to survive a reconnect.
