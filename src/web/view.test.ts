@@ -49,6 +49,27 @@ describe("connection banner and actions", () => {
       "Connection lost. Reconnecting…",
       false,
     ],
+    [
+      {
+        status: "reconnecting",
+        attempt: 1,
+        retryAt: 0,
+        snapshot: voting,
+        restarting: true,
+      } as const,
+      "The server is restarting. Reconnecting…",
+      false,
+    ],
+    [
+      {
+        status: "connecting",
+        attempt: 1,
+        snapshot: voting,
+        restarting: true,
+      } as const,
+      "The server is restarting. Reconnecting…",
+      false,
+    ],
     [{ status: "stopped", reason: "left" } as const, null, false],
   ])("%o", (state, banner, live) => {
     expect(bannerFor(state)).toBe(banner);

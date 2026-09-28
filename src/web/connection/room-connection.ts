@@ -19,6 +19,8 @@ export type ConnectionState =
       readonly status: "connecting";
       readonly attempt: number;
       readonly snapshot: RoomSnapshot | null;
+      /** The server said it was going away (1001): a restart, not a fault. */
+      readonly restarting?: true;
     }
   | { readonly status: "open"; readonly snapshot: RoomSnapshot }
   | {
@@ -26,6 +28,7 @@ export type ConnectionState =
       readonly attempt: number;
       readonly retryAt: number;
       readonly snapshot: RoomSnapshot | null;
+      readonly restarting?: true;
     }
   | { readonly status: "stopped"; readonly reason: StopReason };
 
@@ -126,6 +129,10 @@ export class RoomConnection {
   // Kept across sockets.
   private snapshot: RoomSnapshot | null = null;
   private attempt = 0; // consecutive failed connections since the last snapshot
+  // The server closed with 1001, going away (#29). Kept through the failed
+  // attempts while it is down, which close with 1006, until a snapshot says
+  // it is back: the whole wait is a restart, not a lost connection.
+  private restarting = false;
   private backoff: Backoff = "normal"; // of the pending retry
   private retryTimer: number | null = null;
   private disposed = false;
@@ -223,6 +230,7 @@ export class RoomConnection {
       status: "connecting",
       attempt: this.attempt,
       snapshot: this.snapshot,
+      ...(this.restarting && { restarting: true }),
     });
     const current = () => generation === this.generation;
     try {
@@ -287,6 +295,7 @@ export class RoomConnection {
     this.lastVersion = snapshot.version;
     this.joined = true;
     this.attempt = 0; // only a snapshot proves the join worked
+    this.restarting = false;
     this.snapshot = snapshot;
     this.setState({ status: "open", snapshot });
   }
@@ -309,6 +318,7 @@ export class RoomConnection {
     this.socket = null;
     this.clearTimers();
     const policy = policyFor(code);
+    if (code === 1001) this.restarting = true;
     if (policy.kind === "stop") {
       this.stop(policy.reason);
       return;
@@ -373,6 +383,7 @@ export class RoomConnection {
       attempt: this.attempt,
       retryAt: this.deps.clock.now() + delay,
       snapshot: this.snapshot,
+      ...(this.restarting && { restarting: true }),
     });
   }
 

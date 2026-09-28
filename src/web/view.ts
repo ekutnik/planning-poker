@@ -22,6 +22,9 @@ export function canAct(state: ConnectionState): boolean {
   return state.status === "open";
 }
 
+/** After a 1001 (#29): the server is restarting, as on a deploy; not a fault. */
+const RESTARTING = "The server is restarting. Reconnecting…";
+
 /** A line above the room while the connection is not open; null when it is. */
 export function bannerFor(state: ConnectionState): string | null {
   switch (state.status) {
@@ -29,9 +32,10 @@ export function bannerFor(state: ConnectionState): string | null {
     case "stopped":
       return null;
     case "connecting":
+      if (state.restarting) return RESTARTING;
       return state.snapshot === null ? "Joining the room…" : "Reconnecting…";
     case "reconnecting":
-      return "Connection lost. Reconnecting…";
+      return state.restarting ? RESTARTING : "Connection lost. Reconnecting…";
   }
 }
 
