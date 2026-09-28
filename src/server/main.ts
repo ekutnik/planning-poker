@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildServer } from "./app.js";
 import { parseConfig } from "./config.js";
+import { onShutdownSignal } from "./shutdown.js";
 
 // Fail fast: refuse to start on an invalid environment, before building anything.
 const parsed = parseConfig(process.env);
@@ -44,6 +45,20 @@ app.log.info(
   serving ? { webRoot } : {},
   serving ? "serving the built client" : "no client build: API only",
 );
+
+// Shutdown (#29): see onShutdownSignal. Registered before listen, so a
+// signal during startup still closes the server and exits.
+const shutdown = onShutdownSignal({
+  close: () => app.close(),
+  exit: (code) => process.exit(code),
+  after: (ms, callback) => {
+    setTimeout(callback, ms).unref();
+  },
+  log: app.log,
+  timeoutMs: config.shutdownTimeoutMs,
+});
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
 
 try {
   await app.listen({ port: config.port });

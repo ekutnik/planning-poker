@@ -2,10 +2,14 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createServer } from "node:net";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { DEFAULT_LIMITS } from "./app.js";
-import { parseConfig } from "./config.js";
+import { CLOSE_GRACE_MS, DEFAULT_LIMITS } from "./app.js";
+import { freePort, firstLine } from "./child.testing.js";
+import {
+  MIN_SHUTDOWN_TIMEOUT_MS,
+  parseConfig,
+  SHUTDOWN_TIMEOUT_MS,
+} from "./config.js";
 import {
   MAX_SWEEP_INTERVAL_MS,
   ROOM_TTL_MS,
@@ -22,6 +26,7 @@ describe("parseConfig (#18)", () => {
         limits: DEFAULT_LIMITS,
         sweepIntervalMs: SWEEP_INTERVAL_MS,
         roomTtlMs: ROOM_TTL_MS,
+        shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
         production: false,
         webRoot: undefined,
       },
@@ -37,6 +42,7 @@ describe("parseConfig (#18)", () => {
         MAX_PENDING: "20",
         SWEEP_INTERVAL_MS: "1000",
         ROOM_TTL_MS: "60000",
+        SHUTDOWN_TIMEOUT_MS: "5000",
         NODE_ENV: "production",
         WEB_ROOT: "/srv/web",
       }),
@@ -48,6 +54,7 @@ describe("parseConfig (#18)", () => {
         limits: { maxRooms: 50, maxPending: 20 },
         sweepIntervalMs: 1000,
         roomTtlMs: 60_000,
+        shutdownTimeoutMs: 5000,
         production: true,
         webRoot: "/srv/web",
       },
@@ -86,6 +93,20 @@ describe("parseConfig (#18)", () => {
     });
     expect(at.ok).toBe(true);
     expect(above.ok).toBe(false);
+  });
+
+  it("keeps SHUTDOWN_TIMEOUT_MS longer than the close grace, so one closed laptop never fails a shutdown", () => {
+    expect(MIN_SHUTDOWN_TIMEOUT_MS).toBeGreaterThan(CLOSE_GRACE_MS);
+    // A default is not validated by the schema: check it here.
+    expect(SHUTDOWN_TIMEOUT_MS).toBeGreaterThanOrEqual(MIN_SHUTDOWN_TIMEOUT_MS);
+    const at = parseConfig({
+      SHUTDOWN_TIMEOUT_MS: String(MIN_SHUTDOWN_TIMEOUT_MS),
+    });
+    const below = parseConfig({
+      SHUTDOWN_TIMEOUT_MS: String(MIN_SHUTDOWN_TIMEOUT_MS - 1),
+    });
+    expect(at.ok).toBe(true);
+    expect(below.ok).toBe(false);
   });
 
   it("reports every invalid variable at once", () => {
@@ -174,7 +195,13 @@ describe("main", () => {
         child.kill();
         rmSync(root, { recursive: true, force: true });
       });
-      await firstLine(child.stdout, "Server listening", 4_000);
+      // Fastify listens on ::1 and 127.0.0.1 and logs each: wait for the
+      // one fetched from, or it can be refused in between.
+      await firstLine(
+        child.stdout,
+        "Server listening at http://127.0.0.1",
+        4_000,
+      );
       const page = await fetch(`http://127.0.0.1:${String(port)}/`, {
         headers: { accept: "text/html" },
       });
@@ -207,41 +234,3 @@ describe("main", () => {
     expect(logged.config.limits).toEqual(DEFAULT_LIMITS);
   });
 });
-
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once("error", reject);
-    server.listen(0, () => {
-      const { port } = server.address() as { port: number };
-      server.close(() => resolve(port));
-    });
-  });
-}
-
-function firstLine(
-  stream: NodeJS.ReadableStream,
-  containing: string,
-  timeoutMs: number,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () =>
-        reject(new Error(`no line containing ${containing} in ${timeoutMs}ms`)),
-      timeoutMs,
-    );
-    let buffered = "";
-    stream.setEncoding("utf8");
-    stream.on("data", (chunk: string) => {
-      buffered += chunk;
-      const line = buffered.split("\n").find((l) => l.includes(containing));
-      if (line) {
-        clearTimeout(timer);
-        resolve(line);
-      }
-    });
-    stream.on("end", () =>
-      reject(new Error(`no line containing ${containing}`)),
-    );
-  });
-}

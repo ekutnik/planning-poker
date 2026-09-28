@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { DEFAULT_LIMITS } from "./app.js";
+import { CLOSE_GRACE_MS, DEFAULT_LIMITS } from "./app.js";
 import {
   JOIN_TIMEOUT_MS,
   MAX_SWEEP_INTERVAL_MS,
@@ -7,6 +7,21 @@ import {
   SWEEP_INTERVAL_MS,
   type Limits,
 } from "./room-service.js";
+
+/**
+ * A shutdown still running after this long exits anyway, with 1 (#29). The
+ * sockets have CLOSE_GRACE_MS to close, so a normal shutdown takes at most
+ * about two seconds; this is the backstop.
+ */
+export const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+/**
+ * The shortest SHUTDOWN_TIMEOUT_MS allowed: the close grace plus a second.
+ * Any shorter, and a shutdown with one closed laptop in a room would hit the
+ * timeout before the grace could drop it, so every deploy would exit with 1
+ * and the backstop would fire routinely.
+ */
+export const MIN_SHUTDOWN_TIMEOUT_MS = CLOSE_GRACE_MS + 1_000;
 
 const LOG_LEVELS = [
   "fatal",
@@ -50,6 +65,10 @@ const Env = z.object({
     Math.min(MAX_SWEEP_INTERVAL_MS, JOIN_TIMEOUT_MS),
   ).default(SWEEP_INTERVAL_MS),
   ROOM_TTL_MS: whole(1).default(ROOM_TTL_MS),
+  // How long a shutdown may take before the process exits anyway (#29).
+  SHUTDOWN_TIMEOUT_MS: whole(MIN_SHUTDOWN_TIMEOUT_MS).default(
+    SHUTDOWN_TIMEOUT_MS,
+  ),
   // "production" makes a missing client build fatal (see main.ts); any
   // other value, or none, is development.
   NODE_ENV: z.string().optional(),
@@ -63,6 +82,7 @@ export interface Config {
   readonly limits: Limits;
   readonly sweepIntervalMs: number;
   readonly roomTtlMs: number;
+  readonly shutdownTimeoutMs: number;
   readonly production: boolean;
   readonly webRoot: string | undefined;
 }
@@ -88,6 +108,7 @@ export function parseConfig(
       limits: { maxRooms: vars.MAX_ROOMS, maxPending: vars.MAX_PENDING },
       sweepIntervalMs: vars.SWEEP_INTERVAL_MS,
       roomTtlMs: vars.ROOM_TTL_MS,
+      shutdownTimeoutMs: vars.SHUTDOWN_TIMEOUT_MS,
       production: vars.NODE_ENV === "production",
       webRoot: vars.WEB_ROOT,
     },

@@ -272,6 +272,47 @@ describe("RoomConnection — close-code policy", () => {
   });
 });
 
+describe("RoomConnection — a server restart (#29)", () => {
+  it("says restarting after 1001, through the failed attempts while it is down", () => {
+    const { connection, latest, clock, joined } = setup(() => 0.999);
+    joined(3);
+    latest().serverClose(1001);
+    expect(connection.getState()).toMatchObject({
+      status: "reconnecting",
+      restarting: true,
+    });
+    clock.advance(499);
+    expect(connection.getState()).toMatchObject({
+      status: "connecting",
+      restarting: true,
+    });
+    // The server is still down: the next attempt fails like a dropped line.
+    latest().serverClose(1006);
+    expect(connection.getState()).toMatchObject({
+      status: "reconnecting",
+      restarting: true,
+    });
+  });
+
+  it("forgets the restart once a snapshot says the server is back", () => {
+    const { connection, latest, clock, joined } = setup(() => 0.999);
+    joined(3);
+    latest().serverClose(1001);
+    clock.advance(499);
+    latest().open();
+    latest().receive({ type: "snapshot", snapshot: snapshot(1) });
+    latest().serverClose(1006);
+    expect(connection.getState()).not.toHaveProperty("restarting");
+  });
+
+  it("never says restarting for a connection that simply dropped", () => {
+    const { connection, latest, joined } = setup();
+    joined();
+    latest().serverClose(1006);
+    expect(connection.getState()).not.toHaveProperty("restarting");
+  });
+});
+
 describe("RoomConnection — reconnecting", () => {
   it("keeps the last snapshot while reconnecting instead of blanking", () => {
     const { connection, latest, joined } = setup();
