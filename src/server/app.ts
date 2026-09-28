@@ -15,6 +15,7 @@ import {
   type Connection,
   type Limits,
 } from "./room-service.js";
+import { notFound, serveClient } from "./web.js";
 
 export const DEFAULT_LIMITS: Limits = { maxRooms: 10_000, maxPending: 1_000 };
 
@@ -28,6 +29,11 @@ export interface ServerOptions {
   readonly clock?: () => number;
   readonly sweepIntervalMs?: number;
   readonly roomTtlMs?: number;
+  /**
+   * The built client (dist/web) to serve. Omitted, the server is the API
+   * and the websocket alone, as in development, where Vite serves the page.
+   */
+  readonly webRoot?: string;
 }
 
 const roomParams = {
@@ -90,8 +96,9 @@ export function buildServer(options: ServerOptions = {}) {
       serializers: { req: serializeRequest },
     },
   });
+  if (options.webRoot !== undefined) serveClient(app, options.webRoot);
   // The default 404 handler logs the raw URL; this one does not.
-  app.setNotFoundHandler((_request, reply) => reply.code(404).send());
+  app.setNotFoundHandler(notFound(options.webRoot !== undefined));
   const sweepIntervalMs = options.sweepIntervalMs ?? SWEEP_INTERVAL_MS;
   const rooms = new RoomService(
     options.clock ?? Date.now,

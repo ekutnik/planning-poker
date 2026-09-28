@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { buildServer } from "./app.js";
 import { parseConfig } from "./config.js";
 
@@ -9,7 +11,13 @@ if (!parsed.ok) {
 }
 const { config } = parsed;
 
+// The built client (npm run build:web). In development there is usually
+// none, and Vite serves the page, so the server is the API alone.
+const webRoot = fileURLToPath(new URL("../../dist/web/", import.meta.url));
+const serving = existsSync(`${webRoot}index.html`);
+
 const app = buildServer({
+  webRoot: serving ? webRoot : undefined,
   logger: { level: config.logLevel },
   limits: config.limits,
   sweepIntervalMs: config.sweepIntervalMs,
@@ -19,6 +27,10 @@ const app = buildServer({
 // applies; logging the effective config once is how an operator notices.
 // Nothing in it is secret.
 app.log.info({ config }, "configuration");
+app.log.info(
+  serving ? { webRoot } : {},
+  serving ? "serving the built client" : "no client build: API only",
+);
 
 try {
   await app.listen({ port: config.port });
