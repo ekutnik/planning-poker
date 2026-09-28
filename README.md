@@ -49,6 +49,28 @@ The server reads its settings from environment variables. Unset means the defaul
 | `NODE_ENV`            | unset       | `production` makes a missing client build fatal: the server refuses to start rather than serve only the API                    |
 | `WEB_ROOT`            | `dist/web`  | Where the built client is                                                                                                      |
 
+## End-to-end tests
+
+```bash
+npx playwright install chromium firefox webkit   # once: the browsers
+npm run test:e2e
+```
+
+`e2e/` drives the real thing in Chromium, Firefox and WebKit: the production client build, served by the compiled server with `NODE_ENV=production`, so the headers and the Content-Security-Policy are the ones users get. Playwright builds and starts it (`e2e/playwright.config.ts`). Each test makes its own room, so tests don't depend on each other and run in parallel; the restart test runs a server of its own, since it stops and starts it.
+
+It covers:
+
+- a full round in two browsers;
+- vote privacy on the wire and on the screen;
+- nudges, including that clicking "Nudged" sends nothing;
+- recovery after a server restart, and a second tab;
+- focus at every screen change and after Clear my vote, and the Menu's keyboard behaviour;
+- a press cancelling a card's hover lift;
+- the theme applied before the first paint;
+- the landing preview.
+
+axe checks every screen in the light and the dark theme, and fails on any WCAG 2.2 AA violation. Every test also fails on a Content-Security-Policy violation or an uncaught error in any page (`e2e/fixtures.ts`), and `e2e/guard.e2e.ts` proves that check sees both. In WebKit, keyboard tests press Option+Tab: like Safari by default, its Tab reaches only text fields. CI runs the suite on every pull request and keeps the report when it fails.
+
 ## Docker
 
 ```bash

@@ -6,20 +6,20 @@ Session 7. The standard is WCAG 2.2 AA, with three criteria that bear directly o
 
 ## Environment
 
-| Tool                                                       | Used for                                                                  | Status                                |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------- |
-| Chromium (the Claude desktop app's browser), keyboard only | Every flow without a mouse, focus order and visibility                    | Done, 2026-09-26                      |
-| Chromium, viewport emulation                               | Reflow and zoom: 640×400 is 200% and 320×200 is 400% of a 1280×800 window | Done, 2026-09-26                      |
-| Chromium, scripted measurements                            | Target sizes, focus hidden by the pinned bar, text spacing (1.4.12)       | Done, 2026-09-26                      |
-| Chromium accessibility tree                                | Roles, names, headings, landmarks, live regions                           | Done, 2026-09-26                      |
-| VoiceOver with Safari                                      | The main screen reader pass                                               | By hand, 2026-09-26; one item not run |
-| Firefox                                                    | The masked field and password prompts                                     | Not run; before launch (#44)          |
-| axe                                                        | An automated baseline on every screen                                     | Not run; see below                    |
-| A real Meet or Zoom share, viewed on a second device       | Legibility at thumbnail and full size, both themes                        | By hand, 2026-09-26                   |
+| Tool                                                       | Used for                                                                  | Status                                                             |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Chromium (the Claude desktop app's browser), keyboard only | Every flow without a mouse, focus order and visibility                    | Done, 2026-09-26                                                   |
+| Chromium, viewport emulation                               | Reflow and zoom: 640×400 is 200% and 320×200 is 400% of a 1280×800 window | Done, 2026-09-26                                                   |
+| Chromium, scripted measurements                            | Target sizes, focus hidden by the pinned bar, text spacing (1.4.12)       | Done, 2026-09-26                                                   |
+| Chromium accessibility tree                                | Roles, names, headings, landmarks, live regions                           | Done, 2026-09-26                                                   |
+| VoiceOver with Safari                                      | The main screen reader pass                                               | By hand, 2026-09-26; one item not run                              |
+| Firefox                                                    | The masked field and password prompts                                     | Not run; before launch (#44)                                       |
+| axe                                                        | An automated baseline on every screen                                     | Every CI build from 2026-09-28, both themes; no violations (below) |
+| A real Meet or Zoom share, viewed on a second device       | Legibility at thumbnail and full size, both themes                        | By hand, 2026-09-26                                                |
 
 **Versions:** the latest macOS, Safari and Chrome on 2026-09-26; exact version numbers were not noted.
 
-**Not covered:** NVDA and JAWS on Windows, and mobile screen readers (VoiceOver on iOS, TalkBack). **axe was not run:** the extension was not installed, and loading the engine into the page was not approved for this pass; Session 8 adds it as a dev dependency, run by Playwright on every CI build, so its baseline arrives there. Browser zoom was emulated with viewport sizes, which gives the same CSS-pixel viewport as real zoom; a real 400% zoom in Chrome is part of the re-check. The accessibility tree seen from Chromium is what a screen reader is given, not what it says: the inspection tool even drops two-letter names ("Cy", "Zo") that the DOM has, so it cannot stand in for the VoiceOver pass.
+**Not covered:** NVDA and JAWS on Windows, and mobile screen readers (VoiceOver on iOS, TalkBack). **axe was not run:** the extension was not installed, and loading the engine into the page was not approved for this pass; Session 8 adds it as a dev dependency, run by Playwright on every CI build, so its baseline arrives there. **It has since:** from 2026-09-28 the end-to-end suite runs axe 4.13 (WCAG 2.2 AA rules) on every screen, light and dark, wide and compact, in Chromium 153, Firefox 155 and WebKit 26.6, and reports no violations (`e2e/screens.e2e.ts`). Browser zoom was emulated with viewport sizes, which gives the same CSS-pixel viewport as real zoom; a real 400% zoom in Chrome is part of the re-check. The accessibility tree seen from Chromium is what a screen reader is given, not what it says: the inspection tool even drops two-letter names ("Cy", "Zo") that the DOM has, so it cannot stand in for the VoiceOver pass.
 
 ## Scenarios
 
