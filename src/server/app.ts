@@ -4,6 +4,7 @@ import Fastify, {
   type FastifyLoggerOptions,
   type FastifyRequest,
 } from "fastify";
+import type { Duplex } from "node:stream";
 import type { WebSocket } from "ws";
 import { CloseCode } from "../shared/close-codes.js";
 import { PROTOCOL_VERSION } from "../shared/protocol.js";
@@ -140,6 +141,15 @@ export function buildServer(options: ServerOptions = {}) {
   // that have not finished closing after the grace period are dropped.
   app.addHook("preClose", (done) => {
     rooms.shutdown();
+    // From now on Fastify answers every request with 503 before any hook
+    // runs. For a WebSocket upgrade, a browser reconnecting after its 1001,
+    // nothing then releases the socket: the HTTP server keeps it half-open,
+    // and server.close() would wait for it until the shutdown timeout. This
+    // listener comes after the plugin's, which writes the 503 synchronously,
+    // so each socket is closed once its answer is written.
+    app.server.on("upgrade", (_request, socket: Duplex) => {
+      socket.end(() => socket.destroy());
+    });
     const open = [...app.websocketServer.clients].filter(
       (socket) => socket.readyState !== socket.CLOSED,
     );
