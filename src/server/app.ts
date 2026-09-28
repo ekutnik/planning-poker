@@ -97,6 +97,12 @@ export function buildServer(options: ServerOptions = {}) {
       ...options.logger,
       serializers: { req: serializeRequest },
     },
+    // At close, after the preClose drain below, end every HTTP connection
+    // still open. By then the rooms are gone, and what remains is idle or,
+    // like a browser's preconnect, never sent a request: the HTTP server
+    // counts that as neither, so close() would wait for it until the
+    // shutdown timeout. Chrome preconnects, so a real deploy would too.
+    forceCloseConnections: true,
   });
   securityHeaders(app);
   if (options.webRoot !== undefined) serveClient(app, options.webRoot);

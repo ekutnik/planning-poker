@@ -216,6 +216,24 @@ describe("shutdown in the real process (#29)", () => {
     expect(seconds(start)).toBeLessThan(4); // the grace, not the 10s timeout
   });
 
+  it("closes a connection that never sent a request, so it can't hold up the exit", async () => {
+    const { port, child, exited } = await server();
+    await client(port);
+    // A browser's preconnect: a spare connection, opened ahead of need,
+    // on which no request has been sent. The HTTP server counts it neither
+    // as a request nor as idle, so close() would wait for it.
+    const spare = connect({ port, host: "127.0.0.1", allowHalfOpen: true });
+    await once(spare, "connect");
+    onTestFinished(() => {
+      spare.destroy();
+    });
+    const start = performance.now();
+    child.kill("SIGTERM");
+    const [code] = await exited;
+    expect(code).toBe(0);
+    expect(seconds(start)).toBeLessThan(1.5); // no grace needed, no timeout
+  });
+
   it("exits at once, with 1, on a second signal", async () => {
     const { port, child, exited } = await server();
     const { socket } = await client(port);
