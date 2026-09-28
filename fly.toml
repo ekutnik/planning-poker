@@ -1,0 +1,42 @@
+# The Fly.io app (docs/decisions/0001: rooms live in memory). One machine,
+# always running: a second machine would split the rooms between them, and
+# a stopped one would drop them. So every deploy restarts it (see the
+# README's Deploy section).
+app = "planning-poker-du9d3o"
+primary_region = "fra"
+
+# SIGTERM starts the graceful shutdown (#29). Fly's default wait is 5 s;
+# 15 s leaves room for SHUTDOWN_TIMEOUT_MS (10 s), so Fly never kills the
+# process in the middle of it.
+kill_signal = "SIGTERM"
+kill_timeout = 15
+
+[build]
+  dockerfile = "Dockerfile"
+
+# NODE_ENV=production, HOST=0.0.0.0 and PORT=3000 come from the Dockerfile.
+[env]
+  # The client's address comes from Fly-Client-IP (src/server/client-ip.ts).
+  PROXY = "fly"
+  # Node's heap well below the machine's 256 MB, so Node collects garbage
+  # long before the machine runs out: running out of memory should never
+  # be what stops the server. It uses about 70 MB with 400 people in rooms.
+  NODE_OPTIONS = "--max-old-space-size=192"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

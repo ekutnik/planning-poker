@@ -36,18 +36,19 @@ The server (`src/server`) and the client (`src/web`) have separate TypeScript co
 
 The server reads its settings from environment variables. Unset means the default. A set but invalid value, including an empty string, stops it from starting, with a message that names every bad variable. Numbers must be plain decimal digits (`0x10`, `1e4` and ` 5` are refused). The effective configuration is logged once at startup, so a misspelled variable, which is simply ignored, shows up as its default.
 
-| Variable              | Default     | Meaning                                                                                                                        |
-| --------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `PORT`                | `3000`      | HTTP and WebSocket port                                                                                                        |
-| `HOST`                | `127.0.0.1` | The IP address to listen on. The default keeps a dev server off the network; the Docker image sets `0.0.0.0`                   |
-| `LOG_LEVEL`           | `info`      | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`                                                                 |
-| `MAX_ROOMS`           | `10000`     | Rooms held in memory; a join that would create one more is refused                                                             |
-| `MAX_PENDING`         | `1000`      | Sockets that have not joined yet; more are refused with `1013`                                                                 |
-| `SWEEP_INTERVAL_MS`   | `5000`      | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls)                           |
-| `ROOM_TTL_MS`         | `600000`    | How long a room may stay empty before it is evicted                                                                            |
-| `SHUTDOWN_TIMEOUT_MS` | `10000`     | How long a shutdown may take before the process exits anyway, with 1 (at least 3000: the two-second close grace plus a second) |
-| `NODE_ENV`            | unset       | `production` makes a missing client build fatal: the server refuses to start rather than serve only the API                    |
-| `WEB_ROOT`            | `dist/web`  | Where the built client is                                                                                                      |
+| Variable              | Default     | Meaning                                                                                                                                                       |
+| --------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                | `3000`      | HTTP and WebSocket port                                                                                                                                       |
+| `HOST`                | `127.0.0.1` | The IP address to listen on. The default keeps a dev server off the network; the Docker image sets `0.0.0.0`                                                  |
+| `LOG_LEVEL`           | `info`      | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`                                                                                                |
+| `MAX_ROOMS`           | `10000`     | Rooms held in memory; a join that would create one more is refused                                                                                            |
+| `MAX_PENDING`         | `1000`      | Sockets that have not joined yet; more are refused with `1013`                                                                                                |
+| `SWEEP_INTERVAL_MS`   | `5000`      | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls)                                                          |
+| `ROOM_TTL_MS`         | `600000`    | How long a room may stay empty before it is evicted                                                                                                           |
+| `SHUTDOWN_TIMEOUT_MS` | `10000`     | How long a shutdown may take before the process exits anyway, with 1 (at least 3000: the two-second close grace plus a second)                                |
+| `NODE_ENV`            | unset       | `production` makes a missing client build fatal: the server refuses to start rather than serve only the API                                                   |
+| `PROXY`               | unset       | `fly`: the server is behind Fly's proxy, so the client's address is its `Fly-Client-IP` header. Set only there: anywhere else a client could send that header |
+| `WEB_ROOT`            | `dist/web`  | Where the built client is                                                                                                                                     |
 
 ## End-to-end tests
 
@@ -82,6 +83,16 @@ docker stop -t 15 <container>
 The image builds the client with Vite and the server with `tsc` (`npm run build:server`, into `dist/server`), then keeps only those and the production dependencies on `node:24-slim`, pinned to an exact version and digest so two builds of one commit are the same; Dependabot proposes updates as pull requests. It runs `node dist/server/main.js` directly, not `npm start`, since npm doesn't reliably pass SIGTERM on and the graceful shutdown needs it. It runs as the image's unprivileged `node` user, with `NODE_ENV=production` (so a missing client build refuses to start) and `HOST=0.0.0.0` (so the platform's proxy can reach it).
 
 `docker stop` waits 10 seconds before it kills the process, the same as the server's own `SHUTDOWN_TIMEOUT_MS` backstop, so give it 15 with `-t 15`: then Docker never kills a shutdown that is still draining. The deploy's stop timeout is set the same way.
+
+## Deploy
+
+The app runs on [Fly.io](https://fly.io) (`fly.toml`): one machine in Frankfurt, always running, with 256 MB. At Fly's prices in September 2026 that is about $2.24 a month, plus $0.02/GB of traffic out. Pushing to `main` deploys, once CI has passed on that push, and only the commit CI checked (`.github/workflows/deploy.yml`); one deploy runs at a time. Its token (the `FLY_API_TOKEN` secret) is a deploy token for this app only. The image is built on GitHub's runner, and every deploy passes `--ha=false`: flyctl otherwise adds a spare machine, which would double the bill and split the rooms.
+
+**The budget:** one `shared-cpu-1x` machine with 256 MB and Fly's free shared IPv4, about $2.24 a month. Fly has no spending cap and no billing alerts, so three checks stand in: a test fails if `fly.toml` asks for more (size, memory, count, auto-start, a volume); `scripts/check-fly-budget.sh` runs after every deploy and fails on a second machine, another size or a dedicated IPv4; and the Budget workflow runs the same check every Monday, so a change made from someone's laptop shows up as a failed run. Traffic out is $0.02/GB; rate limits (#16) come before the link is shared publicly.
+
+**Don't deploy during your team's planning sessions.** There is one machine, and rooms live in its memory (ADR 0001), so every deploy restarts it and every room loses its round in progress. Each page says "The server is restarting. Reconnecting…" and rejoins on its own within seconds, but the votes cast so far are gone and the round starts again. A second machine wouldn't help: the rooms would be split between them.
+
+On Fly the server sends `Strict-Transport-Security: max-age=31536000` (production only; nothing for subdomains or preloading, since `fly.dev` isn't ours), Fly waits 15 s after SIGTERM (`kill_timeout`, above the 10 s shutdown backstop), checks `/health`, and `PROXY=fly` takes the client's address from `Fly-Client-IP`.
 
 ## Shutdown
 
