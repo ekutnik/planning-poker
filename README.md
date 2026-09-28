@@ -36,21 +36,21 @@ The server (`src/server`) and the client (`src/web`) have separate TypeScript co
 
 The server reads its settings from environment variables. Unset means the default. A set but invalid value, including an empty string, stops it from starting, with a message that names every bad variable. Numbers must be plain decimal digits (`0x10`, `1e4` and ` 5` are refused). The effective configuration is logged once at startup, so a misspelled variable, which is simply ignored, shows up as its default.
 
-| Variable              | Default    | Meaning                                                                                                     |
-| --------------------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
-| `PORT`                | `3000`     | HTTP and WebSocket port                                                                                     |
-| `LOG_LEVEL`           | `info`     | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`                                              |
-| `MAX_ROOMS`           | `10000`    | Rooms held in memory; a join that would create one more is refused                                          |
-| `MAX_PENDING`         | `1000`     | Sockets that have not joined yet; more are refused with `1013`                                              |
-| `SWEEP_INTERVAL_MS`   | `5000`     | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls)        |
-| `ROOM_TTL_MS`         | `600000`   | How long a room may stay empty before it is evicted                                                         |
-| `SHUTDOWN_TIMEOUT_MS` | `10000`    | How long a shutdown may take before the process exits anyway, with 1                                        |
-| `NODE_ENV`            | unset      | `production` makes a missing client build fatal: the server refuses to start rather than serve only the API |
-| `WEB_ROOT`            | `dist/web` | Where the built client is                                                                                   |
+| Variable              | Default    | Meaning                                                                                                                        |
+| --------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `PORT`                | `3000`     | HTTP and WebSocket port                                                                                                        |
+| `LOG_LEVEL`           | `info`     | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`                                                                 |
+| `MAX_ROOMS`           | `10000`    | Rooms held in memory; a join that would create one more is refused                                                             |
+| `MAX_PENDING`         | `1000`     | Sockets that have not joined yet; more are refused with `1013`                                                                 |
+| `SWEEP_INTERVAL_MS`   | `5000`     | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls)                           |
+| `ROOM_TTL_MS`         | `600000`   | How long a room may stay empty before it is evicted                                                                            |
+| `SHUTDOWN_TIMEOUT_MS` | `10000`    | How long a shutdown may take before the process exits anyway, with 1 (at least 3000: the two-second close grace plus a second) |
+| `NODE_ENV`            | unset      | `production` makes a missing client build fatal: the server refuses to start rather than serve only the API                    |
+| `WEB_ROOT`            | `dist/web` | Where the built client is                                                                                                      |
 
 ## Shutdown
 
-On SIGTERM (a deploy) or SIGINT (Ctrl-C), the server stops taking connections and closes every socket with `1001`, going away, which the client reads as "The server is restarting. Reconnecting…" and answers by reconnecting with backoff. Sockets have two seconds to finish closing; any that don't answer (a closed laptop) are dropped. Then the process exits with 0. A second signal, or a shutdown still running after `SHUTDOWN_TIMEOUT_MS`, exits at once with 1. Rooms are in memory and go with the process (ADR 0001): a room link still works afterwards, and the room starts empty.
+On SIGTERM (a deploy) or SIGINT (Ctrl-C), the server closes every socket with `1001`, going away, and turns away any that opens from then on with the same code, which the client reads as "The server is restarting. Reconnecting…" and answers by reconnecting with backoff. Sockets have two seconds to finish closing; any that don't answer (a closed laptop) are dropped. Then the process exits with 0. A second signal, or a shutdown still running after `SHUTDOWN_TIMEOUT_MS`, exits at once with 1; the timeout can't be set shorter than the grace plus a second, or one closed laptop would fail every shutdown. Rooms are in memory and go with the process (ADR 0001): a room link still works afterwards, and the room starts empty.
 
 ## Security headers
 

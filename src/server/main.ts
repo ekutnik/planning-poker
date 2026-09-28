@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildServer } from "./app.js";
 import { parseConfig } from "./config.js";
+import { onShutdownSignal } from "./shutdown.js";
 
 // Fail fast: refuse to start on an invalid environment, before building anything.
 const parsed = parseConfig(process.env);
@@ -45,37 +46,17 @@ app.log.info(
   serving ? "serving the built client" : "no client build: API only",
 );
 
-// Shutdown (#29): a deploy sends SIGTERM, Ctrl-C in npm run dev sends
-// SIGINT, and both mean the same. Close gracefully: every socket gets 1001,
-// so the client says the server is restarting, the sweep interval stops,
-// and the process exits with 0. A second signal, or a shutdown still going
-// after SHUTDOWN_TIMEOUT_MS, exits at once with 1.
-let stopping = false;
-const shutdown = (signal: NodeJS.Signals) => {
-  if (stopping) {
-    app.log.warn({ signal }, "second signal: exiting now");
-    process.exit(1);
-  }
-  stopping = true;
-  app.log.info({ signal }, "shutting down");
-  setTimeout(() => {
-    app.log.error(
-      { timeoutMs: config.shutdownTimeoutMs },
-      "shutdown took too long: exiting now",
-    );
-    process.exit(1);
-  }, config.shutdownTimeoutMs).unref();
-  app.close().then(
-    () => {
-      app.log.info("shut down");
-      process.exit(0);
-    },
-    (error: unknown) => {
-      app.log.error(error, "shutdown failed");
-      process.exit(1);
-    },
-  );
-};
+// Shutdown (#29): see onShutdownSignal. Registered before listen, so a
+// signal during startup still closes the server and exits.
+const shutdown = onShutdownSignal({
+  close: () => app.close(),
+  exit: (code) => process.exit(code),
+  after: (ms, callback) => {
+    setTimeout(callback, ms).unref();
+  },
+  log: app.log,
+  timeoutMs: config.shutdownTimeoutMs,
+});
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 

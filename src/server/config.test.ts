@@ -3,9 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { DEFAULT_LIMITS } from "./app.js";
+import { CLOSE_GRACE_MS, DEFAULT_LIMITS } from "./app.js";
 import { freePort, firstLine } from "./child.testing.js";
-import { parseConfig, SHUTDOWN_TIMEOUT_MS } from "./config.js";
+import {
+  MIN_SHUTDOWN_TIMEOUT_MS,
+  parseConfig,
+  SHUTDOWN_TIMEOUT_MS,
+} from "./config.js";
 import {
   MAX_SWEEP_INTERVAL_MS,
   ROOM_TTL_MS,
@@ -89,6 +93,20 @@ describe("parseConfig (#18)", () => {
     });
     expect(at.ok).toBe(true);
     expect(above.ok).toBe(false);
+  });
+
+  it("keeps SHUTDOWN_TIMEOUT_MS longer than the close grace, so one closed laptop never fails a shutdown", () => {
+    expect(MIN_SHUTDOWN_TIMEOUT_MS).toBeGreaterThan(CLOSE_GRACE_MS);
+    // A default is not validated by the schema: check it here.
+    expect(SHUTDOWN_TIMEOUT_MS).toBeGreaterThanOrEqual(MIN_SHUTDOWN_TIMEOUT_MS);
+    const at = parseConfig({
+      SHUTDOWN_TIMEOUT_MS: String(MIN_SHUTDOWN_TIMEOUT_MS),
+    });
+    const below = parseConfig({
+      SHUTDOWN_TIMEOUT_MS: String(MIN_SHUTDOWN_TIMEOUT_MS - 1),
+    });
+    expect(at.ok).toBe(true);
+    expect(below.ok).toBe(false);
   });
 
   it("reports every invalid variable at once", () => {

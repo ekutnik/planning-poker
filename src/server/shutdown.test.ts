@@ -4,12 +4,101 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import WebSocket from "ws";
 import { socketPath } from "../shared/protocol.js";
 import { firstLine, freePort } from "./child.testing.js";
+import { onShutdownSignal } from "./shutdown.js";
 
 /**
- * Shutdown (#29), with the real server in a child process and real signals,
- * as a deploy would send them. A client that pauses its socket stands for a
- * closed laptop: it never answers the close handshake.
+ * Shutdown (#29). onShutdownSignal's decisions are tested first, with fakes
+ * for the process: which exit code, when, and what it logs. Then the real
+ * server in a child process, with real signals as a deploy would send them,
+ * for what only a real process can show: the 1001s, the grace, and the exit
+ * codes. A client that pauses its socket stands for a closed laptop: it
+ * never answers the close handshake.
  */
+
+function setup(close: () => Promise<void> = () => Promise.resolve()) {
+  const exits: number[] = [];
+  const timers: { ms: number; callback: () => void }[] = [];
+  const logs: { level: string; args: unknown[] }[] = [];
+  const record =
+    (level: string) =>
+    (...args: unknown[]) => {
+      logs.push({ level, args });
+    };
+  let closes = 0;
+  const onSignal = onShutdownSignal({
+    close: () => {
+      closes += 1;
+      return close();
+    },
+    exit: (code) => {
+      exits.push(code);
+    },
+    after: (ms, callback) => {
+      timers.push({ ms, callback });
+    },
+    log: { info: record("info"), warn: record("warn"), error: record("error") },
+    timeoutMs: 10_000,
+  });
+  return { onSignal, exits, timers, logs, closes: () => closes };
+}
+
+/** Lets a settled close() run its callback. */
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+/** A close() that never finishes: a shutdown that hangs. */
+const never = () => new Promise<void>(() => undefined);
+
+describe("onShutdownSignal (#29)", () => {
+  it("closes the server and exits with 0, with the timeout set", async () => {
+    const { onSignal, exits, timers, logs, closes } = setup();
+    onSignal("SIGTERM");
+    expect(closes()).toBe(1);
+    expect(timers.map((timer) => timer.ms)).toEqual([10_000]);
+    await settle();
+    expect(exits).toEqual([0]);
+    expect(logs).toEqual([
+      { level: "info", args: [{ signal: "SIGTERM" }, "shutting down"] },
+      { level: "info", args: ["shut down"] },
+    ]);
+  });
+
+  it("exits at once with 1 on a second signal, without closing again", () => {
+    const { onSignal, exits, logs, closes } = setup(never);
+    onSignal("SIGTERM");
+    onSignal("SIGINT");
+    expect(exits).toEqual([1]);
+    expect(closes()).toBe(1);
+    expect(logs.at(-1)).toEqual({
+      level: "warn",
+      args: [{ signal: "SIGINT" }, "second signal: exiting now"],
+    });
+  });
+
+  it("exits with 1 when the shutdown outlasts the timeout", async () => {
+    const { onSignal, exits, timers, logs } = setup(never);
+    onSignal("SIGTERM");
+    await settle();
+    expect(exits).toEqual([]);
+    timers[0]?.callback();
+    expect(exits).toEqual([1]);
+    expect(logs.at(-1)).toEqual({
+      level: "error",
+      args: [{ timeoutMs: 10_000 }, "shutdown took too long: exiting now"],
+    });
+  });
+
+  it("exits with 1, and logs the error, when closing fails", async () => {
+    const failure = new Error("close failed");
+    const { onSignal, exits, logs } = setup(() => Promise.reject(failure));
+    onSignal("SIGTERM");
+    await settle();
+    expect(exits).toEqual([1]);
+    expect(logs.at(-1)).toEqual({
+      level: "error",
+      args: [failure, "shutdown failed"],
+    });
+  });
+});
 
 const ROOM = "abcdefghijk";
 // Vitest runs with NODE_ENV=test; the server here is in development mode.
@@ -59,7 +148,7 @@ async function client(port: number) {
 
 const seconds = (since: number) => (performance.now() - since) / 1000;
 
-describe("shutdown (#29)", () => {
+describe("shutdown in the real process (#29)", () => {
   it.each(["SIGTERM", "SIGINT"] as const)(
     "on %s, closes every socket with 1001 and exits with 0",
     async (signal) => {
@@ -94,18 +183,5 @@ describe("shutdown (#29)", () => {
     const [code] = await exited;
     expect(code).toBe(1);
     expect(seconds(start)).toBeLessThan(1.5); // not the 2s grace
-  });
-
-  it("exits with 1 when the shutdown outlasts SHUTDOWN_TIMEOUT_MS", async () => {
-    const { port, child, exited } = await server({
-      SHUTDOWN_TIMEOUT_MS: "300",
-    });
-    const { socket } = await client(port);
-    socket.pause();
-    const start = performance.now();
-    child.kill("SIGTERM");
-    const [code] = await exited;
-    expect(code).toBe(1);
-    expect(seconds(start)).toBeLessThan(1.5);
   });
 });
