@@ -6,13 +6,22 @@
 // entry chunk: that is what users download, and it still holds once a
 // dynamic import() splits the code into more chunks.
 //
-// The budget is the gzipped total after the Zod fix (73,728 bytes, one chunk
-// then) plus about 15% headroom. Raise it deliberately, in the PR that needs
-// the bytes, and say why there.
+// The budget was the gzipped total after the Zod fix (73,728 bytes, one
+// chunk then) plus about 15% headroom: 85,000. Raise it deliberately, in the
+// PR that needs the bytes, and say why here.
+//
+// Raised to 90,000 in Session 8 (2026-09-28), at 79,000 bytes after 7b. A
+// bundle visualiser, run once with npx and not added to the project, showed
+// nothing to trim: of the minified bundle (254 KB), react-dom is 81%, react
+// and scheduler 5% more, and the app's own code the remaining 14%, spread
+// over about fifty small modules. No other package is in it. The only large
+// lever left would be a smaller React-compatible library, a change of
+// platform rather than a trim, so the budget rises instead, keeping about
+// 14% headroom over today's size.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 
-const BUDGET_GZIP_BYTES = 85_000;
+const BUDGET_GZIP_BYTES = 90_000;
 const ASSETS = "dist/web/assets";
 
 if (!existsSync(ASSETS)) {
