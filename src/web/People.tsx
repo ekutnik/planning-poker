@@ -150,7 +150,15 @@ function NudgeButton({
   useLayoutEffect(() => {
     const element = button.current;
     // As the button goes, if it had focus, hand focus to the list rather
-    // than let it fall to the page. onGone is stable: this runs once.
+    // than let it fall to the page. React runs this cleanup before it takes
+    // the button out of the page, so the button can still see it had focus.
+    // onGone is stable, so this runs once, when the button goes.
+    //
+    // When the whole screen goes instead (the reveal), React has already
+    // detached the list's ref, so the hand-off does nothing: focus falls to
+    // the page, and the screen-change rule (focus.ts) gives it to the new
+    // heading. Checked by hand: focus on a Nudge button, someone else
+    // reveals, and focus lands on "Votes revealed".
     return () => {
       if (element !== null && element === document.activeElement) onGone();
     };

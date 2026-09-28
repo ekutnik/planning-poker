@@ -33,5 +33,8 @@ What we accept:
 - A nudge to someone whose socket drops at that moment is lost: there is no queue and no retry. They still show "Not yet", and the facilitator can nudge again once the cooldown has passed.
 - A modified client can nudge without the facilitator view. The cooldown bounds that to one nudge per person every 30 seconds, however many people send them. The per-connection message limit (#16), when it lands, counts a nudge like any other message.
 - Clearing the banner when the person votes, the round is revealed or reset, or they leave is the client's job, since the server sends nothing when a nudge ends.
+- **A reset clears every cooldown in the room,** so a modified client could reset and nudge, over and over. Accepted: every reset visibly wipes the round for everyone in the room, which makes it self-limiting, and the per-connection message limit (#16) will cap it.
+- **A reset in the middle of voting** clears the server's cooldowns, but the facilitator's voting screen stays on the page, so a "Nudged" button stays until its own timer ends. Accepted, because that is the safe direction: the button comes back late, never early, when a click would do nothing.
+- **A dropped connection keeps its cooldown on both sides, correctly and without extra code.** If Cy disconnects and reconnects within 30 seconds, the server's cooldown is still running, and the client's entry for Cy survives too, because Cy is still in the room, only away. The button comes back as "Nudged", matching the server. This holds only while both sides end a cooldown on leaving, not on disconnecting: making either end it on a disconnect would break the match.
 
 What would change this decision: roles (ADR 0005 revisited), or a need for a nudge to survive a reconnect.
