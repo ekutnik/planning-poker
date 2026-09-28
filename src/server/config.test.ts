@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { CLOSE_GRACE_MS, DEFAULT_LIMITS } from "./app.js";
 import { freePort, firstLine } from "./child.testing.js";
 import {
   MIN_SHUTDOWN_TIMEOUT_MS,
@@ -11,10 +10,12 @@ import {
   SHUTDOWN_TIMEOUT_MS,
 } from "./config.js";
 import {
+  DEFAULT_LIMITS,
   MAX_SWEEP_INTERVAL_MS,
   ROOM_TTL_MS,
   SWEEP_INTERVAL_MS,
 } from "./room-service.js";
+import { CLOSE_GRACE_MS } from "./shutdown.js";
 
 describe("parseConfig (#18)", () => {
   it("uses the defaults when nothing is set, and ignores unrelated variables", () => {

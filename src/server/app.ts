@@ -11,21 +11,14 @@ import { ROOM_ID_PATTERN } from "../shared/rules.js";
 import { securityHeaders } from "./headers.js";
 import { generateRoomId } from "./identity.js";
 import {
+  DEFAULT_LIMITS,
   RoomService,
   SWEEP_INTERVAL_MS,
   type Connection,
   type Limits,
 } from "./room-service.js";
+import { CLOSE_GRACE_MS } from "./shutdown.js";
 import { notFound, serveClient } from "./web.js";
-
-export const DEFAULT_LIMITS: Limits = { maxRooms: 10_000, maxPending: 1_000 };
-
-/**
- * At shutdown, how long sockets get to finish their close handshake before
- * they are dropped (#29). A browser answers at once; a closed laptop never
- * does, and ws would otherwise wait 30 seconds for it.
- */
-export const CLOSE_GRACE_MS = 2_000;
 
 export interface ServerOptions {
   /** Omit to disable logging; `stream` lets tests capture the lines. */

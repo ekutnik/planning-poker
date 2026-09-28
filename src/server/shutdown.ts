@@ -1,5 +1,12 @@
 import type { FastifyBaseLogger } from "fastify";
 
+/**
+ * At shutdown, how long sockets get to finish their close handshake before
+ * they are dropped (#29). A browser answers at once; a closed laptop never
+ * does, and ws would otherwise wait 30 seconds for it.
+ */
+export const CLOSE_GRACE_MS = 2_000;
+
 /** What a shutdown needs from the process, passed in so a test can fake it. */
 export interface ShutdownDeps {
   /** Closes the server gracefully: app.close(). */

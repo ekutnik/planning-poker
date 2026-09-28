@@ -1,12 +1,13 @@
 import * as z from "zod";
-import { CLOSE_GRACE_MS, DEFAULT_LIMITS } from "./app.js";
 import {
+  DEFAULT_LIMITS,
   JOIN_TIMEOUT_MS,
   MAX_SWEEP_INTERVAL_MS,
   ROOM_TTL_MS,
   SWEEP_INTERVAL_MS,
   type Limits,
 } from "./room-service.js";
+import { CLOSE_GRACE_MS } from "./shutdown.js";
 
 /**
  * A shutdown still running after this long exits anyway, with 1 (#29). The
