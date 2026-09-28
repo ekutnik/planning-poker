@@ -1,8 +1,13 @@
 # syntax=docker/dockerfile:1
 
+# The base for every stage, pinned to an exact version and digest (the
+# multi-platform index), so two builds of one commit get the same Node.
+# Dependabot proposes updates as pull requests.
+FROM node:24.21.0-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS base
+
 # The build: the client with Vite, the server with tsc. Needs the dev
 # dependencies, which stay in this stage.
-FROM node:24-slim AS build
+FROM base AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -11,12 +16,12 @@ COPY src ./src
 RUN npm run build:web && npm run build:server
 
 # Production dependencies only.
-FROM node:24-slim AS deps
+FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-FROM node:24-slim
+FROM base
 # 0.0.0.0: the default, 127.0.0.1, would be the container itself, out of
 # reach of the platform's proxy. NODE_ENV=production makes a missing client
 # build fatal (see main.ts).
