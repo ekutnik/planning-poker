@@ -22,9 +22,11 @@ export const PAGE_CSP = [
 ].join("; ");
 
 /**
- * An SVG is a document too, so it gets its own policy: its inline <style>
- * (the favicon's colours follow the system's dark mode) and nothing else,
- * so no script could ever run in one.
+ * Hardening for an SVG opened directly as a page, where it is a document
+ * like any other: no script, no request, nothing loaded. The favicon needs
+ * no policy to switch its colours with the system's dark mode; this one
+ * only has to leave its inline <style> working while it takes the rest
+ * away (the page's style-src 'self' would block that <style>).
  */
 export const SVG_CSP = "default-src 'none'; style-src 'unsafe-inline'";
 
