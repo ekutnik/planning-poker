@@ -23,6 +23,7 @@ describe("parseConfig (#18)", () => {
       ok: true,
       config: {
         port: 3000,
+        host: "127.0.0.1",
         logLevel: "info",
         limits: DEFAULT_LIMITS,
         sweepIntervalMs: SWEEP_INTERVAL_MS,
@@ -38,6 +39,7 @@ describe("parseConfig (#18)", () => {
     expect(
       parseConfig({
         PORT: "8080",
+        HOST: "0.0.0.0",
         LOG_LEVEL: "warn",
         MAX_ROOMS: "50",
         MAX_PENDING: "20",
@@ -51,6 +53,7 @@ describe("parseConfig (#18)", () => {
       ok: true,
       config: {
         port: 8080,
+        host: "0.0.0.0",
         logLevel: "warn",
         limits: { maxRooms: 50, maxPending: 20 },
         sweepIntervalMs: 1000,
@@ -73,6 +76,11 @@ describe("parseConfig (#18)", () => {
     ["SWEEP_INTERVAL_MS", "60000"],
     ["SWEEP_INTERVAL_MS", "10"],
     ["ROOM_TTL_MS", "ten minutes"],
+    // An IP address only: "localhost" can mean ::1 or 127.0.0.1, or both.
+    ["HOST", "localhost"],
+    ["HOST", ""],
+    ["HOST", " 0.0.0.0"],
+    ["HOST", "999.0.0.1"],
     // Number() would accept all of these; plain decimal digits only.
     ["MAX_ROOMS", "0x10"],
     ["MAX_ROOMS", "1e4"],
@@ -189,6 +197,7 @@ describe("main", () => {
             NODE_ENV: "production",
             WEB_ROOT: root,
             PORT: String(port),
+            HOST: "127.0.0.1",
           },
         },
       );
@@ -196,19 +205,37 @@ describe("main", () => {
         child.kill();
         rmSync(root, { recursive: true, force: true });
       });
-      // Fastify listens on ::1 and 127.0.0.1 and logs each: wait for the
-      // one fetched from, or it can be refused in between.
-      await firstLine(
-        child.stdout,
-        "Server listening at http://127.0.0.1",
-        4_000,
-      );
+      await firstLine(child.stdout, "Server listening", 4_000);
       const page = await fetch(`http://127.0.0.1:${String(port)}/`, {
         headers: { accept: "text/html" },
       });
       expect(page.status).toBe(200);
       expect(await page.text()).toContain("<title>Built</title>");
     });
+  });
+
+  it("listens on HOST alone", async () => {
+    const port = await freePort();
+    const child = spawn(
+      process.execPath,
+      ["--import", "tsx", "src/server/main.ts"],
+      { env: { ...process.env, PORT: String(port), HOST: "127.0.0.1" } },
+    );
+    let output = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+    onTestFinished(() => {
+      child.kill();
+    });
+    await firstLine(child.stdout, "Server listening", 4_000);
+    const health = await fetch(`http://127.0.0.1:${String(port)}/health`);
+    expect(health.status).toBe(200);
+    // Without a host, Fastify's "localhost" would listen on ::1 as well.
+    await expect(
+      fetch(`http://[::1]:${String(port)}/health`),
+    ).rejects.toThrow();
+    expect(output.match(/Server listening/g)).toEqual(["Server listening"]);
   });
 
   it("logs the effective config at startup, so a misspelled variable shows", async () => {

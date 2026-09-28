@@ -109,15 +109,21 @@ async function server(env: Record<string, string> = {}) {
   const child = spawn(
     process.execPath,
     ["--import", "tsx", "src/server/main.ts"],
-    { env: { ...base, PORT: String(port), LOG_LEVEL: "info", ...env } },
+    {
+      env: {
+        ...base,
+        PORT: String(port),
+        HOST: "127.0.0.1",
+        LOG_LEVEL: "info",
+        ...env,
+      },
+    },
   );
   onTestFinished(() => {
     child.kill("SIGKILL");
   });
   const exited = once(child, "exit") as Promise<[number | null, string | null]>;
-  // Fastify listens on ::1 and 127.0.0.1 and logs each: wait for the one
-  // the client connects to, or it can be refused in between.
-  await firstLine(child.stdout, "Server listening at http://127.0.0.1", 6_000);
+  await firstLine(child.stdout, "Server listening", 6_000);
   return { port, child, exited };
 }
 

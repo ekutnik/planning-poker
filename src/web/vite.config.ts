@@ -4,7 +4,9 @@ import { defineConfig } from "vite";
 // Run as `vite src/web`, so this directory is the root. In development the
 // Fastify server runs separately (`npm run dev`) and Vite proxies to it. The
 // build goes to dist/web, which the Fastify server serves when it is there.
-const SERVER = "http://localhost:3000";
+// 127.0.0.1, where the server listens by default (HOST): "localhost" could
+// resolve to ::1 first.
+const SERVER = "http://127.0.0.1:3000";
 
 export default defineConfig({
   plugins: [react()],
