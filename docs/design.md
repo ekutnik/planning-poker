@@ -352,6 +352,7 @@ Audited in Session 7 against WCAG 2.2 AA; the record, with what was and wasn't t
 - **The voted count is visible but not announced** on every change, which would make a screen reader chatter through the whole discussion.
 - **Selection and focus look different,** so a keyboard user can tell "this is my vote" from "this is where I am". Selected: a Cobalt fill with an On Cobalt numeral. Focused: the 3 px Cobalt ring, 2 px outside the card's edge. A selected card with focus shows both.
 - **Every control shows the focus ring** when reached from the keyboard, and every target is at least 24×24 CSS px (WCAG 2.5.8).
+- **In Safari, Tab moves only between text fields by default;** Option+Tab reaches every control, or all of them with Tab once "Press Tab to highlight each item" is on (Safari's Advanced settings). That is Safari's behaviour, not a bug here: the end-to-end suite presses Option+Tab in WebKit. Safari also doesn't focus a button on a mouse click, so after mouse-only use nothing has had focus, and a screen change leaves focus where it is, as the focus rule says.
 - **Status is a word:** each pill says Voted, Not yet or Away, so colour is never the only signal.
 
 ## Reviewed against the brief

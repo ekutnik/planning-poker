@@ -33,6 +33,28 @@ jobs:
       - run: npm run check:bundle
       - run: npm run build:server
 
+  # The end-to-end suite (e2e/): the production build in Chromium, Firefox
+  # and WebKit, with axe on every screen. The report is kept when it fails.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
   # The Docker image, built as the deploy builds it (BuildKit), and nothing
   # published. Then a smoke test of what a deploy relies on: it starts in
   # production, answers /health from outside the container, and stops with
