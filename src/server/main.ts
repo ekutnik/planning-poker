@@ -36,6 +36,8 @@ const app = buildServer({
   limits: config.limits,
   sweepIntervalMs: config.sweepIntervalMs,
   roomTtlMs: config.roomTtlMs,
+  production: config.production,
+  proxy: config.proxy,
 });
 // A misspelled variable (MAX_ROOM=5) is simply absent, so its default
 // applies; logging the effective config once is how an operator notices.

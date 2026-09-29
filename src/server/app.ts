@@ -9,6 +9,7 @@ import type { WebSocket } from "ws";
 import { CloseCode } from "../shared/close-codes.js";
 import { PROTOCOL_VERSION } from "../shared/protocol.js";
 import { ROOM_ID_PATTERN } from "../shared/rules.js";
+import { clientIp, type Proxy } from "./client-ip.js";
 import { securityHeaders } from "./headers.js";
 import { generateRoomId } from "./identity.js";
 import {
@@ -36,6 +37,10 @@ export interface ServerOptions {
    * and the websocket alone, as in development, where Vite serves the page.
    */
   readonly webRoot?: string;
+  /** Production: adds HSTS (headers.ts). */
+  readonly production?: boolean;
+  /** The proxy in front, whose header names the client (client-ip.ts). */
+  readonly proxy?: Proxy;
 }
 
 const roomParams = {
@@ -46,14 +51,15 @@ const roomParams = {
 
 /**
  * Fastify's default request serializer logs the raw URL, and `/ws/:roomId` puts
- * a join link there (#21). Log the matched route pattern instead.
+ * a join link there (#21). Log the matched route pattern instead, and the
+ * client's address as the proxy in front reports it.
  */
-function serializeRequest(request: FastifyRequest) {
-  return {
+function requestSerializer(proxy: Proxy | undefined) {
+  return (request: FastifyRequest) => ({
     method: request.method,
     url: request.routeOptions.url ?? "(unmatched)",
-    remoteAddress: request.ip,
-  };
+    remoteAddress: clientIp(request, proxy),
+  });
 }
 
 type Socket = Pick<WebSocket, "send" | "close" | "ping" | "terminate">;
@@ -95,7 +101,7 @@ export function buildServer(options: ServerOptions = {}) {
   const app = Fastify({
     logger: options.logger && {
       ...options.logger,
-      serializers: { req: serializeRequest },
+      serializers: { req: requestSerializer(options.proxy) },
     },
     // At close, after the preClose drain below, end every HTTP connection
     // still open. By then the rooms are gone, and what remains is idle or,
@@ -104,7 +110,7 @@ export function buildServer(options: ServerOptions = {}) {
     // shutdown timeout. Chrome preconnects, so a real deploy would too.
     forceCloseConnections: true,
   });
-  securityHeaders(app);
+  securityHeaders(app, { production: options.production ?? false });
   if (options.webRoot !== undefined) serveClient(app, options.webRoot);
   // The default 404 handler logs the raw URL; this one does not.
   app.setNotFoundHandler(notFound(options.webRoot !== undefined));

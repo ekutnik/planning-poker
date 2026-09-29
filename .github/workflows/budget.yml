@@ -1,0 +1,28 @@
+name: Budget
+
+# Fly has no spending cap and no billing alert. Once a week, check the app
+# is still what the budget pays for: one shared-cpu-1x machine with 256 MB,
+# no dedicated IPv4 and no volume. A change made outside a deploy (fly scale from a
+# laptop, say) fails this, and GitHub emails the failure. Scheduled runs
+# use the workflow on the default branch, develop.
+on:
+  schedule:
+    - cron: "0 7 * * 1" # Mondays, 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      # Pinned to the commit of its tag 1.6, as in deploy.yml.
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+        with:
+          version: 0.4.108
+      - run: scripts/check-fly-budget.sh
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

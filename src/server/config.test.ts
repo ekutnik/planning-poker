@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { freePort, firstLine } from "./child.testing.js";
+import { freePort, firstLine, serverEnv } from "./child.testing.js";
 import {
   MIN_SHUTDOWN_TIMEOUT_MS,
   parseConfig,
@@ -31,6 +31,7 @@ describe("parseConfig (#18)", () => {
         shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
         production: false,
         webRoot: undefined,
+        proxy: undefined,
       },
     });
   });
@@ -48,6 +49,7 @@ describe("parseConfig (#18)", () => {
         SHUTDOWN_TIMEOUT_MS: "5000",
         NODE_ENV: "production",
         WEB_ROOT: "/srv/web",
+        PROXY: "fly",
       }),
     ).toEqual({
       ok: true,
@@ -61,6 +63,7 @@ describe("parseConfig (#18)", () => {
         shutdownTimeoutMs: 5000,
         production: true,
         webRoot: "/srv/web",
+        proxy: "fly",
       },
     });
   });
@@ -81,6 +84,9 @@ describe("parseConfig (#18)", () => {
     ["HOST", ""],
     ["HOST", " 0.0.0.0"],
     ["HOST", "999.0.0.1"],
+    // Only a proxy the server knows how to read.
+    ["PROXY", "nginx"],
+    ["PROXY", ""],
     // Number() would accept all of these; plain decimal digits only.
     ["MAX_ROOMS", "0x10"],
     ["MAX_ROOMS", "1e4"],
@@ -134,7 +140,7 @@ describe("main", () => {
       process.execPath,
       ["--import", "tsx", "src/server/main.ts"],
       {
-        env: { ...process.env, MAX_ROOMS: "abc", PORT: "0" },
+        env: serverEnv({ MAX_ROOMS: "abc", PORT: "0" }),
         encoding: "utf8",
         timeout: 15_000,
       },
@@ -145,8 +151,6 @@ describe("main", () => {
   });
 
   describe("the client build", () => {
-    // Vitest runs with NODE_ENV=test; each case sets its own.
-    const { NODE_ENV: _ignored, ...base } = process.env;
     const missing = join(tmpdir(), "planning-poker-no-build-here");
 
     it("refuses to start in production without it, and says why", () => {
@@ -154,12 +158,11 @@ describe("main", () => {
         process.execPath,
         ["--import", "tsx", "src/server/main.ts"],
         {
-          env: {
-            ...base,
+          env: serverEnv({
             NODE_ENV: "production",
             WEB_ROOT: missing,
             PORT: "3999", // valid; it exits before listening
-          },
+          }),
           encoding: "utf8",
           timeout: 15_000,
         },
@@ -173,7 +176,7 @@ describe("main", () => {
       const child = spawn(
         process.execPath,
         ["--import", "tsx", "src/server/main.ts"],
-        { env: { ...base, WEB_ROOT: missing, PORT: String(port) } },
+        { env: serverEnv({ WEB_ROOT: missing, PORT: String(port) }) },
       );
       onTestFinished(() => {
         child.kill();
@@ -192,13 +195,12 @@ describe("main", () => {
         process.execPath,
         ["--import", "tsx", "src/server/main.ts"],
         {
-          env: {
-            ...base,
+          env: serverEnv({
             NODE_ENV: "production",
             WEB_ROOT: root,
             PORT: String(port),
             HOST: "127.0.0.1",
-          },
+          }),
         },
       );
       onTestFinished(() => {
@@ -211,6 +213,10 @@ describe("main", () => {
       });
       expect(page.status).toBe(200);
       expect(await page.text()).toContain("<title>Built</title>");
+      // Production turns on HSTS (headers.ts), as the config says.
+      expect(page.headers.get("strict-transport-security")).toBe(
+        "max-age=31536000",
+      );
     });
   });
 
@@ -219,7 +225,7 @@ describe("main", () => {
     const child = spawn(
       process.execPath,
       ["--import", "tsx", "src/server/main.ts"],
-      { env: { ...process.env, PORT: String(port), HOST: "127.0.0.1" } },
+      { env: serverEnv({ PORT: String(port), HOST: "127.0.0.1" }) },
     );
     let output = "";
     child.stdout.on("data", (chunk: Buffer) => {
@@ -238,18 +244,45 @@ describe("main", () => {
     expect(output.match(/Server listening/g)).toEqual(["Server listening"]);
   });
 
+  it("with PROXY=fly, logs the client from Fly-Client-IP", async () => {
+    const port = await freePort();
+    const child = spawn(
+      process.execPath,
+      ["--import", "tsx", "src/server/main.ts"],
+      {
+        env: serverEnv({
+          PORT: String(port),
+          HOST: "127.0.0.1",
+          LOG_LEVEL: "info",
+          PROXY: "fly",
+        }),
+      },
+    );
+    onTestFinished(() => {
+      child.kill();
+    });
+    await firstLine(child.stdout, "Server listening", 4_000);
+    const logged = firstLine(child.stdout, "incoming request", 4_000);
+    await fetch(`http://127.0.0.1:${String(port)}/health`, {
+      headers: { "fly-client-ip": "203.0.113.7" },
+    });
+    const line = JSON.parse(await logged) as {
+      req: { remoteAddress: string };
+    };
+    expect(line.req.remoteAddress).toBe("203.0.113.7");
+  });
+
   it("logs the effective config at startup, so a misspelled variable shows", async () => {
     const port = await freePort();
     const child = spawn(
       process.execPath,
       ["--import", "tsx", "src/server/main.ts"],
       {
-        env: {
-          ...process.env,
+        env: serverEnv({
           PORT: String(port),
           LOG_LEVEL: "info",
           MAX_ROOM: "7", // typo for MAX_ROOMS: ignored, so the default applies
-        },
+        }),
       },
     );
     // Runs even if the test times out, so a failure never leaks a server.

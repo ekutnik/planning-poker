@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
-import { firstLine, freePort } from "../src/server/child.testing.js";
+import { firstLine, freePort, serverEnv } from "../src/server/child.testing.js";
 
 const MAIN = fileURLToPath(new URL("../dist/server/main.js", import.meta.url));
 
@@ -30,13 +30,12 @@ export class OwnServer {
   /** Starts it, on the same port as before. */
   async restart(): Promise<void> {
     const child = spawn(process.execPath, [MAIN], {
-      env: {
-        ...process.env,
+      env: serverEnv({
         NODE_ENV: "production",
         HOST: "127.0.0.1",
         PORT: String(this.port),
         LOG_LEVEL: "info",
-      },
+      }),
     });
     this.child = child;
     child.stdout.on("data", (chunk: Buffer) => {
