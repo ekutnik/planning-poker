@@ -1,13 +1,13 @@
 # Planning Poker Session
 
-Real-time planning poker for a team estimating on a video call. Everyone votes on their own screen, the votes stay hidden until someone reveals them, and the result shows the spread and the winner without naming anyone.
+Real-time planning poker for a team estimating on a video call. Everyone votes on their own screen, the votes stay hidden until someone reveals them, and the result sentence gives the spread and the winner without singling anyone out.
 
-> **Status:** v0.1.0, September 2026, in use by one team. A public launch is planned for v1 (see [Roadmap](#roadmap)).
+> **Status:** v0.1.0, September 2026, about to go into use with one team. A public launch is planned for v1 (see [Roadmap](#roadmap)).
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/voting-facilitator.png" alt="The facilitator's view while voting: six people with status pills, one not yet voted with a Nudge button, the deck, and Reveal votes" /></td>
-    <td><img src="docs/screenshots/revealed-dark.png" alt="The revealed round in the dark theme: names stacked above the cards they chose, 5 highlighted as the result, and the sentence Spread from 3 to 8. Result: 5." /></td>
+    <td><img src="docs/design/voting-facilitator-wide-light.png" alt="The facilitator's view while voting: six people with status pills, one not yet voted with a Nudge button, the deck, and Reveal votes" /></td>
+    <td><img src="docs/design/reveal-winner-wide-dark.png" alt="The revealed round in the dark theme: names stacked above the cards they chose, 8 highlighted as the result, and the sentence Spread from 5 to 13. Result: 8." /></td>
   </tr>
 </table>
 
@@ -19,17 +19,17 @@ A team estimates together on a video call, everyone on their own laptop, while t
 
 - **A room is a link.** Create one, share it, and everyone joins with just a name. No accounts, no install.
 - **Votes stay hidden until the reveal,** on the screen and on the wire: the server sends each person only what they may see ([ADR 0004](docs/decisions/0004-vote-privacy-via-projection.md)).
-- **A result that names no one:** the spread, then the winning card or a draw, with everyone's card on the deck as a scale.
+- **A result sentence that singles no one out:** the spread, then the winning card or a draw, or why there is none. The deck becomes a scale, with each name above the card it chose.
 - **A facilitator view** for sharing your screen: your own vote is never shown, and the controls stay in one place.
 - **Nudges:** a quiet, anonymous reminder to someone who hasn't voted ([ADR 0007](docs/decisions/0007-nudges-are-transient-and-anonymous.md)).
-- **It recovers on its own:** pages reconnect after a dropped connection, a sleeping laptop gets its seat back within a minute, and during a deploy each page says "The server is restarting. Reconnecting…".
-- **Accessible:** light and dark themes, full keyboard and screen-reader support, audited against WCAG 2.2 AA ([Accessibility](#accessibility)).
+- **It recovers on its own:** pages reconnect after a dropped connection, a laptop that wakes within a minute keeps its seat and its vote, and during a deploy each page says "The server is restarting. Reconnecting…".
+- **Accessible:** light and dark themes, full keyboard and screen-reader support, checked against WCAG 2.2 AA ([Accessibility](#accessibility)).
 - **Two layouts,** chosen by window width: a full window, or tiled beside the call and on a phone.
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/landing.png" alt="The landing page: a name field, the I'm running this session switch, Create a room, and a preview of a revealed round" /></td>
-    <td width="30%"><img src="docs/screenshots/voting-phone.png" alt="The participant view on a phone: the people list and the deck in two rows of five" /></td>
+    <td><img src="docs/design/landing-wide-light.png" alt="The landing page: a name field, the I'm running this session switch, Create a room, and a preview of a revealed round" /></td>
+    <td width="30%"><img src="docs/design/voting-participant-compact-light.png" alt="The participant view on a phone: the people list and the deck in two rows of five" /></td>
   </tr>
 </table>
 
@@ -94,7 +94,7 @@ Every timeout runs in one periodic sweep that compares timestamps (no per-connec
 
 ## Accessibility
 
-Audited in September 2026 against WCAG 2.2 AA. The record is in [docs/audit/2026-09-accessibility.md](docs/audit/2026-09-accessibility.md).
+Checked against WCAG 2.2 AA in September 2026: a self-audit, not an outside one. The record, with what was and wasn't tested, is in [docs/audit/2026-09-accessibility.md](docs/audit/2026-09-accessibility.md); the checks still due before launch are in [#44](https://github.com/ekutnik/planning-poker/issues/44).
 
 - **Screen readers:** tested with VoiceOver in Safari.
 - **Keyboard only:** tested in Chromium.
@@ -104,9 +104,9 @@ Audited in September 2026 against WCAG 2.2 AA. The record is in [docs/audit/2026
 
 ## Security and privacy
 
-- **The room link is the credential.** Room ids are 64 random bits. The link is never shown on screen, and never sent to another site (`Referrer-Policy: no-referrer`).
+- **The room link is the credential.** Room ids are 64 random bits. The id never appears in the page, the page title or the logs (which hold only a hash of it), and the link is never sent to another site (`Referrer-Policy: no-referrer`). Copy link and the address bar are the only places it shows.
 - **Votes are private until the reveal,** enforced by the server's per-viewer projection, not by the client hiding them.
-- **Nothing is stored:** no accounts, no database. Rooms, names and votes live in memory and are gone when the room empties or the server restarts.
+- **Nothing is stored on the server:** no accounts, no database. Rooms, names and votes live in memory and are gone when the room empties or the server restarts. The browser keeps its session token, the last name used, the theme and the Facilitate setting, in its own storage.
 - **Logs:** the server logs each request's client address and the type of each message, never names or votes, and room ids only in hashed form. What is logged, and for how long, is being written up for launch ([#65](https://github.com/ekutnik/planning-poker/issues/65)).
 - **Headers:** a strict Content-Security-Policy on every page, and HSTS in production (see [Security headers](#security-headers)).
 
@@ -240,13 +240,13 @@ The visual and interaction design, and the reasoning behind it, is in [docs/desi
 
 ## Roadmap
 
-- **v1: dogfood.** The team uses it for its planning sessions, and what they find shapes what comes next.
+- **Now (v0.x): team trial.** One team uses it for its planning sessions, and what they find shapes what comes next.
 - **v1: launch.** Before the repository and the link go public:
   - rate limits ([#16](https://github.com/ekutnik/planning-poker/issues/16)), keyed on the real client address ([#66](https://github.com/ekutnik/planning-poker/issues/66));
   - a safe default `MAX_ROOMS` ([#63](https://github.com/ekutnik/planning-poker/issues/63));
   - a privacy note, and quieter logs ([#65](https://github.com/ekutnik/planning-poker/issues/65));
   - the scheduled budget check kept alive ([#64](https://github.com/ekutnik/planning-poker/issues/64));
-  - the remaining accessibility checks ([#44](https://github.com/ekutnik/planning-poker/issues/44)).
+  - the remaining accessibility checks ([#44](https://github.com/ekutnik/planning-poker/issues/44)), and the Safari console error ([#71](https://github.com/ekutnik/planning-poker/issues/71)).
 - **Later:** named rooms ([#35](https://github.com/ekutnik/planning-poker/issues/35)).
 
 ## Credits
@@ -255,4 +255,4 @@ The typeface is [Figtree](https://github.com/erikdkennedy/figtree) by Erik Kenne
 
 ## License
 
-MIT
+[MIT](LICENSE)
