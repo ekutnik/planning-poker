@@ -214,7 +214,7 @@ The team's own rule, and it decides the highlight:
 
 1. Take the numeric votes only. `?` and ☕ never win.
 2. If every numeric vote is the same number (at least two of them), that card wins. Nothing needs dropping.
-3. Otherwise drop **one** vote at each end: one vote on the lowest card and one on the highest. Other votes on those cards stay.
+3. Otherwise, with **four or more** numeric votes, drop **one** vote at each end: one vote on the lowest card and one on the highest. Other votes on those cards stay. With two or three, drop nothing.
 4. Among the remaining votes, the card with the most votes wins, **if it has at least two**. Two or more cards tied on that count are a draw. If the top count is one, or nothing remains, there is no winner.
 
 | Votes              | After dropping one at each end | Outcome                                     |
@@ -224,29 +224,34 @@ The team's own rule, and it decides the highlight:
 | 2, 3, 3, 5, 5, 13  | 3, 3, 5, 5                     | Draw: 3 and 5                               |
 | 2, 2, 8, 8, 13, 13 | 2, 8, 8, 13                    | 8 wins (a three-way tie before dropping)    |
 | 3, 3, 8, 13        | 3, 8                           | No winner (3 had two votes before dropping) |
-| 3, 5, 8            | 5                              | No winner (one vote left)                   |
+| 3, 5, 5, 8         | 5, 5                           | 5 wins                                      |
+| 13, 13, 5          | (three votes: nothing dropped) | 13 wins                                     |
+| 3, 5, 8            | (three votes: nothing dropped) | No winner (one vote each)                   |
 | 2, 3, 5, 8, 13     | 3, 5, 8                        | No winner                                   |
-| 5, 8               | nothing                        | No winner                                   |
+| 5, 8               | (two votes: nothing dropped)   | No winner                                   |
 | 5, 5, 5, 5, 5      | (all the same)                 | 5 wins, everyone agrees                     |
 | 5, 5, 5, ?         | (all numbers the same)         | 5 wins                                      |
 
 The scale doesn't mark which votes were dropped: the names stay above their cards, and only the winner is tinted.
 
+**Changed after v0.1.0 (2026-09-29):** dropping now starts at four numeric votes (`DROP_ENDS_FROM` in `src/shared/rules.ts`). The rule was written for the team's usual size, around 12. Applied to a round of three, it threw away a third of the votes: 13, 13, 5 lost a 13 and had no result. That's no difference for the team, but a small team, or a public user, would see a rule that never gives a result. With four or more votes nothing changes. A reveal with no result now also says why, in the rule's own terms, instead of leaving only the spread.
+
 **Results model.** The server computes `winners: NumericCard[]` in `computeResults`: one card for a winner, several for a draw, empty for none, by the rule above. The client renders; the server decides what "winner" means, with one tested definition. `outliers` and `wideSpread` are gone, since nothing displays them. `min`, `max`, `spreadSteps`, `consensus` and the distribution stay.
 
 ### Highlight and sentence
 
-| Situation                                                      | Highlight                 | Sentence                                     |
-| -------------------------------------------------------------- | ------------------------- | -------------------------------------------- |
-| Everyone voted the same number, at least two votes             | That card, Win (green)    | "Everyone chose 5."                          |
-| Every numeric vote is the same number, with a `?` or ☕ beside | That card, Win            | "Result: 5."                                 |
-| A winner                                                       | That card, Win            | "Spread from 5 to 13. Result: 8."            |
-| A draw                                                         | Those cards, Draw (amber) | "Spread from 2 to 13. Draw between 3 and 5." |
-| No winner                                                      | None                      | "Spread from 2 to 13."                       |
-| A single vote                                                  | None                      | "Only one vote: 8."                          |
-| A single numeric vote, with a `?` or ☕ beside it              | None                      | "Only one numeric vote: 8."                  |
-| No numeric votes                                               | None                      | "No numeric votes this round."               |
-| No votes (everyone who voted has left)                         | None                      | "Nobody voted this round."                   |
+| Situation                                                      | Highlight                 | Sentence                                                                                           |
+| -------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------- |
+| Everyone voted the same number, at least two votes             | That card, Win (green)    | "Everyone chose 5."                                                                                |
+| Every numeric vote is the same number, with a `?` or ☕ beside | That card, Win            | "Result: 5."                                                                                       |
+| A winner                                                       | That card, Win            | "Spread from 5 to 13. Result: 8."                                                                  |
+| A draw                                                         | Those cards, Draw (amber) | "Spread from 2 to 13. Draw between 3 and 5."                                                       |
+| No winner, four or more numeric votes                          | None                      | "Spread from 2 to 13. No result: no card has two votes once the lowest and highest are set aside." |
+| No winner, two or three numeric votes                          | None                      | "Spread from 3 to 8. No result: no card has two votes."                                            |
+| A single vote                                                  | None                      | "Only one vote: 8."                                                                                |
+| A single numeric vote, with a `?` or ☕ beside it              | None                      | "Only one numeric vote: 8."                                                                        |
+| No numeric votes                                               | None                      | "No numeric votes this round."                                                                     |
+| No votes (everyone who voted has left)                         | None                      | "Nobody voted this round."                                                                         |
 
 - **"Result", not "Most votes".** With the dropping rule the winner can differ from the card with the most raw votes (2, 2, 8, 8, 13, 13), so "most votes" would sometimes be untrue.
 - The spread is always the full range of all numeric votes, dropped ones included. It appears only when the lowest and highest differ.
