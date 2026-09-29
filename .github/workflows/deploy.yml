@@ -50,21 +50,23 @@ jobs:
       # built here, on the runner (--local-only), not on a Fly builder.
       # --ha=false: flyctl otherwise creates a spare machine, which would
       # double the bill; rooms live in memory, so a spare would split them.
-      # --image-label: the image is tagged with the commit it was built
-      # from, so the running image names its commit on main. (flyctl also
-      # adds a GH_SHA label, but in a workflow_run that is develop's head,
-      # where this file runs from, not the commit deployed.)
-      - run: >-
-          flyctl deploy --local-only --ha=false
-          --image-label ${{ github.event.workflow_run.head_sha }}
+      # The image is tagged with the full SHA of the commit it was built
+      # from, so the running image names its commit on main. The SHA comes
+      # in through env:, not written into the script.
+      #
+      # Ignore the GH_SHA label flyctl also puts on the image: in a
+      # workflow_run it is develop's head, where this file runs from, not
+      # the commit deployed. The image tag is what counts.
+      - run: flyctl deploy --local-only --ha=false --image-label "$HEAD_SHA"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      # The deploy put that commit live: the machine runs the image tagged
-      # with it.
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      # The deploy put that commit live: every machine runs the image tagged
+      # with it (and there is at least one: all() of nothing is true).
       - run: |
-          image=$(flyctl machine list --json | jq -r '.[].config.image' | sort -u)
-          echo "running: $image"
-          test "$image" = "registry.fly.io/estimate-together:$HEAD_SHA"
+          image="registry.fly.io/estimate-together:$HEAD_SHA"
+          flyctl machine list --json |
+            jq -e --arg img "$image" 'length > 0 and all(.[]; .config.image == $img)'
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
