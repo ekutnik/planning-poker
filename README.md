@@ -2,7 +2,7 @@
 
 Real-time planning poker for a team estimating on a video call. Everyone votes on their own screen, the votes stay hidden until someone reveals them, and the result sentence gives the spread and the winner without singling anyone out.
 
-> **Status:** v0.1.0, September 2026, about to go into use with one team. A public launch is planned for v1 (see [Roadmap](#roadmap)).
+> **Status:** early releases ([see Releases](https://github.com/ekutnik/planning-poker/releases)), about to go into use with one team. A public launch is planned for v1 (see [Roadmap](#roadmap)).
 
 <table>
   <tr>
