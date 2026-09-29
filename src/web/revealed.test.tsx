@@ -53,7 +53,7 @@ function render(facilitating = true, shown: Revealed = snapshot): string {
 function namesPerStep(html: string): string[][] {
   const scale = /<ol class="scale"[^>]*>([\s\S]*)<\/ol>/.exec(html)?.[1] ?? "";
   return scale
-    .split(/<li class="scale-step[^"]*">/)
+    .split(/<li class="scale-step[^"]*"[^>]*>/)
     .slice(1)
     .map((step) =>
       [...step.matchAll(/<li class="scale-name[^"]*">([^<]*)<\/li>/g)].map(
@@ -90,6 +90,18 @@ describe("the deck as the scale", () => {
   it("marks the cards nobody chose as empty, and keeps them in place", () => {
     const html = render();
     expect(html.match(/class="scale-step scale-step--empty"/g)).toHaveLength(6);
+  });
+
+  it("hides the cards nobody chose from screen readers, and only those (#44)", () => {
+    const steps = [
+      ...render().matchAll(/<li class="(scale-step[^"]*)"([^>]*)>/g),
+    ];
+    expect(steps).toHaveLength(DECK.length);
+    for (const [, className = "", attributes = ""] of steps) {
+      expect(attributes.includes('aria-hidden="true"'), className).toBe(
+        className.includes("scale-step--empty"),
+      );
+    }
   });
 
   it("tints the winning card, and the names on it, Win; nothing else", () => {

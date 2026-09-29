@@ -14,7 +14,9 @@ type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
  *
  * In the DOM each step is the card, then its names in join order, so a
  * screen reader hears "5: Ben, Dee"; CSS draws the names above the card,
- * the first to join nearest it.
+ * the first to join nearest it. Cards nobody chose are hidden from screen
+ * readers (#44, heard with VoiceOver): on screen the gaps show the spread,
+ * but read aloud they are only a list of numbers between the votes.
  */
 export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
   const { participants, results } = snapshot;
@@ -32,7 +34,11 @@ export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
       {DECK.map((card) => {
         const voters = participants.filter((p) => p.vote === card);
         return (
-          <li key={card} className={stepClass(card, voters.length)}>
+          <li
+            key={card}
+            className={stepClass(card, voters.length)}
+            aria-hidden={voters.length === 0 ? true : undefined}
+          >
             <span className="scale-card">
               <CardText card={card} />
             </span>

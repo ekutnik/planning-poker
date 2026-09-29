@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, createRoom, type Command, type Room } from "./room.js";
+import { DROP_ENDS_FROM } from "../../shared/rules.js";
 import { computeResults, winningCards } from "./results.js";
 import type { Card, NumericCard } from "../../shared/deck.js";
 
@@ -185,9 +186,20 @@ describe("winningCards: the team's rule (docs/design.md)", () => {
     ["a draw between 3 and 5", ["2", "3", "3", "5", "5", "13"], ["3", "5"]],
     ["8 wins from a three-way tie", ["2", "2", "8", "8", "13", "13"], ["8"]],
     ["no winner: 3 had two votes before dropping", ["3", "3", "8", "13"], []],
-    ["no winner: one vote left", ["3", "5", "8"], []],
+    ["no winner: three votes, one each", ["3", "5", "8"], []],
     ["no winner: one each", ["2", "3", "5", "8", "13"], []],
-    ["no winner: nothing left", ["5", "8"], []],
+    ["no winner: two different votes", ["5", "8"], []],
+    [
+      "13 wins: with three votes, nothing is dropped",
+      ["13", "13", "5"],
+      ["13"],
+    ],
+    [
+      "5 wins: with four votes, the ends are dropped",
+      ["3", "5", "5", "8"],
+      ["5"],
+    ],
+    ["13 wins from four votes", ["5", "13", "13", "13"], ["13"]],
     ["everyone agrees", ["5", "5", "5", "5", "5"], ["5"]],
     ["two agreeing votes win, with nothing to drop", ["5", "5"], ["5"]],
     ["a single vote never wins", ["8"], []],
@@ -196,6 +208,15 @@ describe("winningCards: the team's rule (docs/design.md)", () => {
 
   it.each(examples)("%s", (_, votes, winners) => {
     expect(winningCards(votes)).toEqual(winners);
+  });
+
+  it("sets the ends aside only from DROP_ENDS_FROM (4) numeric votes", () => {
+    expect(DROP_ENDS_FROM).toBe(4);
+    // Three votes: nothing dropped, so the two 5s win.
+    expect(winningCards(["5", "5", "13"])).toEqual(["5"]);
+    // Four: one 5 and the 13 are set aside, and one 5 can't win alone.
+    expect(winningCards(["2", "5", "5", "13"])).toEqual(["5"]);
+    expect(winningCards(["5", "5", "8", "13"])).toEqual([]);
   });
 
   it("finds the same winners in any order the votes arrive", () => {

@@ -50,10 +50,32 @@ jobs:
       # built here, on the runner (--local-only), not on a Fly builder.
       # --ha=false: flyctl otherwise creates a spare machine, which would
       # double the bill; rooms live in memory, so a spare would split them.
-      - run: flyctl deploy --local-only --ha=false
+      # The image is tagged with the full SHA of the commit it was built
+      # from, so the running image names its commit on main. The SHA comes
+      # in through env:, not written into the script.
+      #
+      # Ignore the GH_SHA label flyctl also puts on the image: in a
+      # workflow_run it is develop's head, where this file runs from, not
+      # the commit deployed. The image tag is what counts.
+      - run: flyctl deploy --local-only --ha=false --image-label "$HEAD_SHA"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      # The deploy put that commit live: every machine runs the image tagged
+      # with it (and there is at least one: all() of nothing is true).
+      # Prints what is running first, so a failure shows which image is live.
+      - run: |
+          image="registry.fly.io/estimate-together:$HEAD_SHA"
+          machines=$(flyctl machine list --json)
+          printf '%s' "$machines" | jq -r '.[].config.image'
+          printf '%s' "$machines" | jq -e --arg img "$image" 'length > 0 and all(.[]; .config.image == $img)'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
       # Still one small machine, no paid IPv4 and no volume (README, Deploy).
-      - run: scripts/check-fly-budget.sh
+      # Even when a step above failed: a failed deploy is when an extra
+      # machine is most likely to be left behind, billing.
+      - if: ${{ !cancelled() }}
+        run: scripts/check-fly-budget.sh
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

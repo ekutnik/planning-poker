@@ -5,6 +5,7 @@ import {
   type NumericCard,
 } from "../../shared/deck.js";
 import type { Results } from "../../shared/snapshot.js";
+import { DROP_ENDS_FROM } from "../../shared/rules.js";
 import type { Room } from "./room.js";
 
 /** Position of a card in the canonical deck order. */
@@ -15,10 +16,11 @@ function deckIndex(card: Card): number {
 /**
  * The team's rule for reading a round (docs/design.md, The winning card).
  * Numeric votes only. If they are all one number, at least two of them, it
- * wins. Otherwise drop one vote at each end, one on the lowest card and one
- * on the highest, and the card with the most remaining votes wins if it has
- * at least two; a tie on that count is a draw. Returns the winning cards in
- * deck order: one, several for a draw, or none.
+ * wins. Otherwise, with at least DROP_ENDS_FROM (4) numeric votes, drop one
+ * vote at each end, one on the lowest card and one on the highest; with
+ * fewer, drop nothing. The card with the most remaining votes wins if it
+ * has at least two; a tie on that count is a draw. Returns the winning
+ * cards in deck order: one, several for a draw, or none.
  */
 export function winningCards(numeric: readonly NumericCard[]): NumericCard[] {
   const [first] = numeric;
@@ -29,9 +31,9 @@ export function winningCards(numeric: readonly NumericCard[]): NumericCard[] {
   ) {
     return [first];
   }
-  const remaining = [...numeric]
-    .sort((a, b) => deckIndex(a) - deckIndex(b))
-    .slice(1, -1);
+  const sorted = [...numeric].sort((a, b) => deckIndex(a) - deckIndex(b));
+  const remaining =
+    numeric.length >= DROP_ENDS_FROM ? sorted.slice(1, -1) : sorted;
   // Sorted, so the counts are in deck order, and so are the winners.
   const counts = new Map<NumericCard, number>();
   for (const card of remaining) counts.set(card, (counts.get(card) ?? 0) + 1);

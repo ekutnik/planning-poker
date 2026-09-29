@@ -153,6 +153,12 @@ export const RESULT_COPY = {
   spread: (min: string, max: string) => `Spread from ${min} to ${max}.`,
   result: (card: string) => `Result: ${card}.`,
   draw: (cards: string) => `Draw between ${cards}.`,
+  // No card won, and why, in the rule's own terms: from four numeric votes
+  // on, the lowest and the highest are set aside first.
+  noResult: (endsSetAside: boolean) =>
+    endsSetAside
+      ? "No result: no card has two votes once the lowest and highest vote are set aside."
+      : "No result: no card has two votes.",
 } as const;
 
 /** The landing preview's one control, and its revealed frame's status. */

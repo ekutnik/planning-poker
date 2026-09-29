@@ -5,7 +5,7 @@
 
 The visual and interaction design of the client, and the reasoning behind it. The architecture decisions are in [decisions](decisions); this is their counterpart for what people see.
 
-Session 7b revised the Session 6 design after the team used it: a new typeface and palette, status pills, a quieter status line, no hidden-vote field, a result the team reads by its own rule, and nudges. The revision is built over seven PRs, starting with [#46](https://github.com/ekutnik/planning-poker/pull/46) (see [Building 7b](#building-7b)), and those PRs, with their screenshots in both themes, are the reference screens until the finished screens are added here ([#47](https://github.com/ekutnik/planning-poker/issues/47)). Until they land, parts of the app still show Session 6.
+Session 7b revised the Session 6 design after the team used it: a new typeface and palette, status pills, a quieter status line, no hidden-vote field, a result the team reads by its own rule, and nudges. The revision is built over seven PRs, starting with [#46](https://github.com/ekutnik/planning-poker/pull/46) (see [Building 7b](#building-7b)), and each section below shows the finished screens in both themes: taken from the app at 1280×800 and 390×844, with made-up names, and kept in [`design/`](design) ([#47](https://github.com/ekutnik/planning-poker/issues/47)).
 
 ## Who it is for
 
@@ -145,6 +145,8 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 
 ### Header
 
+<table><tr><td><img src="design/menu-wide-light.png" alt="The open Menu in a room: Facilitate on, Theme set to System, and Leave the room, below the Facilitating pill, Copy link and Menu, light theme" /></td><td><img src="design/menu-wide-dark.png" alt="The open Menu in a room: Facilitate on, Theme set to System, and Leave the room, below the Facilitating pill, Copy link and Menu, dark theme" /></td></tr></table>
+
 - **Left:** the mark (a card with an index dot in Cobalt; its outline follows the text colour) and "Planning Poker Session". The mark is 26 px wide, 20 px compact.
 - **Right:** the "Facilitating" pill (only while on), Copy link, Menu. In compact, Menu is an icon button (three bars) with `aria-label="Menu"`; in wide it reads "Menu" with a chevron. Outside a room there is no pill and no Copy link, and the Menu holds Theme alone.
 - **Copy link moves into the Menu in compact,** as its first item, above Facilitate, so the pill and the Menu fit beside the name in one row: a second header row would cost about 72 px where height is scarcest, and Copy link is used once a session, by whoever creates the room. It says "Link copied" there, and the panel stays open to show it. When the browser refuses the copy it says "Couldn't copy. Copy the address from your browser." instead; either message shows for three seconds, and both are announced through the button's own live region, since a focused button whose text changes is not reliably read out. It is rendered in one place or the other, chosen in script at the same 55em breakpoint, never in both with one hidden by CSS, so a screen reader never finds two.
@@ -174,6 +176,10 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 
 ### The room's layout
 
+<table><tr><td><img src="design/voting-participant-wide-light.png" alt="The participant view while voting, wide: the status line, the people list with pills, and the deck with the chosen card filled, light theme" /></td><td><img src="design/voting-participant-wide-dark.png" alt="The participant view while voting, wide: the status line, the people list with pills, and the deck with the chosen card filled, dark theme" /></td></tr></table>
+
+<table><tr><td width="45%"><img src="design/voting-participant-compact-light.png" alt="The participant view on a phone: the people list above the deck in two rows of five, light theme" /></td><td width="45%"><img src="design/voting-participant-compact-dark.png" alt="The participant view on a phone: the people list above the deck in two rows of five, dark theme" /></td></tr></table>
+
 - **Wide:** two columns. The status line and the people list on the left, 280 px; the round on the right. In the facilitator view the right column is the controls (top right), the deck, then your own vote; in the participant view it is the deck, then the controls. The people list spans the rows beside the right column, so it starts right under the status line.
 - **Wide, after reveal:** the status line with the controls to its right, then the scale across both columns, the sentence, and the people.
 - **Compact:** one column in reading order: status, people, deck, your own vote, controls, with the facilitator's controls pinned to the bottom when the window is tall enough. The pinned bar is 72 px (a 44 px button, 12 px above and below, a 1 px rule), and focus scrolls clear of exactly that; a test holds the button, the padding and the rule to the height reserved.
@@ -187,6 +193,10 @@ The room's `h1`, styled quiet (15 px, Quiet). "Waiting for Ben and Cy. Fay is aw
 **People who are away and have not voted do not hold up the round:** the status line counts everyone connected plus anyone away who has voted, and lists the away non-voters separately ("Waiting for Cy. Fay is away."; "Everyone has voted. Fay is away."; "4 of 5 have voted"). Nobody waits on a closed laptop. Grace removal still keeps an away participant's seat for 60 seconds, so if they come back and vote, they count again. This is purely how the snapshot is presented; the server does not change. It is a plain, tested view function.
 
 ## The facilitator view
+
+<table><tr><td><img src="design/voting-facilitator-wide-light.png" alt="The facilitator view while voting, wide: six people with status pills, a Nudge button beside the one who has not voted, the deck with no card chosen, Clear my vote and the You've voted pill, and Reveal votes top right, light theme" /></td><td><img src="design/voting-facilitator-wide-dark.png" alt="The facilitator view while voting, wide: six people with status pills, a Nudge button beside the one who has not voted, the deck with no card chosen, Clear my vote and the You've voted pill, and Reveal votes top right, dark theme" /></td></tr></table>
+
+<table><tr><td width="45%"><img src="design/voting-facilitator-compact-light.png" alt="The facilitator view on a phone: the people list, the deck in two rows of five, Clear my vote, and Reveal votes in the bar pinned to the bottom, light theme" /></td><td width="45%"><img src="design/voting-facilitator-compact-dark.png" alt="The facilitator view on a phone: the people list, the deck in two rows of five, Clear my vote, and Reveal votes in the bar pinned to the bottom, dark theme" /></td></tr></table>
 
 A per-person view, not a role, so the server does not change and anyone can still reveal and reset ([ADR 0005](decisions/0005-anyone-can-reveal.md)).
 
@@ -214,7 +224,7 @@ The team's own rule, and it decides the highlight:
 
 1. Take the numeric votes only. `?` and ☕ never win.
 2. If every numeric vote is the same number (at least two of them), that card wins. Nothing needs dropping.
-3. Otherwise drop **one** vote at each end: one vote on the lowest card and one on the highest. Other votes on those cards stay.
+3. Otherwise, with **four or more** numeric votes, drop **one** vote at each end: one vote on the lowest card and one on the highest. Other votes on those cards stay. With two or three, drop nothing.
 4. Among the remaining votes, the card with the most votes wins, **if it has at least two**. Two or more cards tied on that count are a draw. If the top count is one, or nothing remains, there is no winner.
 
 | Votes              | After dropping one at each end | Outcome                                     |
@@ -224,29 +234,40 @@ The team's own rule, and it decides the highlight:
 | 2, 3, 3, 5, 5, 13  | 3, 3, 5, 5                     | Draw: 3 and 5                               |
 | 2, 2, 8, 8, 13, 13 | 2, 8, 8, 13                    | 8 wins (a three-way tie before dropping)    |
 | 3, 3, 8, 13        | 3, 8                           | No winner (3 had two votes before dropping) |
-| 3, 5, 8            | 5                              | No winner (one vote left)                   |
+| 3, 5, 5, 8         | 5, 5                           | 5 wins                                      |
+| 13, 13, 5          | (three votes: nothing dropped) | 13 wins                                     |
+| 3, 5, 8            | (three votes: nothing dropped) | No winner (one vote each)                   |
 | 2, 3, 5, 8, 13     | 3, 5, 8                        | No winner                                   |
-| 5, 8               | nothing                        | No winner                                   |
+| 5, 8               | (two votes: nothing dropped)   | No winner                                   |
 | 5, 5, 5, 5, 5      | (all the same)                 | 5 wins, everyone agrees                     |
 | 5, 5, 5, ?         | (all numbers the same)         | 5 wins                                      |
 
 The scale doesn't mark which votes were dropped: the names stay above their cards, and only the winner is tinted.
 
+**Changed after v0.1.0 (2026-09-29):** dropping now starts at four numeric votes (`DROP_ENDS_FROM` in `src/shared/rules.ts`). The rule was written for the team's usual size, around 12. Applied to a round of three, it threw away a third of the votes: 13, 13, 5 lost a 13 and had no result. That's no difference for the team, but a small team, or a public user, would see a rule that never gives a result. With four or more votes nothing changes. A reveal with no result now also says why, in the rule's own terms, instead of leaving only the spread.
+
 **Results model.** The server computes `winners: NumericCard[]` in `computeResults`: one card for a winner, several for a draw, empty for none, by the rule above. The client renders; the server decides what "winner" means, with one tested definition. `outliers` and `wideSpread` are gone, since nothing displays them. `min`, `max`, `spreadSteps`, `consensus` and the distribution stay.
 
 ### Highlight and sentence
 
-| Situation                                                      | Highlight                 | Sentence                                     |
-| -------------------------------------------------------------- | ------------------------- | -------------------------------------------- |
-| Everyone voted the same number, at least two votes             | That card, Win (green)    | "Everyone chose 5."                          |
-| Every numeric vote is the same number, with a `?` or ☕ beside | That card, Win            | "Result: 5."                                 |
-| A winner                                                       | That card, Win            | "Spread from 5 to 13. Result: 8."            |
-| A draw                                                         | Those cards, Draw (amber) | "Spread from 2 to 13. Draw between 3 and 5." |
-| No winner                                                      | None                      | "Spread from 2 to 13."                       |
-| A single vote                                                  | None                      | "Only one vote: 8."                          |
-| A single numeric vote, with a `?` or ☕ beside it              | None                      | "Only one numeric vote: 8."                  |
-| No numeric votes                                               | None                      | "No numeric votes this round."               |
-| No votes (everyone who voted has left)                         | None                      | "Nobody voted this round."                   |
+<table><tr><td><img src="design/reveal-winner-wide-light.png" alt="A reveal with a winner: 8 tinted green with two names above it, and the sentence Spread from 5 to 13. Result: 8., light theme" /></td><td><img src="design/reveal-winner-wide-dark.png" alt="A reveal with a winner: 8 tinted green with two names above it, and the sentence Spread from 5 to 13. Result: 8., dark theme" /></td></tr></table>
+
+<table><tr><td><img src="design/reveal-draw-wide-light.png" alt="A reveal with a draw: 3 and 5 tinted amber, and the sentence Spread from 2 to 13. Draw between 3 and 5., light theme" /></td><td><img src="design/reveal-draw-wide-dark.png" alt="A reveal with a draw: 3 and 5 tinted amber, and the sentence Spread from 2 to 13. Draw between 3 and 5., dark theme" /></td></tr></table>
+
+<table><tr><td><img src="design/reveal-no-result-wide-light.png" alt="A reveal with no result: five different cards, none tinted, and the sentence Spread from 2 to 13. No result: no card has two votes once the lowest and highest vote are set aside., light theme" /></td><td><img src="design/reveal-no-result-wide-dark.png" alt="A reveal with no result: five different cards, none tinted, and the sentence Spread from 2 to 13. No result: no card has two votes once the lowest and highest vote are set aside., dark theme" /></td></tr></table>
+
+| Situation                                                      | Highlight                 | Sentence                                                                                                |
+| -------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Everyone voted the same number, at least two votes             | That card, Win (green)    | "Everyone chose 5."                                                                                     |
+| Every numeric vote is the same number, with a `?` or ☕ beside | That card, Win            | "Result: 5."                                                                                            |
+| A winner                                                       | That card, Win            | "Spread from 5 to 13. Result: 8."                                                                       |
+| A draw                                                         | Those cards, Draw (amber) | "Spread from 2 to 13. Draw between 3 and 5."                                                            |
+| No winner, four or more numeric votes                          | None                      | "Spread from 2 to 13. No result: no card has two votes once the lowest and highest vote are set aside." |
+| No winner, two or three numeric votes                          | None                      | "Spread from 3 to 8. No result: no card has two votes."                                                 |
+| A single vote                                                  | None                      | "Only one vote: 8."                                                                                     |
+| A single numeric vote, with a `?` or ☕ beside it              | None                      | "Only one numeric vote: 8."                                                                             |
+| No numeric votes                                               | None                      | "No numeric votes this round."                                                                          |
+| No votes (everyone who voted has left)                         | None                      | "Nobody voted this round."                                                                              |
 
 - **"Result", not "Most votes".** With the dropping rule the winner can differ from the card with the most raw votes (2, 2, 8, 8, 13, 13), so "most votes" would sometimes be untrue.
 - The spread is always the full range of all numeric votes, dropped ones included. It appears only when the lowest and highest differ.
@@ -254,6 +275,8 @@ The scale doesn't mark which votes were dropped: the names stay above their card
 - The sentence is Ink; the colour is on the scale.
 
 ## Nudges
+
+<table><tr><td><img src="design/nudge-recipient-wide-light.png" alt="A nudge as its recipient sees it: the banner The room is waiting for your vote. above the room, and nothing else changed, light theme" /></td><td><img src="design/nudge-recipient-wide-dark.png" alt="A nudge as its recipient sees it: the banner The room is waiting for your vote. above the room, and nothing else changed, dark theme" /></td></tr></table>
 
 A facilitator can nudge someone who hasn't voted, so nobody has to say a name aloud on the call.
 
@@ -271,6 +294,10 @@ A facilitator can nudge someone who hasn't voted, so nobody has to say a name al
 
 ### Landing (create)
 
+<table><tr><td><img src="design/landing-wide-light.png" alt="The landing page, wide: the name field, the I'm running this session switch, Create a room, and the preview of a revealed round, light theme" /></td><td><img src="design/landing-wide-dark.png" alt="The landing page, wide: the name field, the I'm running this session switch, Create a room, and the preview of a revealed round, dark theme" /></td></tr></table>
+
+<table><tr><td width="45%"><img src="design/landing-compact-light.png" alt="The landing page on a phone: the form above the preview, light theme" /></td><td width="45%"><img src="design/landing-compact-dark.png" alt="The landing page on a phone: the form above the preview, dark theme" /></td></tr></table>
+
 Two columns in wide, stacked in compact:
 
 - **Left:** "Estimate together"; "Everyone votes on their own screen, and the votes stay hidden until someone reveals them."; "Your name" (no hint underneath); the switch "I'm running this session", **on** by default, with "Hides your vote so you can share your screen." on one line; **Create a room**; "You'll get a link to share with your team."
@@ -286,9 +313,13 @@ Two columns in wide, stacked in compact:
 
 ### Join (from a link)
 
+<table><tr><td><img src="design/join-wide-light.png" alt="The join screen from a room link: Join the room, a name field, the switch off, and Join, light theme" /></td><td><img src="design/join-wide-dark.png" alt="The join screen from a room link: Join the room, a name field, the switch off, and Join, dark theme" /></td></tr></table>
+
 One centred column, no preview: "Join the room"; "Everyone in the room sees your name."; "Your name"; the same switch, **off** by default; **Join**.
 
 ### Stopped screens and "no room here"
+
+<table><tr><td><img src="design/stopped-wide-light.png" alt="A stopped screen: This room is open in another tab., with Use this tab, light theme" /></td><td><img src="design/stopped-wide-dark.png" alt="A stopped screen: This room is open in another tab., with Use this tab, dark theme" /></td></tr></table>
 
 The same header, one heading, a sentence or two, and one Cobalt action. An invalid name is said in words below the field, and the outline turns Ink to agree. Each stopped screen says what happened and offers exactly one way on, as a button: nothing retries on its own.
 
@@ -346,7 +377,7 @@ Removed in 7b: "Your first name is enough.", "Your vote (hidden)", "Vote recorde
 Audited in Session 7 against WCAG 2.2 AA; the record, with what was and wasn't tested, is [`docs/audit/2026-09-accessibility.md`](audit/2026-09-accessibility.md). The checks still due before launch are in [#44](https://github.com/ekutnik/planning-poker/issues/44).
 
 - **The deck is a toolbar of toggle buttons,** described under [Deck](#deck-voting).
-- **Reveal is announced** through a polite live region: "Votes revealed." followed by the sentence, range included, because someone who cannot see the scale needs the numbers. It does not list the non-numeric votes: the scale itself is a list a screen reader can read ("question mark: Cy"). The person whose focus moved to the new heading has just heard "Votes revealed" from it, so their announcement gives only the sentence; everyone else hears it whole. The new heading reports whether it took focus, and only then is the text chosen.
+- **Reveal is announced** through a polite live region: "Votes revealed." followed by the sentence, range included, because someone who cannot see the scale needs the numbers. It does not list the non-numeric votes: the scale itself is a list a screen reader can read ("question mark: Cy"). On that list, the cards nobody chose are hidden from screen readers, which hear only the cards that were chosen, each with its names; on screen they stay, so the gaps still show the spread (decided after the VoiceOver check in #44). The person whose focus moved to the new heading has just heard "Votes revealed" from it, so their announcement gives only the sentence; everyone else hears it whole. The new heading reports whether it took focus, and only then is the text chosen.
 - **The next round is announced too:** "Next round started.", whoever pressed the button, because the scale giving way to the deck is a big change caused by someone else. Only changes of phase are announced: not joining a room in either phase, and not later snapshots within one.
 - **Focus survives a screen change,** with one rule: when a new screen replaces the one that had focus (reveal, "Start next round", joining a room, a stopped screen), its heading takes focus, so a screen reader reads where you are and the keyboard starts from there. A heading is not a control, so a stray Space or Enter cannot start a round. Focus still on the page stays where it is, and a fresh page load is left to the browser.
 - **The voted count is visible but not announced** on every change, which would make a screen reader chatter through the whole discussion.

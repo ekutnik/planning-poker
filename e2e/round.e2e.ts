@@ -81,7 +81,7 @@ test("a full round in two browsers: create, join, vote, reveal, next round", asy
   for (const person of [ada, ben]) {
     await expect(person.heading).toHaveText("Votes revealed");
     await expect(person.page.locator(".result")).toHaveText(
-      "Spread from 5 to 8.",
+      "Spread from 5 to 8. No result: no card has two votes.",
     );
     await expect(row(person.page, "Ada")).toContainText("8");
     await expect(row(person.page, "Ben")).toContainText("5");
@@ -91,10 +91,14 @@ test("a full round in two browsers: create, join, vote, reveal, next round", asy
   await expect(
     ben.page.getByRole("button", { name: "Copy link" }),
   ).toBeFocused();
-  await expect.poll(() => spoken(ada.page)).toEqual(["Spread from 5 to 8."]);
+  await expect
+    .poll(() => spoken(ada.page))
+    .toEqual(["Spread from 5 to 8. No result: no card has two votes."]);
   await expect
     .poll(() => spoken(ben.page))
-    .toEqual(["Votes revealed. Spread from 5 to 8."]);
+    .toEqual([
+      "Votes revealed. Spread from 5 to 8. No result: no card has two votes.",
+    ]);
 
   // Ada starts the next round: the deck is back for both, with no votes,
   // her focus on the new heading, and "Next round started." said once each.
@@ -106,10 +110,16 @@ test("a full round in two browsers: create, join, vote, reveal, next round", asy
   await expect(page).toHaveTitle(TITLE("2 waiting"));
   await expect
     .poll(() => spoken(ada.page))
-    .toEqual(["Spread from 5 to 8.", "Next round started."]);
+    .toEqual([
+      "Spread from 5 to 8. No result: no card has two votes.",
+      "Next round started.",
+    ]);
   await expect
     .poll(() => spoken(ben.page))
-    .toEqual(["Votes revealed. Spread from 5 to 8.", "Next round started."]);
+    .toEqual([
+      "Votes revealed. Spread from 5 to 8. No result: no card has two votes.",
+      "Next round started.",
+    ]);
 
   // Each browser sent only its own actions: one join, one vote, and the
   // reveal and the reset from Ada.

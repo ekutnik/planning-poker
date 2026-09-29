@@ -104,9 +104,19 @@ const table: readonly [string, Revealed, string][] = [
     "Spread from 1 to 8. Draw between 2, 3 and 5.",
   ],
   [
-    "no winner",
+    "no winner, with the ends set aside",
     revealed({ min: "2", max: "13" }, ["2", "3", "5", "8", "13"]),
-    "Spread from 2 to 13.",
+    "Spread from 2 to 13. No result: no card has two votes once the lowest and highest vote are set aside.",
+  ],
+  [
+    "no winner, from three votes: nothing set aside",
+    revealed({ min: "3", max: "8" }, ["3", "5", "8"]),
+    "Spread from 3 to 8. No result: no card has two votes.",
+  ],
+  [
+    "a winner from three votes",
+    revealed({ min: "5", max: "13", winners: ["13"] }, ["13", "13", "5"]),
+    "Spread from 5 to 13. Result: 13.",
   ],
   [
     "a single vote",
