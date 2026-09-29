@@ -24,6 +24,15 @@ export const PARTICIPANT_ID_PATTERN = /^[A-Za-z0-9_-]{16}$/;
  */
 export const NUDGE_COOLDOWN_MS = 30_000;
 
+/**
+ * The winning rule sets one vote aside at each end, the lowest and the
+ * highest, only from this many numeric votes on (docs/design.md, The
+ * winning card). With two or three there is too little to set aside: 13,
+ * 13, 5 would lose a 13 and have no result. Shared, because the client
+ * explains a reveal with no result by which rule applied.
+ */
+export const DROP_ENDS_FROM = 4;
+
 /** Session tokens: 22–64 url-safe characters covers a randomUUID without over-fitting. */
 export const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22,64}$/;
 

@@ -1,5 +1,6 @@
 import { isNumericCard, type Card } from "../shared/deck.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
+import { DROP_ENDS_FROM } from "../shared/rules.js";
 import { RESULT_COPY } from "./copy.js";
 import { listNames } from "./status.js";
 
@@ -60,5 +61,9 @@ function sentence(results: Revealed["results"]): string {
     parts.push(RESULT_COPY.result(winner));
   }
   if (winners.length > 1) parts.push(RESULT_COPY.draw(listNames(winners)));
+  // No winner: say so, and why, rather than leave only the spread.
+  if (winners.length === 0) {
+    parts.push(RESULT_COPY.noResult(numericVotes >= DROP_ENDS_FROM));
+  }
   return parts.join(" ");
 }
