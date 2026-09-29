@@ -13,8 +13,8 @@ let nextPort = 0;
  * A port nothing is listening on, for a child server to listen on.
  *
  * Not one the OS picks (listening on 0): those come from the ephemeral
- * range (49152 and up on macOS), which outgoing connections draw from as
- * well. Between this returning and the child listening, about 200 ms, a
+ * range (49152 and up on macOS, 32768 and up on Linux), which outgoing
+ * connections draw from as well. Between this returning and the child listening, about 200 ms, a
  * connection from a test in another worker could take the port, and the
  * child would exit with EADDRINUSE (it happened once, in a pre-push check).
  * So each worker counts through its own ports, below that range, and skips
@@ -32,9 +32,11 @@ export async function freePort(): Promise<number> {
 }
 
 /**
- * The first of this worker's ports. Vitest numbers its workers from 1 and
- * Playwright (the e2e suite) from 0; each runner has its own range, so the
- * two running at once can't collide either.
+ * The first of this worker's ports, all below 32768, where both ephemeral
+ * ranges start at the earliest (free-port.test.ts checks it on each OS).
+ * Vitest numbers its workers from 1 and Playwright (the e2e suite) from 0;
+ * each runner has its own range, so the two running at once can't collide
+ * either.
  */
 function firstPort(): number {
   const vitest = process.env.VITEST_POOL_ID;
