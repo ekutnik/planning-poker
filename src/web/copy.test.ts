@@ -121,7 +121,7 @@ describe("copy", () => {
       "Result: 5.",
       "Spread from 5 to 13.",
       "Draw between 3 and 5.",
-      "No result: no card has two votes once the lowest and highest are set aside.",
+      "No result: no card has two votes once the lowest and highest vote are set aside.",
       "No result: no card has two votes.",
       "Only one vote: 8.",
       "Only one numeric vote: 8.",

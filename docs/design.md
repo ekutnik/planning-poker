@@ -240,18 +240,18 @@ The scale doesn't mark which votes were dropped: the names stay above their card
 
 ### Highlight and sentence
 
-| Situation                                                      | Highlight                 | Sentence                                                                                           |
-| -------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------- |
-| Everyone voted the same number, at least two votes             | That card, Win (green)    | "Everyone chose 5."                                                                                |
-| Every numeric vote is the same number, with a `?` or ☕ beside | That card, Win            | "Result: 5."                                                                                       |
-| A winner                                                       | That card, Win            | "Spread from 5 to 13. Result: 8."                                                                  |
-| A draw                                                         | Those cards, Draw (amber) | "Spread from 2 to 13. Draw between 3 and 5."                                                       |
-| No winner, four or more numeric votes                          | None                      | "Spread from 2 to 13. No result: no card has two votes once the lowest and highest are set aside." |
-| No winner, two or three numeric votes                          | None                      | "Spread from 3 to 8. No result: no card has two votes."                                            |
-| A single vote                                                  | None                      | "Only one vote: 8."                                                                                |
-| A single numeric vote, with a `?` or ☕ beside it              | None                      | "Only one numeric vote: 8."                                                                        |
-| No numeric votes                                               | None                      | "No numeric votes this round."                                                                     |
-| No votes (everyone who voted has left)                         | None                      | "Nobody voted this round."                                                                         |
+| Situation                                                      | Highlight                 | Sentence                                                                                                |
+| -------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Everyone voted the same number, at least two votes             | That card, Win (green)    | "Everyone chose 5."                                                                                     |
+| Every numeric vote is the same number, with a `?` or ☕ beside | That card, Win            | "Result: 5."                                                                                            |
+| A winner                                                       | That card, Win            | "Spread from 5 to 13. Result: 8."                                                                       |
+| A draw                                                         | Those cards, Draw (amber) | "Spread from 2 to 13. Draw between 3 and 5."                                                            |
+| No winner, four or more numeric votes                          | None                      | "Spread from 2 to 13. No result: no card has two votes once the lowest and highest vote are set aside." |
+| No winner, two or three numeric votes                          | None                      | "Spread from 3 to 8. No result: no card has two votes."                                                 |
+| A single vote                                                  | None                      | "Only one vote: 8."                                                                                     |
+| A single numeric vote, with a `?` or ☕ beside it              | None                      | "Only one numeric vote: 8."                                                                             |
+| No numeric votes                                               | None                      | "No numeric votes this round."                                                                          |
+| No votes (everyone who voted has left)                         | None                      | "Nobody voted this round."                                                                              |
 
 - **"Result", not "Most votes".** With the dropping rule the winner can differ from the card with the most raw votes (2, 2, 8, 8, 13, 13), so "most votes" would sometimes be untrue.
 - The spread is always the full range of all numeric votes, dropped ones included. It appears only when the lowest and highest differ.

@@ -157,7 +157,7 @@ export const RESULT_COPY = {
   // on, the lowest and the highest are set aside first.
   noResult: (endsSetAside: boolean) =>
     endsSetAside
-      ? "No result: no card has two votes once the lowest and highest are set aside."
+      ? "No result: no card has two votes once the lowest and highest vote are set aside."
       : "No result: no card has two votes.",
 } as const;
 

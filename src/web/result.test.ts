@@ -106,7 +106,7 @@ const table: readonly [string, Revealed, string][] = [
   [
     "no winner, with the ends set aside",
     revealed({ min: "2", max: "13" }, ["2", "3", "5", "8", "13"]),
-    "Spread from 2 to 13. No result: no card has two votes once the lowest and highest are set aside.",
+    "Spread from 2 to 13. No result: no card has two votes once the lowest and highest vote are set aside.",
   ],
   [
     "no winner, from three votes: nothing set aside",
