@@ -240,8 +240,8 @@ The visual and interaction design, and the reasoning behind it, is in [docs/desi
 
 ## Roadmap
 
-- **Now (v0.x): team trial.** One team uses it for its planning sessions, and what they find shapes what comes next.
-- **v1: launch.** Before the repository and the link go public:
+- **Now (v0.x): Team trial.** One team uses it for its planning sessions, and what they find shapes what comes next.
+- **v1 launch.** Before the repository and the link go public:
   - rate limits ([#16](https://github.com/ekutnik/planning-poker/issues/16)), keyed on the real client address ([#66](https://github.com/ekutnik/planning-poker/issues/66));
   - a safe default `MAX_ROOMS` ([#63](https://github.com/ekutnik/planning-poker/issues/63));
   - a privacy note, and quieter logs ([#65](https://github.com/ekutnik/planning-poker/issues/65));
