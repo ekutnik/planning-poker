@@ -1,0 +1,12 @@
+/* The page frame. The header spans the window, with its rule; the header's
+   content and each screen's main line up in one column of at most 1120px,
+   centred by the gutter. The screens and the header have their own
+   stylesheets. */
+
+body {
+  margin: 0;
+}
+
+main {
+  padding-inline: var(--gutter);
+}

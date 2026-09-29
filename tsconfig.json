@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "files": [
+    "src/web/vite.config.ts",
+    "src/web/styles/tokens.node.test.ts",
+    "src/web/styles/motion.node.test.ts",
+    "src/web/styles/layout.node.test.ts",
+    "src/web/styles/css.node.ts"
+  ],
+  "include": ["src"],
+  "exclude": ["src/web"]
+}

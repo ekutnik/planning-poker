@@ -1,0 +1,10 @@
+{
+  // The server as JavaScript for production (npm run build:server), so the
+  // image runs plain node with no TypeScript runtime. dist/server/main.js
+  // finds the client at ../../dist/web, as src/server/main.ts does.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "outDir": "dist", "rootDir": "src" },
+  "files": [],
+  "include": ["src/server", "src/shared"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.testing.ts"]
+}

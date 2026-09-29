@@ -1,0 +1,148 @@
+/* Element defaults built on the tokens. Layouts come with each screen. */
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  font-weight: var(--weight-regular);
+}
+
+body {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+h1,
+h2 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-strong);
+  line-height: 1.25;
+}
+
+/* One visible focus ring, everywhere. */
+:focus-visible {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+/* Between screens (docs/design.md, Motion): each new screen fades in over
+   150ms. A screen is a page outside the room, or the room itself, whose
+   main stays in place for the whole visit. The reveal is not a screen
+   change: the round inside is replaced then, but it has its own motion,
+   the names settling, and one moment moves at a time. */
+@media (prefers-reduced-motion: no-preference) {
+  .page,
+  .room-screen {
+    animation: screen-in 150ms ease-out;
+  }
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A safety net for any motion a screen adds without using --settle. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Read by screen readers, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A pill: a word on a tint (docs/design.md, Pills). The word carries the
+   meaning, the tint only repeats it. Each screen adds its colours. */
+.pill {
+  display: inline-block;
+  padding: 0.125rem 0.625rem; /* 2px 10px */
+  border-radius: var(--radius-pill);
+  font-size: var(--text-pill);
+  font-weight: var(--weight-strong);
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+/* A switch row (SwitchRow): the words, then the switch, or the switch drawn
+   first with --leading, as on the landing and join forms. */
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.switch-row--leading {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+
+.switch-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.switch-label {
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
+}
+
+.switch-note {
+  color: var(--quiet);
+  font-size: var(--text-small);
+  line-height: 1.45;
+}
+
+/* A switch: Edge track when off, Cobalt when on; the knob keeps 3:1 against
+   either. 44x26, so a comfortable target. */
+.switch {
+  flex: none;
+  justify-content: flex-start;
+  inline-size: 2.75rem;
+  block-size: 1.625rem;
+  min-height: 0;
+  padding: 3px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--edge);
+}
+
+.switch[aria-checked="true"] {
+  justify-content: flex-end;
+  background: var(--cobalt);
+}
+
+.switch-knob {
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.switch[aria-checked="true"] .switch-knob {
+  background: var(--on-cobalt);
+}

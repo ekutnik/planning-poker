@@ -1,0 +1,238 @@
+import websocket from "@fastify/websocket";
+import Fastify, {
+  type FastifyBaseLogger,
+  type FastifyLoggerOptions,
+  type FastifyRequest,
+} from "fastify";
+import type { Duplex } from "node:stream";
+import type { WebSocket } from "ws";
+import { CloseCode } from "../shared/close-codes.js";
+import { PROTOCOL_VERSION } from "../shared/protocol.js";
+import { ROOM_ID_PATTERN } from "../shared/rules.js";
+import { clientIp, type Proxy } from "./client-ip.js";
+import { securityHeaders } from "./headers.js";
+import { generateRoomId } from "./identity.js";
+import {
+  DEFAULT_LIMITS,
+  RoomService,
+  SWEEP_INTERVAL_MS,
+  type Connection,
+  type Limits,
+} from "./room-service.js";
+import { CLOSE_GRACE_MS } from "./shutdown.js";
+import { notFound, serveClient } from "./web.js";
+
+export interface ServerOptions {
+  /** Omit to disable logging; `stream` lets tests capture the lines. */
+  readonly logger?: {
+    readonly level?: string;
+    readonly stream?: FastifyLoggerOptions["stream"];
+  };
+  readonly limits?: Partial<Limits>;
+  readonly clock?: () => number;
+  readonly sweepIntervalMs?: number;
+  readonly roomTtlMs?: number;
+  /**
+   * The built client (dist/web) to serve. Omitted, the server is the API
+   * and the websocket alone, as in development, where Vite serves the page.
+   */
+  readonly webRoot?: string;
+  /** Production: adds HSTS (headers.ts). */
+  readonly production?: boolean;
+  /** The proxy in front, whose header names the client (client-ip.ts). */
+  readonly proxy?: Proxy;
+}
+
+const roomParams = {
+  type: "object",
+  properties: { roomId: { type: "string", pattern: ROOM_ID_PATTERN.source } },
+  required: ["roomId"],
+} as const;
+
+/**
+ * Fastify's default request serializer logs the raw URL, and `/ws/:roomId` puts
+ * a join link there (#21). Log the matched route pattern instead, and the
+ * client's address as the proxy in front reports it.
+ */
+function requestSerializer(proxy: Proxy | undefined) {
+  return (request: FastifyRequest) => ({
+    method: request.method,
+    url: request.routeOptions.url ?? "(unmatched)",
+    remoteAddress: clientIp(request, proxy),
+  });
+}
+
+type Socket = Pick<WebSocket, "send" | "close" | "ping" | "terminate">;
+
+/**
+ * Wraps a socket as a Connection that never throws, as the interface requires.
+ * RoomService calls out to connections mid-loop (sweep, broadcast, supersede);
+ * a throw there would skip the rest of the loop or, from the sweep interval,
+ * crash the process and every room in it. A failed call is logged at warn.
+ */
+export function toConnection(
+  socket: Socket,
+  id: string,
+  log: Pick<FastifyBaseLogger, "warn">,
+): Connection {
+  const guard = (op: string, call: () => void) => {
+    try {
+      call();
+    } catch (err) {
+      log.warn({ err, conn: id, op }, "socket call failed");
+    }
+  };
+  return {
+    id,
+    send: (message) =>
+      guard("send", () => socket.send(JSON.stringify(message))),
+    close: (code, reason) => guard("close", () => socket.close(code, reason)),
+    ping: () => guard("ping", () => socket.ping()),
+    terminate: () => guard("terminate", () => socket.terminate()),
+  };
+}
+
+/**
+ * A configured Fastify instance that does not listen; callers own the lifecycle.
+ * The websocket route is a thin adapter: each socket becomes a Connection and
+ * every decision lives in RoomService. If this grows, logic has leaked out.
+ */
+export function buildServer(options: ServerOptions = {}) {
+  const app = Fastify({
+    logger: options.logger && {
+      ...options.logger,
+      serializers: { req: requestSerializer(options.proxy) },
+    },
+    // At close, after the preClose drain below, end every HTTP connection
+    // still open. By then the rooms are gone, and what remains is idle or,
+    // like a browser's preconnect, never sent a request: the HTTP server
+    // counts that as neither, so close() would wait for it until the
+    // shutdown timeout. Chrome preconnects, so a real deploy would too.
+    forceCloseConnections: true,
+  });
+  securityHeaders(app, { production: options.production ?? false });
+  if (options.webRoot !== undefined) serveClient(app, options.webRoot);
+  // The default 404 handler logs the raw URL; this one does not.
+  app.setNotFoundHandler(notFound(options.webRoot !== undefined));
+  const sweepIntervalMs = options.sweepIntervalMs ?? SWEEP_INTERVAL_MS;
+  const rooms = new RoomService(
+    options.clock ?? Date.now,
+    { ...DEFAULT_LIMITS, ...options.limits },
+    {
+      log: {
+        info: (fields) => app.log.info(fields),
+        warn: (fields) => app.log.warn(fields),
+      },
+      sweepIntervalMs,
+      roomTtlMs: options.roomTtlMs,
+    },
+  );
+
+  // One interval drives every timeout; there are no per-connection timers.
+  let sweeper: NodeJS.Timeout | undefined;
+  app.addHook("onReady", (done) => {
+    sweeper = setInterval(() => {
+      // A throw from the service is a bug: log it loudly, but don't let one
+      // bug crash the process and drop every room with it.
+      try {
+        rooms.sweep();
+      } catch (err) {
+        app.log.error(err, "sweep failed");
+      }
+    }, sweepIntervalMs);
+    done();
+  });
+  app.addHook("onClose", (_instance, done) => {
+    clearInterval(sweeper);
+    done();
+  });
+
+  // Shutdown (#29). Added here, before the websocket plugin loads, so it
+  // runs before the plugin's own preClose, which would close every client
+  // with no code at all. Every socket gets 1001 from the service; the ones
+  // that have not finished closing after the grace period are dropped.
+  app.addHook("preClose", (done) => {
+    rooms.shutdown();
+    // From now on Fastify answers every request with 503 before any hook
+    // runs. For a WebSocket upgrade, a browser reconnecting after its 1001,
+    // nothing then releases the socket: the HTTP server keeps it half-open,
+    // and server.close() would wait for it until the shutdown timeout. This
+    // listener comes after the plugin's, which writes the 503 synchronously,
+    // so each socket is closed once its answer is written.
+    app.server.on("upgrade", (_request, socket: Duplex) => {
+      socket.end(() => socket.destroy());
+    });
+    const open = [...app.websocketServer.clients].filter(
+      (socket) => socket.readyState !== socket.CLOSED,
+    );
+    if (open.length === 0) {
+      done();
+      return;
+    }
+    const drop = setTimeout(() => {
+      for (const socket of open) socket.terminate();
+    }, CLOSE_GRACE_MS);
+    let closing = open.length;
+    for (const socket of open) {
+      socket.once("close", () => {
+        closing -= 1;
+        if (closing > 0) return;
+        clearTimeout(drop);
+        done();
+      });
+    }
+  });
+
+  void app.register(websocket, {
+    // ws closes oversized frames with 1009 before they reach the parser.
+    options: { maxPayload: 4096 },
+    // Socket errors are almost always a misbehaving client, not a server fault.
+    // Log at warn, and let a close ws has already begun (1009) finish cleanly.
+    errorHandler: (error, socket, request) => {
+      request.log.warn({ err: error }, "websocket error");
+      if (socket.readyState === socket.OPEN) socket.terminate();
+    },
+  });
+
+  app.get("/health", () => ({ status: "ok" }));
+  app.post("/api/rooms", () => ({ roomId: generateRoomId() }));
+
+  // A child plugin loads after the websocket plugin, so its onRoute hook sees
+  // this route. The params schema rejects a malformed room id with 400 before upgrade.
+  void app.register((scope, _opts, done) => {
+    scope.get<{ Params: { roomId: string }; Querystring: { v?: unknown } }>(
+      "/ws/:roomId",
+      { websocket: true, schema: { params: roomParams } },
+      (socket, request) => {
+        const conn = toConnection(socket, request.id, request.log);
+        // Checked after upgrade, not in the schema: a browser cannot read the
+        // HTTP status of a failed upgrade, only a close code (#17). An outdated
+        // client never reaches the service, so no room state is touched.
+        const version = request.query.v;
+        if (version !== String(PROTOCOL_VERSION)) {
+          // Client-supplied, so log a bounded summary: a repeated parameter
+          // arrives as an array and could otherwise put ~16 KB in the log.
+          const seen =
+            typeof version === "string"
+              ? version.slice(0, 16)
+              : Array.isArray(version)
+                ? "[repeated]"
+                : typeof version;
+          request.log.info({ type: "outdated-client", version: seen });
+          conn.close(CloseCode.OUTDATED_CLIENT, "outdated client");
+          return;
+        }
+        rooms.open(conn, request.params.roomId);
+        // Never log `data`: a join frame carries the session token.
+        socket.on("message", (data: Buffer) =>
+          rooms.message(conn, data.toString("utf8")),
+        );
+        socket.on("pong", () => rooms.pong(conn));
+        socket.on("close", () => rooms.close(conn));
+      },
+    );
+    done();
+  });
+
+  return app;
+}

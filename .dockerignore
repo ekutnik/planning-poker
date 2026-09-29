@@ -1,0 +1,19 @@
+# Only what the build needs: package*.json, the tsconfigs and src.
+node_modules
+dist
+coverage
+.git
+.github
+.githooks
+.claude
+.env
+*.log
+.DS_Store
+docs
+scripts
+**/*.test.ts
+**/*.test.tsx
+**/*.testing.ts
+e2e
+playwright-report
+test-results

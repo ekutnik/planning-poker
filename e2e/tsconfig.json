@@ -1,0 +1,13 @@
+{
+  // The end-to-end suite (Playwright): Node for the runner, DOM for the
+  // callbacks that run in the page. Its own file, so ESLint's project
+  // service finds it for everything in this directory.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "rootDir": "..",
+    "noEmit": true
+  },
+  "files": [],
+  "include": ["."]
+}

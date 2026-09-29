@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="2 2 20 20" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <!-- The mark, framed tighter and stroked heavier than in the header, so it
+       stays crisp at 16px. The stroke follows the computer's dark mode, not
+       the theme chosen in the app (docs/design.md). -->
+  <style>
+    rect { stroke: #1d1f22; }
+    circle { fill: #2d5bd8; }
+    @media (prefers-color-scheme: dark) {
+      rect { stroke: #edeeef; }
+      circle { fill: #8aa8ff; }
+    }
+  </style>
+  <rect x="6" y="3" width="12" height="18" rx="2.5" stroke-width="2" />
+  <circle cx="9.5" cy="7" r="1.25" />
+</svg>

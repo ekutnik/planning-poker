@@ -1,0 +1,538 @@
+/*
+ * The room (docs/design.md). One component tree; compact and wide are switched
+ * only by grid areas at 55em. Sections are separated by space, not boxes; only
+ * the cards have outlines.
+ */
+
+/* Buttons: Surface with an Edge outline by default, Cobalt for the primary
+   action. 44px tall, above the 24px WCAG 2.5.8 minimum. */
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  min-height: 2.75rem;
+  padding: 0 var(--space-16);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
+  cursor: pointer;
+}
+
+button.primary {
+  border-color: var(--cobalt);
+  background: var(--cobalt);
+  color: var(--on-cobalt);
+  font-weight: var(--weight-strong);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* A round, voting or revealed: compact is one column, in reading order. */
+.round {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-24);
+  padding-block: var(--space-24);
+}
+
+.round--voting.round--participant {
+  grid-template-areas: "status" "people" "deck" "controls";
+}
+
+.round--revealed {
+  grid-template-areas: "status" "scale" "result" "controls";
+}
+
+/* The facilitator's controls are pinned to the bottom in compact only, and
+   only when the window is tall enough for it (A-05): at 400% zoom a pinned
+   bar would take a third of the screen, so below 25em it sits in the normal
+   flow. Wide never pins it. The media query says all of this itself, so it
+   does not depend on the wide block coming later in the file. */
+:root {
+  /* One height for the bar and the room kept for it, so they cannot drift:
+     a 44px button, 12px above and below, and the 1px rule (72px). A test
+     checks the button, the padding and the rule still fit it. */
+  --controls-bar-height: 4.5rem;
+}
+
+.round--voting.round--facilitator {
+  grid-template-areas: "status" "people" "deck" "own" "controls";
+}
+
+.round--facilitator .controls {
+  align-items: center;
+  padding-block: var(--space-12);
+  border-block-start: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+@media (height >= 25em) and (width < 55em) {
+  /* When focus moves to something near the bottom, scroll it above the bar,
+     not under it. No bottom padding is needed: a sticky bar settles back
+     into the flow at the end of the page, so the last content always
+     scrolls clear. The extra 8px keeps the focus ring (3px, 2px
+     outside) clear too. */
+  html:has(.round--facilitator) {
+    scroll-padding-block-end: calc(var(--controls-bar-height) + var(--space-8));
+  }
+
+  .round--facilitator .controls {
+    position: sticky;
+    bottom: 0;
+    box-sizing: border-box;
+    min-block-size: var(--controls-bar-height);
+  }
+}
+
+/* The room's h1, styled quiet: the pills answer "who are we waiting for?",
+   and the status line is supporting text. */
+.status {
+  grid-area: status;
+  margin: 0;
+  color: var(--quiet);
+  font-size: var(--text-status);
+  font-weight: var(--weight-regular);
+}
+
+.controls {
+  grid-area: controls;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) var(--space-16);
+}
+
+.not-voted {
+  margin: 0;
+}
+
+/* While voting: one row per person, the name, then a status pill. */
+.people {
+  grid-area: people;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: 2rem; /* 32px */
+}
+
+/* A long name is cut short, not wrapped: the row stays one person. Only
+   the name shrinks; "(you)" and the pill keep their size. */
+.person-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-you {
+  flex: none;
+  color: var(--quiet);
+}
+
+/* The pill sits at the end of the row, however long the name. */
+.person > .pill {
+  margin-inline-start: auto;
+}
+
+/* The facilitator's Nudge button, before the pill: it takes the auto margin
+   instead, so the two sit together at the end of the row. */
+.person-nudge {
+  flex: none;
+  min-height: 1.75rem; /* 28px */
+  margin-inline-start: auto;
+  padding: 0 0.625rem; /* 10px */
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+  font-size: var(--text-pill);
+  font-weight: var(--weight-strong);
+}
+
+.person-nudge ~ .pill {
+  margin-inline-start: 0;
+}
+
+/* Nudged: plain Quiet words, still a button that keeps focus. */
+.person-nudge--sent {
+  padding: 0 var(--space-4);
+  border-color: transparent;
+  background: transparent;
+  color: var(--quiet);
+}
+
+.person-nudge[aria-disabled="true"] {
+  cursor: default;
+}
+
+.person-nudge:not(.person-nudge--sent)[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+.pill--voted {
+  background: var(--voted-bg);
+  color: var(--voted-text);
+}
+
+.pill--not-yet {
+  background: var(--not-yet-bg);
+  color: var(--not-yet-text);
+}
+
+.pill--away {
+  background: var(--away-bg);
+  color: var(--away-text);
+}
+
+/* After reveal, in wide only: everyone in a row that wraps, each name with
+   its card in a neutral chip. Compact leaves it out: the scale above lists
+   every vote, and height is scarce. */
+.people--revealed {
+  display: none;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-12) var(--space-32);
+}
+
+/* A value chip: the card, neutral, since colour lives on the scale. */
+.chip {
+  flex: none;
+  padding: 0.125rem var(--space-8); /* 2px 8px */
+  border: 1.5px solid var(--edge);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+  font-size: var(--text-small);
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The deck: ten 68px cards in one row when there is room for them, two
+   rows of five otherwise, which is always the case in compact. The deck's
+   own width decides, through a container query, since in wide the room
+   for it depends on the window. */
+.deck-area {
+  grid-area: deck;
+  container: deck / inline-size;
+}
+
+.deck {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 4.25rem));
+  gap: var(--space-12);
+}
+
+@container deck (min-width: 49.25rem) {
+  .deck {
+    grid-template-columns: repeat(10, 4.25rem);
+  }
+}
+
+/* A card is 4:5, Surface with an Edge outline (3:1). Hover darkens the
+   outline to Ink and lifts it 2px; selected is a Cobalt fill with an On
+   Cobalt numeral; focus is the global 3px ring 2px outside, so selection
+   and focus never look the same, and a selected card with focus shows
+   both. */
+.card {
+  box-sizing: border-box;
+  inline-size: 100%;
+  aspect-ratio: 4 / 5;
+  min-height: 0;
+  padding: 0;
+  border: 1.5px solid var(--edge);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-card);
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hover only where there is a pointer that hovers: on a phone a tap sets
+   :hover and leaves it on the card until the next tap elsewhere, which
+   reads as a selection while you are choosing a vote. A selected card
+   keeps its Cobalt outline: Ink around the fill would read as a third
+   state. It still lifts, below. */
+@media (hover: hover) {
+  .card:hover:not(:disabled):not([aria-pressed="true"]) {
+    border-color: var(--ink);
+  }
+}
+
+/* The lift only moves with motion allowed; otherwise hover is the outline
+   alone, since with reduced motion nothing moves. */
+@media (prefers-reduced-motion: no-preference) {
+  .card {
+    transition:
+      transform 120ms ease-out,
+      border-color 120ms ease-out;
+  }
+
+  .card:active:not(:disabled) {
+    transition-duration: 80ms;
+  }
+}
+
+/* Pressing settles the lifted card back down. After the lift: both rules
+   weigh the same, so the later one wins. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .card:hover:not(:disabled) {
+    transform: translateY(-2px);
+  }
+
+  .card:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.card[aria-pressed="true"] {
+  border-color: var(--cobalt);
+  background: var(--cobalt);
+  color: var(--on-cobalt);
+}
+
+/* Clear my vote, then the "You've voted" pill. */
+.own-vote {
+  grid-area: own;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* The scale: the deck row after reveal. All ten steps across, names
+   stacked above each card, when the scale has room for ten 100px columns:
+   the width of a pill holding a long word such as "Oppenheimer", so names
+   wrap between words (only a longer word breaks inside). Otherwise, as always in compact, only the cards
+   that got votes, one row each: the card, then its names wrapping beside
+   it. The scale's own width decides, like the deck's. Across, cards nobody
+   chose keep their place with a Rule outline and an Ink numeral, so the
+   gaps show the spread. */
+.scale-area {
+  grid-area: scale;
+  container: scale / inline-size;
+}
+
+.scale {
+  display: grid;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scale-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.scale-step--empty {
+  display: none;
+}
+
+/* The deck's card, not a control: 4:5, Surface with an Edge outline. */
+.scale-card {
+  display: flex;
+  flex: none;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  inline-size: calc(40em / 17); /* 40px at the compact 17px numeral */
+  aspect-ratio: 4 / 5;
+  border: 1.5px solid var(--edge);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-scale);
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.scale-step--empty .scale-card {
+  border-color: var(--rule);
+  background: transparent;
+}
+
+.scale-names {
+  display: flex;
+  flex-wrap: wrap;
+  min-inline-size: 0;
+  gap: var(--space-4) var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each name is a pill, and a name too long for its column wraps inside it,
+   never cut and never shrunk: the stack grows to fit. The pill is what
+   keeps a wrapped name one person (A-04 cut names to one line instead,
+   before names had pills). A name wraps between words. Only a single word
+   that cannot fit a line on its own breaks inside, through overflow-wrap.
+
+   No hyphens: auto, here or anywhere it could be inherited. It hyphenates
+   in ordinary wrapping, before overflow-wrap is needed ("Oppen-heimer"); an
+   inserted hyphen reads as part of the name, where Anne-Marie has a real
+   one; and the page's English rules do not know names from any language. */
+.scale-name {
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  padding: 0.125rem 0.625rem; /* 2px 10px */
+  /* Half the one-line height: round on one line, and a wrapped name gets
+     rounded corners rather than an oval. */
+  border-radius: 0.75rem;
+  background: var(--name-bg);
+  color: var(--name-text);
+  font-size: var(--text-pill);
+  font-weight: var(--weight-strong);
+  line-height: 1.25rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* The winning card, or the cards of a draw, and the names on them. Colour
+   is never the only signal: the sentence below says it in words. */
+.scale-step--win .scale-card {
+  border-color: var(--win-border);
+  background: var(--win-fill);
+  color: var(--win-numeral);
+}
+
+.scale-step--win .scale-name {
+  background: var(--voted-bg);
+  color: var(--voted-text);
+}
+
+.scale-step--draw .scale-card {
+  border-color: var(--draw-border);
+  background: var(--draw-fill);
+  color: var(--draw-numeral);
+}
+
+.scale-step--draw .scale-name {
+  background: var(--draw-bg);
+  color: var(--draw-text);
+}
+
+/* The only motion (docs/design.md): names settle onto the scale once, at
+   reveal, and not at all with reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .scale-name {
+    animation: settle var(--settle) ease-out both;
+  }
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5em);
+  }
+}
+
+/* The sentence, in Ink at regular weight: the colour is on the scale. */
+.result {
+  grid-area: result;
+  margin: 0;
+  font-size: var(--text-result);
+  line-height: 1.5;
+}
+
+@media (min-width: 55em) {
+  /* Two columns: the status line and the people on the left, 280px; the
+     round on the right. The people span the rows beside the right column,
+     so they start right under the status line, while the deck waits for
+     the controls above it. */
+  .round {
+    grid-template-columns: 17.5rem minmax(0, 1fr);
+    column-gap: var(--space-48);
+    align-items: start;
+  }
+
+  .round--voting.round--participant {
+    grid-template-areas:
+      "status deck"
+      "people deck"
+      "people controls";
+  }
+
+  /* Controls up front, always in the same place: top right. */
+  .round--voting.round--facilitator {
+    grid-template-areas:
+      "status controls"
+      "people controls"
+      "people deck"
+      "people own";
+  }
+
+  /* After reveal the scale takes the full width, so all ten steps fit,
+     with the sentence and then the people below it. The controls sit top
+     right, still last in the DOM. */
+  .round--revealed {
+    grid-template-areas:
+      "status controls"
+      "scale scale"
+      "result result"
+      "people people";
+  }
+
+  .people--revealed {
+    display: flex;
+  }
+
+  .round--revealed.round--participant .controls {
+    justify-content: flex-end;
+  }
+
+  .round--facilitator .controls {
+    flex-direction: column;
+    align-items: flex-end;
+    padding: 0;
+    border: 0;
+  }
+}
+
+/* All ten across, on one baseline, once every column can be as wide as a
+   name needs: 100px, a pill holding a long word such as "Oppenheimer"
+   (81px of text and 10px of padding each side). Ten of those and nine
+   12px gaps make the width this switches at, 1108px; a test derives it
+   from the column and the gap. */
+@container scale (min-width: 69.25rem) {
+  .scale {
+    grid-template-columns: repeat(10, minmax(6.25rem, 1fr));
+    column-gap: var(--space-12);
+    align-items: end;
+  }
+
+  .scale-step,
+  .scale-step--empty {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: var(--space-8);
+  }
+
+  .scale-card {
+    inline-size: min(100%, 4.75rem); /* 76px */
+  }
+
+  /* Stacked upwards: the first to join nearest the card. */
+  .scale-names {
+    flex-direction: column-reverse;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-4);
+  }
+}

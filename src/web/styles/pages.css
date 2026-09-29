@@ -1,0 +1,166 @@
+/*
+ * The screens outside the room: the landing page, the name form for a room
+ * link, the stopped screens and "no room here". The same system as the
+ * room: left-aligned, space between sections, no boxes, one Cobalt action.
+ */
+
+.page {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-16);
+  max-width: 36rem;
+  padding-block: var(--space-48);
+}
+
+.page h1 {
+  margin: 0;
+  font-size: var(--text-heading);
+  font-weight: var(--weight-strong);
+}
+
+.page p {
+  margin: 0;
+}
+
+.name-form {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-8);
+  padding-block-start: var(--space-8);
+}
+
+/* The Facilitate switch, set apart from the field above and the button. */
+.name-form .switch-row {
+  padding-block: var(--space-12);
+}
+
+/* The sentence under a heading, and a small note under an action. */
+.page-intro {
+  color: var(--quiet);
+}
+
+.page-note {
+  color: var(--quiet);
+  font-size: var(--text-small);
+}
+
+/* The landing: the form, and the preview beside it in wide, below it in
+   compact. */
+.page--landing {
+  max-width: none;
+  justify-items: stretch;
+  gap: var(--space-48);
+}
+
+.landing-form {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-16);
+  max-inline-size: 27.5rem; /* 440px */
+}
+
+.landing-form .name-form {
+  justify-self: stretch;
+}
+
+/* A room link's join form: one column, centred. */
+.page--join {
+  max-width: 27.5rem;
+  margin-inline: auto;
+}
+
+.page--join .name-form {
+  justify-self: stretch;
+}
+
+@media (min-width: 55em) {
+  .page--landing {
+    grid-template-columns: minmax(0, 27.5rem) minmax(0, 34.5rem);
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.name-form label {
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
+}
+
+/* An Edge outline, like the cards: a control boundary, so at least 3:1. */
+.text-field {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 3rem; /* 48px */
+  padding: 0 0.875rem; /* 14px */
+  border: 1.5px solid var(--edge);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+/* Invalid is said in words below the field; Ink makes the outline agree. */
+.text-field[aria-invalid="true"] {
+  border-color: var(--ink);
+}
+
+.field-message:empty {
+  display: none;
+}
+
+/* Banners and notices above the room: plain text, set apart by space. */
+.room-message {
+  margin: 0;
+  padding-block: var(--space-8);
+}
+
+/* The landing preview: a fake room in a frame, drawn by the room's own
+   components (LandingPreview), and Pause preview below it on the right. */
+.preview {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-12);
+  inline-size: 100%;
+}
+
+/* The room at 80%: the real components, smaller, as a whole. */
+.preview-room {
+  box-sizing: border-box;
+  display: grid;
+  inline-size: 100%;
+  padding: var(--space-24);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-container);
+  background: var(--surface);
+  zoom: 0.8;
+}
+
+/* Every frame in the same cell, so the tallest sets the height. Each is a
+   flex column, not a grid: the room's parts carry grid areas (people, deck,
+   scale) that only mean something in the room's own grid. */
+.preview-frame {
+  display: flex;
+  flex-direction: column;
+  grid-area: 1 / 1;
+  gap: var(--space-16);
+}
+
+.preview-frame--sizer {
+  visibility: hidden;
+}
+
+.preview-status {
+  color: var(--quiet);
+  font-size: var(--text-status);
+}
+
+/* A nudge, above the room's heading: the Facilitating colours, a
+   container's corners. The region around it stays in the page, empty and
+   boxless, so the banner appearing is announced. */
+.nudge-banner {
+  margin: 0;
+  padding: var(--space-12) 0.875rem; /* 12px 14px */
+  border-radius: var(--radius-container);
+  background: var(--facilitating-bg);
+  color: var(--facilitating-text);
+  font-size: var(--text-control);
+  font-weight: var(--weight-strong);
+}
