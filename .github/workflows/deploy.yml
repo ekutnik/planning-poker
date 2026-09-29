@@ -50,9 +50,24 @@ jobs:
       # built here, on the runner (--local-only), not on a Fly builder.
       # --ha=false: flyctl otherwise creates a spare machine, which would
       # double the bill; rooms live in memory, so a spare would split them.
-      - run: flyctl deploy --local-only --ha=false
+      # --image-label: the image is tagged with the commit it was built
+      # from, so the running image names its commit on main. (flyctl also
+      # adds a GH_SHA label, but in a workflow_run that is develop's head,
+      # where this file runs from, not the commit deployed.)
+      - run: >-
+          flyctl deploy --local-only --ha=false
+          --image-label ${{ github.event.workflow_run.head_sha }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # The deploy put that commit live: the machine runs the image tagged
+      # with it.
+      - run: |
+          image=$(flyctl machine list --json | jq -r '.[].config.image' | sort -u)
+          echo "running: $image"
+          test "$image" = "registry.fly.io/estimate-together:$HEAD_SHA"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
       # Still one small machine, no paid IPv4 and no volume (README, Deploy).
       - run: scripts/check-fly-budget.sh
         env:
