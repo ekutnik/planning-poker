@@ -123,6 +123,7 @@ One family: **Figtree**, in weights 400 and 600.
 | Controls (buttons, Menu labels) | 15 / 600        | 15 / 600        |
 | Small (a switch's description)  | 14 / 400        | 14 / 400        |
 | The ticket being estimated      | 18 / 600        | 26 / 600        |
+| The timer's numerals            | 17 / 600        | 20 / 600        |
 
 Sizes are px, set in `rem`, so browser zoom scales them. A test checks every role against this table. The numerals are smaller than in the first design, so the screen-share legibility check was repeated: on 2026-09-29, in a real call, with the result "All good." ([the audit record](audit/2026-09-accessibility.md#before-launch-44-2026-09-29)).
 
@@ -199,6 +200,21 @@ What the room is estimating, above the round, so nobody has to ask "which one ar
 - **Editing, facilitator view:** a small **Edit** button beside the ticket (a screen reader hears "Edit the ticket") opens an inline field labelled "Now estimating", with **Save** and **Cancel**. Enter saves, Escape cancels, and focus returns to Edit; the Edit and Add a ticket button is one element, so focus stays on it when the saved ticket arrives. Saving an empty field removes the ticket.
 - **Said once when someone else changes it,** through the room's polite live region: "Now estimating: PROJ-482 …". Your own Save says nothing: you just typed it. Clearing the ticket says nothing either, deliberately: nobody needs to hear that there is no ticket.
 - **Server rules** (`setTicket`, the same checks as every command): runs of whitespace become one space, other control characters go, the ends are trimmed; empty means no ticket; at most 120 characters after cleaning (`MAX_TICKET_LENGTH`), and the field's `maxlength` matches; the same text again changes nothing. Anyone in the room may set it, like Reveal ([ADR 0005](decisions/0005-anyone-can-reveal.md)): the controls appear only in the facilitator view. The text is logged nowhere; the log has the message type only.
+
+### The timer
+
+<table><tr><td><img src="design/timer-idle-wide-light.png" alt="The facilitator view with the timer idle, beside Reveal votes: a clock icon, Timer, a select showing 2 min, and Start, light theme" /></td><td><img src="design/timer-running-wide-light.png" alt="The facilitator view with the timer running: 1:59 left, a Pause button, +30 s, and a thin blue bar below, light theme" /></td></tr><tr><td><img src="design/timer-paused-wide-dark.png" alt="The timer paused, dark theme: 1:56 in quiet grey, Paused, a Resume button and +30 s" /></td><td width="45%"><img src="design/timer-participant-compact-light.png" alt="A participant on a phone: 1:57 left, then votes are revealed, with the bar, at the top above the status line, light theme" /></td></tr></table>
+
+<table><tr><td width="45%"><img src="design/timer-idle-compact-light.png" alt="The facilitator on a phone: the timer in its own row, above the pinned bar with Reveal votes, light theme" /></td><td width="45%"><img src="design/timer-idle-compact-dark.png" alt="The facilitator on a phone: the timer in its own row, above the pinned bar with Reveal votes, dark theme" /></td></tr></table>
+
+A timer for rounds the team wants kept short: the facilitator starts it, everyone sees it, and when it ends the server reveals the votes ([ADR 0008](decisions/0008-the-server-holds-the-timer.md)). Idle until someone starts it.
+
+- **Facilitator view, while voting:** beside Reveal votes in wide, in its own row above the pinned bar in compact. Idle: a clock icon, "Timer", a select (30 s, 1 min, 2 min, 3 min, 5 min, Custom…) and **Start**; Custom… opens a small m:ss field, from 0:10 to 10:00. Running: the time left ("1:24") and "left", a **Pause** icon button, **+30 s**, and a 3 px bar of what is left. Paused: the time turns Quiet, "Paused" appears, and Pause becomes **Resume**. Start, Pause and Resume are one button in one place, so focus stays on it as its job changes; the icon buttons are named "Pause the timer" and "Resume the timer", and +30 s "Add 30 seconds".
+- **Everyone else:** "1:24 left, then votes are revealed" with the bar, or "Paused at 1:24", first in the round, above the status line. Nothing at all while idle, and no row for it, so the room is as it always was until a timer starts.
+- **The duration** is the room's, sent the moment it is chosen, and stays across rounds; a running timer keeps its deadline, and a new length applies from the next start. The server accepts 10 s to 10 minutes in whole seconds.
+- **Back to idle by itself** at every reveal (a person's or the timer's) and at Start next round.
+- **Said once each,** through the room's polite live region: "Timer started: 1 minute."; "10 seconds left." (only if more than 10 seconds were left when it started or resumed, so it never talks over "Timer started"); and when the timer reveals, "Time's up." before the result. The countdown itself is never said, and the bar is hidden from screen readers: the time says it.
+- **The time** is in tabular numerals, rounded up, so 0:00 shows only at the end. Each browser counts down from the server's deadline, moved into its own clock on arrival, so a laptop whose clock is off still shows the same time as everyone else. With reduced motion the bar jumps rather than slides.
 
 ### Keeping score
 
@@ -400,6 +416,10 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 | Ticket too long       | "That ticket is too long. Keep it to 120 characters."                                                |
 | Keep score            | "Keep score" / "Shows everyone's points: one when a vote matches the result. For this session only." |
 | Points                | "3 pts", "1 pt" (spoken "3 points", "1 point")                                                       |
+| Timer                 | "Timer"; "Start"; "1:24" "left" / "Paused"; "+30 s"; "Custom…"                                       |
+| Timer, others         | "1:24 left, then votes are revealed"; "Paused at 1:24"                                               |
+| Timer (spoken)        | "Timer started: 1 minute."; "10 seconds left."; "Time's up." before the result                       |
+| Timer, bad duration   | "Choose a time from 10 seconds to 10 minutes."                                                       |
 | Nudge                 | "Nudge" (accessible name "Nudge Cy"), "Nudged"; "The room is waiting for your vote."                 |
 | Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8."               |
 | Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."                 |
