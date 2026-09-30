@@ -180,6 +180,12 @@ function open(youVoted: boolean, phase: "voting" | "revealed" = "voting") {
             viewerId: "me",
             ticket: null,
             scores: null,
+            timer: {
+              durationMs: 60_000,
+              state: "idle",
+              endsAt: null,
+              remainingMs: null,
+            },
             yourVote: youVoted ? "5" : null,
             participants: participants.map((p) => ({
               ...p,
@@ -193,6 +199,13 @@ function open(youVoted: boolean, phase: "voting" | "revealed" = "voting") {
             viewerId: "me",
             ticket: null,
             scores: null,
+            timer: {
+              durationMs: 60_000,
+              state: "idle",
+              endsAt: null,
+              remainingMs: null,
+            },
+            revealCause: null,
             participants: participants.map((p) => ({ ...p, vote: null })),
             results: {
               voteCount: 0,

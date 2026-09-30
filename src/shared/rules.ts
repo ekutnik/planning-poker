@@ -64,6 +64,27 @@ export function cleanTicket(raw: string): string | null {
   return cleaned === "" ? null : cleaned;
 }
 
+/**
+ * The timer (ADR 0008). A duration is whole seconds from 10 s to 10 min; the
+ * default is a minute, and the presets are what the facilitator's select
+ * offers before Custom. +30 s never takes what is left past the maximum.
+ */
+export const TIMER_DEFAULT_MS = 60_000;
+export const TIMER_MIN_MS = 10_000;
+export const TIMER_MAX_MS = 600_000;
+export const TIMER_ADD_MS = 30_000;
+export const TIMER_PRESETS_MS = [30_000, 60_000, 120_000, 180_000, 300_000];
+
+/** Whether `ms` is a duration the timer accepts. */
+export function validDuration(ms: number): boolean {
+  return (
+    Number.isInteger(ms) &&
+    ms % 1_000 === 0 &&
+    ms >= TIMER_MIN_MS &&
+    ms <= TIMER_MAX_MS
+  );
+}
+
 /** Session tokens: 22–64 url-safe characters covers a randomUUID without over-fitting. */
 export const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22,64}$/;
 

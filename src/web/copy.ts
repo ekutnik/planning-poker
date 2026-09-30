@@ -23,6 +23,7 @@ export const ERROR_COPY: Readonly<Record<ErrorCode, string | null>> = {
     "The server couldn't read that. Reload the page to get the latest version.",
   RATE_LIMITED: "That was a lot at once. Wait a moment, then try again.",
   TICKET_TOO_LONG: "That ticket is too long. Keep it to 120 characters.",
+  INVALID_DURATION: "Choose a time from 10 seconds to 10 minutes.",
 };
 
 export interface StopCopy {

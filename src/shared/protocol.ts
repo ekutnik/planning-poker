@@ -46,6 +46,17 @@ export const ClientMessage = z.discriminatedUnion("type", [
   }),
   // Keep score, on or off, for the room.
   z.strictObject({ type: z.literal("setScoring"), on: z.boolean() }),
+  // The timer (ADR 0008). The duration's cap here is payload sanity; the
+  // domain applies the 10 s to 10 min rule. +30 s carries no amount: the
+  // server adds TIMER_ADD_MS.
+  z.strictObject({
+    type: z.literal("timerSetDuration"),
+    ms: z.number().int().nonnegative().max(3_600_000),
+  }),
+  z.strictObject({ type: z.literal("timerStart") }),
+  z.strictObject({ type: z.literal("timerPause") }),
+  z.strictObject({ type: z.literal("timerResume") }),
+  z.strictObject({ type: z.literal("timerAdd") }),
   // A nudge (ADR 0007). participantId is the person nudged, by the public id
   // every snapshot shows; the sender is the socket, as for every message.
   z.strictObject({
@@ -68,7 +79,17 @@ export type ErrorCode =
   | "RATE_LIMITED";
 
 export type ServerMessage =
-  | { readonly type: "snapshot"; readonly snapshot: RoomSnapshot }
+  | {
+      readonly type: "snapshot";
+      readonly snapshot: RoomSnapshot;
+      /**
+       * The server's clock when it sent this, so a client can count down
+       * to the timer's `endsAt` whatever its own clock says (ADR 0008).
+       * Beside the snapshot, not in it, so it never makes two otherwise
+       * equal snapshots differ.
+       */
+      readonly serverNow: number;
+    }
   | { readonly type: "error"; readonly code: ErrorCode }
   /** The answer to a client `ping`. Any message proves the server is alive. */
   | { readonly type: "pong" }

@@ -769,9 +769,20 @@ describe("keeping score", () => {
     expect(points(after)).toEqual({ a: 1 });
   });
 
-  it.todo(
-    "a reveal by the timer (timeUp) awards points the same way: PR D makes this pass",
-  );
+  it("a reveal by the timer (timeUp) awards points the same way", () => {
+    const start: Command = { type: "timerStart", participantId: "a" };
+    const running = run(
+      room(true),
+      castVote("a", "5"),
+      castVote("b", "5"),
+      start,
+    );
+    const endsAt = running.timer.endsAt ?? 0;
+    const revealed = must(applyCommand(running, { type: "timeUp" }, endsAt));
+    expect(revealed.phase).toBe("revealed");
+    expect(revealed.revealCause).toBe("timer");
+    expect(points(revealed)).toEqual({ a: 1, b: 1 });
+  });
 
   describe("seats", () => {
     const scored = () => round(room(true), { a: "5", b: "5" });
@@ -835,5 +846,237 @@ describe("keeping score", () => {
         error: "NOT_CONNECTED",
       });
     });
+  });
+});
+
+describe("the timer", () => {
+  const MIN = 60_000;
+  const cmd = (type: string, participantId = "alice"): Command =>
+    ({ type, participantId }) as Command;
+  const setDuration = (ms: number): Command => ({
+    type: "timerSetDuration",
+    participantId: "alice",
+    ms,
+  });
+  const inRoom = () => run(createRoom("r1"), join("alice"), join("bob"));
+  const at = (now: number, r: Room, command: Command) =>
+    must(applyCommand(r, command, now));
+  const running = () => at(NOW, inRoom(), cmd("timerStart"));
+  const paused = () => at(NOW + 20_000, running(), cmd("timerPause"));
+
+  it("is idle in a new room, for a minute, with no deadline", () => {
+    expect(createRoom("r1").timer).toEqual({
+      durationMs: MIN,
+      state: "idle",
+      endsAt: null,
+      remainingMs: null,
+    });
+    expect(createRoom("r1").revealCause).toBeNull();
+  });
+
+  describe("timerStart", () => {
+    it("while voting and idle: the deadline is now plus the duration", () => {
+      expect(running().timer).toEqual({
+        durationMs: MIN,
+        state: "running",
+        endsAt: NOW + MIN,
+        remainingMs: null,
+      });
+    });
+
+    it.each([
+      ["running", running],
+      ["paused", paused],
+    ])("is a no-op while %s", (_, timer) => {
+      const r = timer();
+      expect(at(NOW + 5_000, r, cmd("timerStart"))).toBe(r);
+    });
+
+    it("is refused once the votes are revealed", () => {
+      const revealed = run(inRoom(), castVote("alice", "5"), reveal("alice"));
+      expect(applyCommand(revealed, cmd("timerStart"), NOW)).toEqual({
+        ok: false,
+        error: "VOTING_CLOSED",
+      });
+    });
+  });
+
+  describe("timerPause and timerResume", () => {
+    it("pause keeps what is left; resume sets a new deadline from it", () => {
+      expect(paused().timer).toEqual({
+        durationMs: MIN,
+        state: "paused",
+        endsAt: null,
+        remainingMs: 40_000,
+      });
+      const resumed = at(NOW + 90_000, paused(), cmd("timerResume"));
+      expect(resumed.timer).toEqual({
+        durationMs: MIN,
+        state: "running",
+        endsAt: NOW + 90_000 + 40_000,
+        remainingMs: null,
+      });
+    });
+
+    it("a pause that arrives after the deadline keeps 0, not a negative time", () => {
+      expect(
+        at(NOW + MIN + 500, running(), cmd("timerPause")).timer.remainingMs,
+      ).toBe(0);
+    });
+
+    it.each([
+      ["pause while paused", paused, "timerPause"],
+      ["pause while idle", inRoom, "timerPause"],
+      ["resume while running", running, "timerResume"],
+      ["resume while idle", inRoom, "timerResume"],
+    ])(
+      "%s is a no-op: it races the deadline, so it is not an error",
+      (_, timer, type) => {
+        const r = timer();
+        expect(at(NOW + 1_000, r, cmd(type))).toBe(r);
+      },
+    );
+  });
+
+  describe("timerAdd", () => {
+    it("adds 30 s to a running timer's deadline", () => {
+      expect(at(NOW + 1_000, running(), cmd("timerAdd")).timer.endsAt).toBe(
+        NOW + MIN + 30_000,
+      );
+    });
+
+    it("adds 30 s to what a paused timer has left", () => {
+      expect(
+        at(NOW + 25_000, paused(), cmd("timerAdd")).timer.remainingMs,
+      ).toBe(70_000);
+    });
+
+    it("never takes what is left past 10 minutes, and is a no-op at the cap", () => {
+      const long = at(
+        NOW,
+        at(NOW, inRoom(), setDuration(10 * MIN)),
+        cmd("timerStart"),
+      );
+      const later = NOW + 20_000;
+      const added = at(later, long, cmd("timerAdd"));
+      expect(added.timer.endsAt).toBe(later + 10 * MIN);
+      expect(at(later, added, cmd("timerAdd"))).toBe(added);
+    });
+
+    it("is a no-op while idle", () => {
+      const r = inRoom();
+      expect(at(NOW, r, cmd("timerAdd"))).toBe(r);
+    });
+  });
+
+  describe("timerSetDuration", () => {
+    it.each([10_000, 30_000, 5 * MIN, 10 * MIN])("accepts %i ms", (ms) => {
+      expect(at(NOW, inRoom(), setDuration(ms)).timer.durationMs).toBe(ms);
+    });
+
+    it.each([0, 9_000, 10 * MIN + 1_000, 30_500, 60_001])(
+      "refuses %i ms: whole seconds from 10 s to 10 min only",
+      (ms) => {
+        expect(applyCommand(inRoom(), setDuration(ms), NOW)).toEqual({
+          ok: false,
+          error: "INVALID_DURATION",
+        });
+      },
+    );
+
+    it("is a no-op for the same duration", () => {
+      const r = inRoom();
+      expect(at(NOW, r, setDuration(MIN))).toBe(r);
+    });
+
+    it("leaves a running timer's deadline alone: the new length is for the next start", () => {
+      const changed = at(NOW + 1_000, running(), setDuration(2 * MIN));
+      expect(changed.timer).toMatchObject({
+        durationMs: 2 * MIN,
+        state: "running",
+        endsAt: NOW + MIN,
+      });
+    });
+  });
+
+  describe("back to idle by itself", () => {
+    it("at a reveal by a person, keeping the duration", () => {
+      const r = run(running(), castVote("bob", "3"), reveal("alice"));
+      expect(r.timer).toEqual({
+        durationMs: MIN,
+        state: "idle",
+        endsAt: null,
+        remainingMs: null,
+      });
+      expect(r.revealCause).toBeNull();
+    });
+
+    it("at Start next round, from running or paused", () => {
+      for (const timer of [running, paused]) {
+        const r = run(timer(), castVote("bob", "3"), reset("alice"));
+        expect(r.timer.state).toBe("idle");
+      }
+    });
+  });
+
+  describe("timeUp", () => {
+    const voted = () => run(running(), castVote("bob", "8"));
+
+    it("at the deadline, reveals whether or not everyone has voted, marked as the timer's", () => {
+      const revealed = at(NOW + MIN, voted(), { type: "timeUp" });
+      expect(revealed.phase).toBe("revealed");
+      expect(revealed.revealCause).toBe("timer");
+      expect(revealed.timer.state).toBe("idle");
+      expect(revealed.version).toBe(voted().version + 1);
+    });
+
+    it("before the deadline changes nothing", () => {
+      const r = voted();
+      expect(at(NOW + MIN - 1, r, { type: "timeUp" })).toBe(r);
+    });
+
+    it.each([
+      ["idle", () => run(inRoom(), castVote("bob", "8"))],
+      ["paused", () => run(paused(), castVote("bob", "8"))],
+    ])(
+      "changes nothing while %s: only a running timer can reveal",
+      (_, timer) => {
+        const r = timer();
+        expect(at(NOW + 60 * MIN, r, { type: "timeUp" })).toBe(r);
+      },
+    );
+
+    it("with no votes at all, reveals nothing and goes back to idle", () => {
+      const r = at(NOW + MIN, running(), { type: "timeUp" });
+      expect(r.phase).toBe("voting");
+      expect(r.timer.state).toBe("idle");
+    });
+
+    it("is cleared at Start next round, so the next reveal is a person's", () => {
+      const next = run(
+        at(NOW + MIN, voted(), { type: "timeUp" }),
+        reset("alice"),
+      );
+      expect(next.revealCause).toBeNull();
+    });
+  });
+
+  it("follows the order of checks for every timer command: unknown, then not connected", () => {
+    const r = run(running(), disconnect("bob"));
+    for (const type of [
+      "timerStart",
+      "timerPause",
+      "timerResume",
+      "timerAdd",
+    ]) {
+      expect(applyCommand(r, cmd(type, "zed"), NOW)).toEqual({
+        ok: false,
+        error: "UNKNOWN_PARTICIPANT",
+      });
+      expect(applyCommand(r, cmd(type, "bob"), NOW)).toEqual({
+        ok: false,
+        error: "NOT_CONNECTED",
+      });
+    }
   });
 });

@@ -29,6 +29,12 @@ function voting(voted: readonly string[]): Voting {
     viewerId: "Ada",
     ticket: null,
     scores: null,
+    timer: {
+      durationMs: 60_000,
+      state: "idle",
+      endsAt: null,
+      remainingMs: null,
+    },
     yourVote: VOTES.Ada,
     participants: PEOPLE.map((name) => ({
       id: name,
@@ -46,6 +52,8 @@ const revealed: Revealed = {
   viewerId: "Ada",
   ticket: null,
   scores: null,
+  timer: { durationMs: 60_000, state: "idle", endsAt: null, remainingMs: null },
+  revealCause: null,
   participants: PEOPLE.map((name) => ({
     id: name,
     name,
