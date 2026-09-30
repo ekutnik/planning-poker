@@ -561,3 +561,97 @@ describe("invariants", () => {
     }
   });
 });
+
+describe("setTicket", () => {
+  const setTicket = (participantId: string, text: string): Command => ({
+    type: "setTicket",
+    participantId,
+    text,
+  });
+  const inRoom = () => run(createRoom("r1"), join("alice"), join("bob"));
+
+  it("starts with no ticket", () => {
+    expect(createRoom("r1").ticket).toBeNull();
+  });
+
+  it("sets the cleaned text, for the whole room", () => {
+    const room = run(inRoom(), setTicket("alice", "  PROJ-482 \n Fix it "));
+    expect(room.ticket).toBe("PROJ-482 Fix it");
+  });
+
+  it("accepts 120 characters after cleaning, and refuses 121", () => {
+    const room = inRoom();
+    expect(
+      must(applyCommand(room, setTicket("alice", ` ${"x".repeat(120)} `), NOW))
+        .ticket,
+    ).toBe("x".repeat(120));
+    expect(
+      applyCommand(room, setTicket("alice", "x".repeat(121)), NOW),
+    ).toEqual({ ok: false, error: "TICKET_TOO_LONG" });
+  });
+
+  it("clears it with empty text", () => {
+    const room = run(
+      inRoom(),
+      setTicket("alice", "PROJ-1"),
+      setTicket("bob", "  "),
+    );
+    expect(room.ticket).toBeNull();
+  });
+
+  it("is a no-op for the same text, before or after cleaning, and for clearing nothing", () => {
+    const room = run(inRoom(), setTicket("alice", "PROJ-1"));
+    for (const text of ["PROJ-1", "  PROJ-1 ", "PROJ-1\u0000"]) {
+      const next = must(applyCommand(room, setTicket("bob", text), NOW));
+      expect(next).toBe(room);
+      expect(next.version).toBe(room.version);
+    }
+    const empty = inRoom();
+    expect(must(applyCommand(empty, setTicket("alice", ""), NOW))).toBe(empty);
+    // A control character between two spaces cleans to one space, so it is
+    // the same ticket, not a new one with a double space.
+    const words = run(inRoom(), setTicket("alice", "PROJ-1 Fix"));
+    expect(
+      must(applyCommand(words, setTicket("bob", "PROJ-1 \u0000 Fix"), NOW)),
+    ).toBe(words);
+  });
+
+  it("bumps the version by one on a change", () => {
+    const room = inRoom();
+    expect(run(room, setTicket("alice", "PROJ-1")).version).toBe(
+      room.version + 1,
+    );
+  });
+
+  it("follows the order of checks: unknown, then not connected, then the rules", () => {
+    const room = run(inRoom(), disconnect("bob"));
+    expect(applyCommand(room, setTicket("zed", "x".repeat(121)), NOW)).toEqual({
+      ok: false,
+      error: "UNKNOWN_PARTICIPANT",
+    });
+    expect(applyCommand(room, setTicket("bob", "x".repeat(121)), NOW)).toEqual({
+      ok: false,
+      error: "NOT_CONNECTED",
+    });
+  });
+
+  it("works in either phase, and stays across a reveal and Start next round", () => {
+    const revealed = run(inRoom(), castVote("alice", "5"), reveal("alice"));
+    const set = run(revealed, setTicket("bob", "PROJ-1"));
+    expect(set.phase).toBe("revealed");
+    expect(set.ticket).toBe("PROJ-1");
+    const next = run(set, reset("alice"), castVote("bob", "3"), reveal("bob"));
+    expect(next.ticket).toBe("PROJ-1");
+  });
+
+  it("changes nothing else in the room", () => {
+    const room = run(inRoom(), castVote("alice", "5"));
+    const { ticket, version, ...rest } = run(
+      room,
+      setTicket("alice", "PROJ-1"),
+    );
+    const { ticket: before, version: v, ...restBefore } = room;
+    expect(rest).toEqual(restBefore);
+    expect([before, ticket, version]).toEqual([null, "PROJ-1", v + 1]);
+  });
+});

@@ -14,6 +14,7 @@ function voting(
     roomId: ROOM_ID,
     version: 3,
     viewerId: "Ada",
+    ticket: null,
     yourVote: "13",
     participants: people.map(([name, status, hasVoted]) => ({
       id: name,
@@ -52,6 +53,7 @@ describe("document titles (A-03)", () => {
         roomId: ROOM_ID,
         version: 4,
         viewerId: "Ada",
+        ticket: null,
         participants: [
           { id: "Ada", name: "Ada", status: "connected", vote: "13" },
         ],

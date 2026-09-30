@@ -27,6 +27,7 @@ function voting(voted: readonly string[]): Voting {
     roomId: "preview",
     version: 0,
     viewerId: "Ada",
+    ticket: null,
     yourVote: VOTES.Ada,
     participants: PEOPLE.map((name) => ({
       id: name,
@@ -42,6 +43,7 @@ const revealed: Revealed = {
   roomId: "preview",
   version: 0,
   viewerId: "Ada",
+  ticket: null,
   participants: PEOPLE.map((name) => ({
     id: name,
     name,

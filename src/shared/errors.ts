@@ -9,4 +9,5 @@ export type DomainError =
   | "UNKNOWN_PARTICIPANT"
   | "NOT_CONNECTED"
   | "VOTING_CLOSED"
-  | "NO_VOTES_CAST";
+  | "NO_VOTES_CAST"
+  | "TICKET_TOO_LONG";

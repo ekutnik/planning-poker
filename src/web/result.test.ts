@@ -31,6 +31,7 @@ function revealed(
     roomId: "abcdefghijk",
     version: 5,
     viewerId: "Ada",
+    ticket: null,
     participants,
     results: {
       voteCount: votes.filter((vote) => vote !== null).length,
@@ -179,6 +180,7 @@ describe("phaseAnnouncement: only a change of phase is announced", () => {
     roomId: "abcdefghijk",
     version: 6,
     viewerId: "Ada",
+    ticket: null,
     yourVote: null,
     participants: [],
   };

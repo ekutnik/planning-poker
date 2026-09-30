@@ -22,6 +22,7 @@ export const ERROR_COPY: Readonly<Record<ErrorCode, string | null>> = {
   INVALID_MESSAGE:
     "The server couldn't read that. Reload the page to get the latest version.",
   RATE_LIMITED: "That was a lot at once. Wait a moment, then try again.",
+  TICKET_TOO_LONG: "That ticket is too long. Keep it to 120 characters.",
 };
 
 export interface StopCopy {
@@ -140,6 +141,19 @@ export const PEOPLE_COPY = {
   hideVote: "Hide my vote",
   /** Followed by the card, as CardText gives it. */
   yourVote: "Your vote:",
+} as const;
+
+/** The ticket being estimated, above the room (Ticket). */
+export const TICKET_COPY = {
+  label: "Now estimating",
+  /** Visible as "Edit"; a screen reader hears "Edit the ticket". */
+  edit: "Edit",
+  editTarget: "the ticket",
+  add: "Add a ticket",
+  save: "Save",
+  cancel: "Cancel",
+  /** Said once when someone else changes the ticket. */
+  announce: (ticket: string) => `Now estimating: ${ticket}`,
 } as const;
 
 /**

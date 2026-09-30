@@ -14,6 +14,7 @@ const snapshot: Revealed = {
   roomId: "abcdefghijk",
   version: 7,
   viewerId: "Ada",
+  ticket: null,
   participants: [
     { id: "Ada", name: "Ada", status: "connected", vote: "3" },
     { id: "Ben", name: "Ben", status: "connected", vote: "8" },
@@ -227,6 +228,7 @@ describe("the room's fade", () => {
       roomId: snapshot.roomId,
       version: 6,
       viewerId: "Ada",
+      ticket: null,
       yourVote: null,
       participants: [
         { id: "Ada", name: "Ada", status: "connected", hasVoted: false },

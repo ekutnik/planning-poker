@@ -8,6 +8,7 @@ const voting: RoomSnapshot = {
   roomId: "abcdefghijk",
   version: 1,
   viewerId: "a",
+  ticket: null,
   yourVote: null,
   participants: [],
 };

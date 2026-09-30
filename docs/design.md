@@ -122,6 +122,7 @@ One family: **Figtree**, in weights 400 and 600.
 | Wordmark                        | 14 / 600        | 17 / 600        |
 | Controls (buttons, Menu labels) | 15 / 600        | 15 / 600        |
 | Small (a switch's description)  | 14 / 400        | 14 / 400        |
+| The ticket being estimated      | 18 / 600        | 26 / 600        |
 
 Sizes are px, set in `rem`, so browser zoom scales them. A test checks every role against this table. The numerals are smaller than in the first design, so the screen-share legibility check was repeated: on 2026-09-29, in a real call, with the result "All good." ([the audit record](audit/2026-09-accessibility.md#before-launch-44-2026-09-29)).
 
@@ -183,6 +184,21 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 - **Wide:** two columns. The status line and the people list on the left, 280 px; the round on the right. In the facilitator view the right column is the controls (top right), the deck, then your own vote; in the participant view it is the deck, then the controls. The people list spans the rows beside the right column, so it starts right under the status line.
 - **Wide, after reveal:** the status line with the controls to its right, then the scale across both columns, the sentence, and the people.
 - **Compact:** one column in reading order: status, people, deck, your own vote, controls, with the facilitator's controls pinned to the bottom when the window is tall enough. The pinned bar is 72 px (a 44 px button, 12 px above and below, a 1 px rule), and focus scrolls clear of exactly that; a test holds the button, the padding and the rule to the height reserved.
+
+### The ticket
+
+<table><tr><td><img src="design/ticket-facilitator-wide-light.png" alt="The facilitator view with a ticket: Now estimating, PROJ-482 Admins can sign in with SSO in large text with a small Edit button beside it, above the room, light theme" /></td><td><img src="design/ticket-facilitator-wide-dark.png" alt="The facilitator view with a ticket: Now estimating, PROJ-482 Admins can sign in with SSO in large text with a small Edit button beside it, above the room, dark theme" /></td></tr></table>
+
+<table><tr><td width="45%"><img src="design/ticket-participant-compact-light.png" alt="A participant on a phone: Now estimating and the ticket at the top, set apart by a rule, above the status line, light theme" /></td><td width="45%"><img src="design/ticket-participant-compact-dark.png" alt="A participant on a phone: Now estimating and the ticket at the top, set apart by a rule, above the status line, dark theme" /></td></tr></table>
+
+What the room is estimating, above the round, so nobody has to ask "which one are we on?".
+
+- **For everyone, the same:** "Now estimating" (Small, Quiet), then the ticket (the Ticket role: 18 / 600 compact, 26 / 600 wide). It wraps anywhere, so a long ticket with no spaces never scrolls the page sideways. It stays across rounds until someone edits it, and goes with the room.
+- **A paragraph, not a heading.** The status line stays the page's `h1`; a heading above it would put the headings out of order.
+- **Nothing while empty,** for participants: no label, no space. The facilitator view shows a quiet **Add a ticket** button instead.
+- **Editing, facilitator view:** a small **Edit** button beside the ticket (a screen reader hears "Edit the ticket") opens an inline field labelled "Now estimating", with **Save** and **Cancel**. Enter saves, Escape cancels, and focus returns to Edit; the Edit and Add a ticket button is one element, so focus stays on it when the saved ticket arrives. Saving an empty field removes the ticket.
+- **Said once when someone else changes it,** through the room's polite live region: "Now estimating: PROJ-482 …". Your own Save says nothing: you just typed it. Clearing the ticket says nothing either, deliberately: nobody needs to hear that there is no ticket.
+- **Server rules** (`setTicket`, the same checks as every command): runs of whitespace become one space, other control characters go, the ends are trimmed; empty means no ticket; at most 120 characters after cleaning (`MAX_TICKET_LENGTH`), and the field's `maxlength` matches; the same text again changes nothing. Anyone in the room may set it, like Reveal ([ADR 0005](decisions/0005-anyone-can-reveal.md)): the controls appear only in the facilitator view. The text is logged nowhere; the log has the message type only.
 
 ### Room status
 
@@ -367,6 +383,9 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 | Status (facilitator)  | "Waiting for Ben and Cy. Fay is away.", or "Everyone has voted. Fay is away."          |
 | Primary actions       | "Reveal votes" → "Votes revealed"; "Start next round"                                  |
 | Own vote, facilitator | "Clear my vote"; "Show my vote" / "Hide my vote"; "You've voted" / "Your vote: 8"      |
+| Ticket                | "Now estimating"; "Add a ticket", "Edit", "Save", "Cancel"                             |
+| Ticket (spoken)       | "Now estimating: PROJ-482 …", when someone else changes it                             |
+| Ticket too long       | "That ticket is too long. Keep it to 120 characters."                                  |
 | Nudge                 | "Nudge" (accessible name "Nudge Cy"), "Nudged"; "The room is waiting for your vote."   |
 | Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8." |
 | Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."   |

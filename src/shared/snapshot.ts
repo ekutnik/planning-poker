@@ -35,6 +35,8 @@ export type RoomSnapshot =
       readonly viewerId: ParticipantId;
       readonly yourVote: Card | null;
       readonly participants: readonly VotingParticipantView[];
+      /** The ticket being estimated, the same for everyone; null for none. */
+      readonly ticket: string | null;
     }
   | {
       readonly phase: "revealed";
@@ -43,6 +45,7 @@ export type RoomSnapshot =
       readonly viewerId: ParticipantId;
       readonly participants: readonly RevealedParticipantView[];
       readonly results: Results;
+      readonly ticket: string | null;
     };
 
 /**
