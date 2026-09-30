@@ -21,6 +21,7 @@ function snapshot(yourVote: Card | null): Voting {
     version: 4,
     viewerId: "me",
     ticket: null,
+    scores: null,
     yourVote,
     participants: [
       {

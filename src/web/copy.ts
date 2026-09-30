@@ -143,6 +143,17 @@ export const PEOPLE_COPY = {
   yourVote: "Your vote:",
 } as const;
 
+/** Keep score, in the Menu (facilitator view), and each person's points. */
+export const SCORE_COPY = {
+  label: "Keep score",
+  note: "A point when your vote matches the result. For this session only.",
+  /** On screen: "1 pt", "3 pts". */
+  short: (points: number) => (points === 1 ? "1 pt" : `${String(points)} pts`),
+  /** For a screen reader: "1 point", "3 points". */
+  spoken: (points: number) =>
+    points === 1 ? "1 point" : `${String(points)} points`,
+} as const;
+
 /** The ticket being estimated, above the room (Ticket). */
 export const TICKET_COPY = {
   label: "Now estimating",

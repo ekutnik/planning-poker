@@ -44,6 +44,8 @@ export const ClientMessage = z.discriminatedUnion("type", [
     type: z.literal("setTicket"),
     text: z.string().max(MAX_TICKET_INPUT),
   }),
+  // Keep score, on or off, for the room.
+  z.strictObject({ type: z.literal("setScoring"), on: z.boolean() }),
   // A nudge (ADR 0007). participantId is the person nudged, by the public id
   // every snapshot shows; the sender is the socket, as for every message.
   z.strictObject({

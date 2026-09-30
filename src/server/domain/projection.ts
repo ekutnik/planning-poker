@@ -3,6 +3,7 @@ import type { ParticipantId } from "../../shared/ids.js";
 import type {
   RevealedParticipantView,
   RoomSnapshot,
+  Scores,
   VotingParticipantView,
 } from "../../shared/snapshot.js";
 import type { Room } from "./room.js";
@@ -37,6 +38,7 @@ export function project(room: Room, viewerId: ParticipantId): RoomSnapshot {
       participants,
       results: computeResults(room),
       ticket: room.ticket,
+      scores: scoresFor(room),
     };
   }
 
@@ -59,5 +61,16 @@ export function project(room: Room, viewerId: ParticipantId): RoomSnapshot {
     yourVote,
     participants,
     ticket: room.ticket,
+    scores: scoresFor(room),
   };
+}
+
+/** Everyone's points in join order, or null while scoring is off. */
+function scoresFor(room: Room): Scores | null {
+  if (!room.scoring) return null;
+  const scores: Record<string, number> = {};
+  for (const id of room.participants.keys()) {
+    scores[id] = room.scores.get(id) ?? 0;
+  }
+  return scores;
 }

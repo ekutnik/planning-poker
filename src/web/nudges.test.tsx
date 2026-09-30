@@ -118,6 +118,7 @@ describe("the facilitator's voting screen", () => {
     version: 2,
     viewerId: "Ada",
     ticket: null,
+    scores: null,
     yourVote: null,
     participants: people,
   };
