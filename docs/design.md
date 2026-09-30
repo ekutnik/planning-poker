@@ -303,7 +303,7 @@ Two columns in wide, stacked in compact:
 - **Left:** "Estimate together"; "Everyone votes on their own screen, and the votes stay hidden until someone reveals them."; "Your name" (no hint underneath); the switch "I'm running this session", **off** by default, with "Hides your vote so you can share your screen." on one line; **Create a room**; "You'll get a link to share with your team."
 - **Right** (below in compact): a looping preview of one round, hidden from screen readers, with **Pause preview** / **Play preview**. With reduced motion it shows its revealed frame, still.
 - No autofocus on the name field: the focus rule leaves a fresh load alone.
-- **The switch saves on submit.** Each form starts from its own default, on to create and off to join, not from the saved Facilitate setting; creating or joining saves the switch's value, as the Menu's Facilitate would. Someone who creates rooms gets the facilitator view there; the same person joining a colleague's room from a link gets the participant view unless they switch it on.
+- **The switch saves on submit.** Both forms start as this browser last left the switch, off if it never chose. Creating or joining saves the switch's value, as the Menu's Facilitate would. So whoever runs the sessions switches it on once, and from then on gets the facilitator view in every room they create or join, including the same room link sprint after sprint.
 
 **How the preview is built.** It is not a video: a script of five fake rooms (Ada has voted, the others vote one by one, then the reveal; about ten seconds) drawn by the room's own `People`, `Deck` and `Scale`, with the real status line and result sentence. So it follows the theme and the tokens, and cannot drift from the room.
 
