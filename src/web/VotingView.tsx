@@ -120,7 +120,7 @@ export function VotingView({
       {facilitating && snapshot.yourVote !== null && (
         <OwnVote
           vote={snapshot.yourVote}
-          shown={shown}
+          shown={keepShown}
           live={live}
           onToggle={() => setShown((current) => !current)}
           onClear={() => {

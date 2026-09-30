@@ -34,11 +34,14 @@ test("the facilitator can show their own vote, and it hides itself again", async
 
   // Shown: the value appears, focus stays on the button, the deck is unmarked.
   // From the keyboard: Safari doesn't focus a button on a mouse click.
+  const pillLeft = async () => (await ownVote(page).boundingBox())?.x;
+  const before = await pillLeft();
   await showButton(page).focus();
   await page.keyboard.press("Enter");
   await expect(ownVote(page)).toHaveText("Your vote: 8");
   await expect(hideButton(page)).toBeFocused();
   await expect(deckSelection(page)).toHaveCount(0);
+  expect(await pillLeft()).toBe(before); // the pill didn't shift
   // Only on this screen: Ben's page never learns it.
   await expect(ben.page.getByText("Your vote: 8")).toHaveCount(0);
 
