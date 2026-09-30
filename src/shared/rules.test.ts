@@ -47,6 +47,11 @@ describe("tickets (cleanTicket)", () => {
       "PROJ\u0000-1\u0007 Fix\u007f it",
       "PROJ-1 Fix it",
     ],
+    [
+      "leaves no double space where one went",
+      "PROJ-1 \u0000 Fix",
+      "PROJ-1 Fix",
+    ],
     ["keeps an emoji and accents", "Café 🚀 résumé", "Café 🚀 résumé"],
     ["keeps markup as text", "<b>x</b>", "<b>x</b>"],
     ["empty is no ticket", "", null],

@@ -51,13 +51,15 @@ export const MAX_TICKET_INPUT = 200;
  * A ticket as the room shows it, or null for none. Runs of whitespace,
  * newlines and tabs included, become one space first, so a pasted line break
  * separates words rather than joining them; then any other control character
- * goes, and the ends are trimmed. Empty means no ticket. Length is checked by
+ * goes, and the spaces that were either side of it collapse again, so no
+ * double space is left; then the ends are trimmed. Empty means no ticket. Length is checked by
  * the caller, against MAX_TICKET_LENGTH.
  */
 export function cleanTicket(raw: string): string | null {
   const cleaned = raw
     .replace(/\s+/g, " ")
     .replace(/\p{Cc}/gu, "")
+    .replace(/ {2,}/g, " ")
     .trim();
   return cleaned === "" ? null : cleaned;
 }

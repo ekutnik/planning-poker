@@ -601,13 +601,19 @@ describe("setTicket", () => {
 
   it("is a no-op for the same text, before or after cleaning, and for clearing nothing", () => {
     const room = run(inRoom(), setTicket("alice", "PROJ-1"));
-    for (const text of ["PROJ-1", "  PROJ-1 "]) {
+    for (const text of ["PROJ-1", "  PROJ-1 ", "PROJ-1\u0000"]) {
       const next = must(applyCommand(room, setTicket("bob", text), NOW));
       expect(next).toBe(room);
       expect(next.version).toBe(room.version);
     }
     const empty = inRoom();
     expect(must(applyCommand(empty, setTicket("alice", ""), NOW))).toBe(empty);
+    // A control character between two spaces cleans to one space, so it is
+    // the same ticket, not a new one with a double space.
+    const words = run(inRoom(), setTicket("alice", "PROJ-1 Fix"));
+    expect(
+      must(applyCommand(words, setTicket("bob", "PROJ-1 \u0000 Fix"), NOW)),
+    ).toBe(words);
   });
 
   it("bumps the version by one on a change", () => {

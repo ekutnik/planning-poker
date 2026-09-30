@@ -197,7 +197,7 @@ What the room is estimating, above the round, so nobody has to ask "which one ar
 - **A paragraph, not a heading.** The status line stays the page's `h1`; a heading above it would put the headings out of order.
 - **Nothing while empty,** for participants: no label, no space. The facilitator view shows a quiet **Add a ticket** button instead.
 - **Editing, facilitator view:** a small **Edit** button beside the ticket (a screen reader hears "Edit the ticket") opens an inline field labelled "Now estimating", with **Save** and **Cancel**. Enter saves, Escape cancels, and focus returns to Edit; the Edit and Add a ticket button is one element, so focus stays on it when the saved ticket arrives. Saving an empty field removes the ticket.
-- **Said once when someone else changes it,** through the room's polite live region: "Now estimating: PROJ-482 …". Your own Save says nothing: you just typed it.
+- **Said once when someone else changes it,** through the room's polite live region: "Now estimating: PROJ-482 …". Your own Save says nothing: you just typed it. Clearing the ticket says nothing either, deliberately: nobody needs to hear that there is no ticket.
 - **Server rules** (`setTicket`, the same checks as every command): runs of whitespace become one space, other control characters go, the ends are trimmed; empty means no ticket; at most 120 characters after cleaning (`MAX_TICKET_LENGTH`), and the field's `maxlength` matches; the same text again changes nothing. Anyone in the room may set it, like Reveal ([ADR 0005](decisions/0005-anyone-can-reveal.md)): the controls appear only in the facilitator view. The text is logged nowhere; the log has the message type only.
 
 ### Room status
