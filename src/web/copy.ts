@@ -136,6 +136,10 @@ export const PEOPLE_COPY = {
   noVote: "No vote",
   youVoted: "You've voted",
   clearVote: "Clear my vote",
+  showVote: "Show my vote",
+  hideVote: "Hide my vote",
+  /** Followed by the card, as CardText gives it. */
+  yourVote: "Your vote:",
 } as const;
 
 /**

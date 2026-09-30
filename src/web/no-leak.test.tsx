@@ -65,10 +65,13 @@ describe("the facilitator view before reveal", () => {
   it("differs from not having voted only by the confirmation", () => {
     const voted = render("13", true);
     const notVoted = render(null, true);
-    // Your own vote: Clear my vote and the "You've voted" pill, no card.
-    const ownVote = /<div class="own-vote">[\s\S]*?<\/div>/.exec(voted)?.[0];
+    // Your own vote: Clear my vote, Show my vote and the "You've voted"
+    // pill, no card. (The eye icon is checked in own-vote.test.tsx.)
+    const ownVote = /<div class="own-vote">[\s\S]*?<\/div>/
+      .exec(voted)?.[0]
+      .replace(/<svg[\s\S]*?<\/svg>/g, "");
     expect(ownVote).toBe(
-      '<div class="own-vote"><button type="button">Clear my vote</button><span class="pill pill--voted">You&#x27;ve voted</span></div>',
+      '<div class="own-vote"><button type="button">Clear my vote</button><button type="button" class="show-vote">Show my vote</button><span class="pill pill--voted">You&#x27;ve voted</span></div>',
     );
     // The vote also changes your own row's pill and the counts, which are
     // public.
@@ -91,6 +94,16 @@ describe("the facilitator view before reveal", () => {
     expect(html.indexOf('class="own-vote"')).toBeGreaterThan(-1);
   });
 
+  it.each(DECK)(
+    "shows no vote value while Show my vote is not pressed (vote %s)",
+    (vote) => {
+      // The byte-for-byte test above already implies it; this names it.
+      const html = render(vote, true);
+      expect(html).not.toContain("Your vote");
+      expect(html).toContain("Show my vote");
+    },
+  );
+
   it("has no text field to type a vote into, and no form", () => {
     const html = render("13", true);
     expect(html).not.toContain("<input");
@@ -106,7 +119,8 @@ describe("the participant view, for contrast", () => {
     expect(render("13", false)).not.toBe(render("0", false));
   });
 
-  it("has no own-vote block: the chosen card says it", () => {
+  it("has no own-vote block, and no Show my vote: the chosen card says it", () => {
     expect(render("13", false)).not.toContain("own-vote");
+    expect(render("13", false)).not.toContain("Show my vote");
   });
 });
