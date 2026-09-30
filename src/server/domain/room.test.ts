@@ -10,6 +10,7 @@ import {
   type Room,
 } from "./room.js";
 import type { Card } from "../../shared/deck.js";
+import { computeResults } from "./results.js";
 
 const NOW = 1_000;
 
@@ -705,9 +706,17 @@ describe("keeping score", () => {
   });
 
   it("awards by the rule the result shows, so the two always agree", () => {
-    // Four numeric votes: one at each end is set aside, 5 wins with two.
-    const revealed = round(room(true), { a: "1", b: "5", c: "5", d: "13" });
-    expect(points(revealed)).toEqual({ b: 1, c: 1 });
+    // Five numeric votes: one at each end, a 3 and the 8, is set aside, so 5
+    // wins with two. Counting without that step would call 3 and 5 a draw.
+    const revealed = round(room(true), {
+      a: "3",
+      b: "3",
+      c: "5",
+      d: "5",
+      e: "8",
+    });
+    expect(computeResults(revealed).winners).toEqual(["5"]);
+    expect(points(revealed)).toEqual({ c: 1, d: 1 });
   });
 
   it("with scoring off, a reveal is exactly the reveal it was before scores existed", () => {
