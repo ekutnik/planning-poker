@@ -200,6 +200,18 @@ What the room is estimating, above the round, so nobody has to ask "which one ar
 - **Said once when someone else changes it,** through the room's polite live region: "Now estimating: PROJ-482 …". Your own Save says nothing: you just typed it. Clearing the ticket says nothing either, deliberately: nobody needs to hear that there is no ticket.
 - **Server rules** (`setTicket`, the same checks as every command): runs of whitespace become one space, other control characters go, the ends are trimmed; empty means no ticket; at most 120 characters after cleaning (`MAX_TICKET_LENGTH`), and the field's `maxlength` matches; the same text again changes nothing. Anyone in the room may set it, like Reveal ([ADR 0005](decisions/0005-anyone-can-reveal.md)): the controls appear only in the facilitator view. The text is logged nowhere; the log has the message type only.
 
+### Keeping score
+
+<table><tr><td><img src="design/score-facilitator-wide-light.png" alt="Keep score on: the people list in points order, Ben and Dee with 3 pts, Cy and Fay with 2, Ada and Eli with 1 pt, each after the person's pill, light theme" /></td><td><img src="design/score-menu-wide-dark.png" alt="The Menu open in the facilitator view: Keep score, switched on, with its description, above Facilitate, Theme and Leave the room, dark theme" /></td></tr></table>
+
+A light game some teams like: a point when your vote matches the result. Off until someone turns it on, and for this session only.
+
+- **The switch:** "Keep score" in the Menu, first, above Facilitate, with the note "A point when your vote matches the result. For this session only." Only the facilitator view shows it; the server takes it from anyone in the room, like Reveal ([ADR 0005](decisions/0005-anyone-can-reveal.md)). It is the room's setting, so everyone sees the points at once.
+- **Awarding, at each reveal:** if exactly one card wins, by the same rule the result shows ([The winning card](#the-winning-card)), everyone who voted it gets a point. A draw, no result or no votes gives nobody a point; ? and ☕ never win. Every reveal counts, including a second round on the same ticket. Points are recorded at the reveal and never recalculated: someone leaving afterwards changes nobody's points. The points are part of the reveal's one change, so the room's version still goes up once, and with scoring off a reveal is exactly what it was before.
+- **Seats:** someone who reconnects within the grace period keeps their points; someone removed from the room loses them; a newcomer starts at 0. Nothing is ever stored: the points go with the room.
+- **Off keeps them:** turning it off hides the points and keeps them; on again shows them as they were. While it is off, no score is sent at all (the snapshot's `scores` is null).
+- **On screen:** the people list, and the revealed list in wide, are in points order, most first, ties in join order, so the order changes only at a reveal. Each row ends with its points, Quiet and small, in a right-aligned column: "3 pts", "1 pt" on screen, "3 points", "1 point" for a screen reader.
+
 ### Room status
 
 The room's `h1`, styled quiet (15 px, Quiet). "Waiting for Ben and Cy. Fay is away." (facilitator), "4 of 5 have voted" (participant), "Votes revealed".
@@ -386,6 +398,8 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 | Ticket                | "Now estimating"; "Add a ticket", "Edit", "Save", "Cancel"                             |
 | Ticket (spoken)       | "Now estimating: PROJ-482 …", when someone else changes it                             |
 | Ticket too long       | "That ticket is too long. Keep it to 120 characters."                                  |
+| Keep score            | "Keep score" / "A point when your vote matches the result. For this session only."     |
+| Points                | "3 pts", "1 pt" (spoken "3 points", "1 point")                                         |
 | Nudge                 | "Nudge" (accessible name "Nudge Cy"), "Nudged"; "The room is waiting for your vote."   |
 | Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8." |
 | Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."   |
