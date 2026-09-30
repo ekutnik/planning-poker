@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import {
   announcementFor,
@@ -6,7 +6,8 @@ import {
   type PhaseCopy,
 } from "./announce.js";
 import { cleanTicket } from "../shared/rules.js";
-import { NOT_SAVED_COPY, TICKET_COPY } from "./copy.js";
+import { NOT_SAVED_COPY, TICKET_COPY, TIMER_COPY } from "./copy.js";
+import { durationWords, tenSecondsWait } from "./countdown.js";
 import { roomTitle, roomTitleAndBanner, useDocumentTitle } from "./title.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { RevealedView } from "./RevealedView.js";
@@ -68,6 +69,29 @@ export function RoomView({
       setSpeech({ pending: null, text: TICKET_COPY.announce(snapshot.ticket) });
     }
   }
+  // The timer, said once each through the same region: when it starts, and
+  // when 10 seconds are left. The countdown itself is never said.
+  const [timerState, setTimerState] = useState(snapshot.timer.state);
+  if (snapshot.timer.state !== timerState) {
+    setTimerState(snapshot.timer.state);
+    if (timerState === "idle" && snapshot.timer.state === "running") {
+      setSpeech({
+        pending: null,
+        text: TIMER_COPY.started(durationWords(snapshot.timer.durationMs)),
+      });
+    }
+  }
+  const { state: runState, endsAt } = snapshot.timer;
+  useEffect(() => {
+    if (runState !== "running" || endsAt === null) return;
+    const wait = tenSecondsWait(endsAt, Date.now());
+    if (wait === null) return;
+    const timeout = setTimeout(() => {
+      setSpeech({ pending: null, text: TIMER_COPY.tenLeft });
+    }, wait);
+    return () => clearTimeout(timeout);
+  }, [runState, endsAt]);
+
   const saveTicket = (text: string) => {
     const cleaned = cleanTicket(text);
     if (cleaned !== snapshot.ticket) setSaved(cleaned);

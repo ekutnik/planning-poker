@@ -155,6 +155,28 @@ export const SCORE_COPY = {
     points === 1 ? "1 point" : `${String(points)} points`,
 } as const;
 
+/** The timer (ADR 0008): the facilitator's controls and everyone's line. */
+export const TIMER_COPY = {
+  label: "Timer",
+  custom: "Custom…",
+  customLabel: "Custom time",
+  customHint: "Minutes and seconds, from 0:10 to 10:00",
+  start: "Start",
+  pause: "Pause the timer",
+  resume: "Resume the timer",
+  add: "+30 s",
+  addLabel: "Add 30 seconds",
+  left: "left",
+  paused: "Paused",
+  /** After the numeral, for everyone but the facilitator. */
+  thenRevealed: "left, then votes are revealed",
+  pausedAt: (clock: string) => `Paused at ${clock}`,
+  /** Said once each. The countdown itself is never said. */
+  started: (words: string) => `Timer started: ${words}.`,
+  tenLeft: "10 seconds left.",
+  timesUp: "Time's up.",
+} as const;
+
 /** The ticket being estimated, above the room (Ticket). */
 export const TICKET_COPY = {
   label: "Now estimating",

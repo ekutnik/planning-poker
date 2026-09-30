@@ -88,6 +88,7 @@
   --text-control: 0.9375rem; /* 15px, strong: buttons, menu labels, select */
   --text-small: 0.875rem; /* 14px, regular: a switch's description */
   --text-ticket: 1.125rem; /* 18px, strong: the ticket being estimated */
+  --text-timer: 1.0625rem; /* 17px, strong: the timer's numerals */
 
   /* Space: 4, 8, 12, 16, 24, 32, 48, 80 px. Sections separate by space. */
   --space-4: 0.25rem;
@@ -124,6 +125,7 @@
     --text-result: 1.125rem; /* 18px */
     --text-wordmark: 1.0625rem; /* 17px */
     --text-ticket: 1.625rem; /* 26px */
+    --text-timer: 1.25rem; /* 20px */
     --gutter: max(var(--space-48), calc((100% - var(--content-width)) / 2));
   }
 }
