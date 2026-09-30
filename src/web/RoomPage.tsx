@@ -38,6 +38,7 @@ export function RoomPage({
       <>
         <Header theme={stores.theme} />
         <JoinScreen
+          initialRunning={stores.facilitate.isOn()}
           onJoin={(chosen, running) => {
             identity.rememberName(chosen);
             stores.facilitate.set(running);
@@ -144,17 +145,19 @@ function Room({
 }
 
 /**
- * A room link in a browser with no name yet: ask for one first. Someone
- * following a link usually joins someone else's session, so the Facilitate
- * switch starts off.
+ * A room link in a browser with no name yet: ask for one first. The
+ * Facilitate switch starts as this browser last left it, off if it never
+ * chose, as on the landing page.
  */
 export function JoinScreen({
+  initialRunning,
   onJoin,
 }: {
+  readonly initialRunning: boolean;
   readonly onJoin: (name: string, running: boolean) => void;
 }) {
   useDocumentTitle(JOIN_COPY.heading);
-  const [running, setRunning] = useState(false);
+  const [running, setRunning] = useState(initialRunning);
   return (
     <main className="page page--join">
       <ScreenHeading>{JOIN_COPY.heading}</ScreenHeading>

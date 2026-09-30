@@ -11,8 +11,10 @@ import { useDocumentTitle } from "./title.js";
 
 /**
  * The landing page: a name, one button, and the promise the tool keeps.
- * Whoever creates a room usually runs the session, so the Facilitate switch
- * starts on; the choice is saved with the room, as the Menu would save it.
+ * The Facilitate switch starts as this browser last left it, off if it never
+ * chose: most people in a room aren't facilitating, and whoever runs the
+ * session turns it on once. The choice is saved with the room, as the Menu
+ * would save it.
  */
 export function HomePage({
   identity,
@@ -26,7 +28,7 @@ export function HomePage({
   useDocumentTitle(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [running, setRunning] = useState(true);
+  const [running, setRunning] = useState(() => facilitate.isOn());
 
   const create = (name: string) => {
     setBusy(true);

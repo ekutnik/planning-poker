@@ -49,4 +49,14 @@ describe("createFacilitateStore", () => {
     expect(data.get(FACILITATE_KEY)).toBe("on");
     expect(createFacilitateStore(() => storage).isOn()).toBe(true);
   });
+
+  it("ignores the key used before v0.2.1, which saved on for every room's creator", () => {
+    const data = new Map([["planning-poker:facilitate", "on"]]);
+    const store = createFacilitateStore(() => ({
+      getItem: (key) => data.get(key) ?? null,
+      setItem: (key, value) => void data.set(key, value),
+    }));
+    expect(FACILITATE_KEY).not.toBe("planning-poker:facilitate");
+    expect(store.isOn()).toBe(false);
+  });
 });
