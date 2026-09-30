@@ -5,7 +5,7 @@
 
 The visual and interaction design of the client, and the reasoning behind it. The architecture decisions are in [decisions](decisions); this is their counterpart for what people see.
 
-The revision of 27 September changed the first design after the team used it: a new typeface and palette, status pills, a quieter status line, no hidden-vote field, a result the team reads by its own rule, and nudges. The revision is built over seven PRs, starting with [#46](https://github.com/ekutnik/planning-poker/pull/46) (see [Building the revision](#building-the-revision)), and each section below shows the finished screens in both themes: taken from the app at 1280×800 and 390×844, with made-up names, and kept in [`design/`](design) ([#47](https://github.com/ekutnik/planning-poker/issues/47)).
+The revision of 27 September changed the first design after a hands-on review of it: a new typeface and palette, status pills, a quieter status line, no hidden-vote field, a result the team reads by its own rule, and nudges. The revision is built over seven PRs, starting with [#46](https://github.com/ekutnik/planning-poker/pull/46) (see [Building the revision](#building-the-revision)), and each section below shows the finished screens in both themes: taken from the app at 1280×800 and 390×844, with made-up names, and kept in [`design/`](design) ([#47](https://github.com/ekutnik/planning-poker/issues/47)).
 
 ## Who it is for
 
@@ -123,7 +123,7 @@ One family: **Figtree**, in weights 400 and 600.
 | Controls (buttons, Menu labels) | 15 / 600        | 15 / 600        |
 | Small (a switch's description)  | 14 / 400        | 14 / 400        |
 
-Sizes are px, set in `rem`, so browser zoom scales them. A test checks every role against this table. The numerals are smaller than in the first design, so the screen-share legibility check is repeated before launch ([#44](https://github.com/ekutnik/planning-poker/issues/44)).
+Sizes are px, set in `rem`, so browser zoom scales them. A test checks every role against this table. The numerals are smaller than in the first design, so the screen-share legibility check was repeated: on 2026-09-29, in a real call, with the result "All good." ([the audit record](audit/2026-09-accessibility.md#before-launch-44-2026-09-29)).
 
 ### Shape and space
 
@@ -374,7 +374,7 @@ Removed in the revision: "Your first name is enough.", "Your vote (hidden)", "Vo
 
 ## Accessibility, built in
 
-Audited in September 2026 against WCAG 2.2 AA; the record, with what was and wasn't tested, is [`docs/audit/2026-09-accessibility.md`](audit/2026-09-accessibility.md). The checks still due before launch are in [#44](https://github.com/ekutnik/planning-poker/issues/44).
+Checked against WCAG 2.2 AA in September 2026: a self-audit, not an outside one. The record, with what was and wasn't tested, is in [`docs/audit/2026-09-accessibility.md`](audit/2026-09-accessibility.md); the checks still due before launch are in [#44](https://github.com/ekutnik/planning-poker/issues/44).
 
 - **The deck is a toolbar of toggle buttons,** described under [Deck](#deck-voting).
 - **Reveal is announced** through a polite live region: "Votes revealed." followed by the sentence, range included, because someone who cannot see the scale needs the numbers. It does not list the non-numeric votes: the scale itself is a list a screen reader can read ("question mark: Cy"). On that list, the cards nobody chose are hidden from screen readers, which hear only the cards that were chosen, each with its names; on screen they stay, so the gaps still show the spread (decided after the VoiceOver check in #44). The person whose focus moved to the new heading has just heard "Votes revealed" from it, so their announcement gives only the sentence; everyone else hears it whole. The new heading reports whether it took focus, and only then is the text chosen.
