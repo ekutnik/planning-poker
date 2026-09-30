@@ -11,7 +11,7 @@ import { computeResults } from "./results.js";
 /**
  * Project room state for a single viewer. Deterministic: the same room and
  * viewer always produce a deep-equal snapshot (participants in join order, no
- * timestamps, stable key order). Session 3 relies on that determinism to
+ * timestamps, stable key order). The transport relies on that determinism to
  * suppress unchanged sends, which is what closes the pre-reveal metadata leak.
  *
  * Every view field is written out explicitly. We deliberately do NOT spread a

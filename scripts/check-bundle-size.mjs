@@ -10,8 +10,8 @@
 // chunk then) plus about 15% headroom: 85,000. Raise it deliberately, in the
 // PR that needs the bytes, and say why here.
 //
-// Raised to 90,000 in Session 8 (2026-09-28), at 79,000 bytes after 7b. A
-// bundle visualiser, run once with npx and not added to the project, showed
+// Raised to 90,000 on 2026-09-28, at 79,000 bytes after the design revision.
+// A bundle visualiser, run once with npx and not added to the project, showed
 // nothing to trim: of the minified bundle (254 KB), react-dom is 81%, react
 // and scheduler 5% more, and the app's own code the remaining 14%, spread
 // over about fifty small modules. No other package is in it. The only large

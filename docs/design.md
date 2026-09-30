@@ -1,11 +1,11 @@
 # Design
 
-- Status: Accepted (Session 6), revised (Session 7b)
+- Status: Accepted, then revised
 - Date: 2026-09-25, revised 2026-09-27
 
 The visual and interaction design of the client, and the reasoning behind it. The architecture decisions are in [decisions](decisions); this is their counterpart for what people see.
 
-Session 7b revised the Session 6 design after the team used it: a new typeface and palette, status pills, a quieter status line, no hidden-vote field, a result the team reads by its own rule, and nudges. The revision is built over seven PRs, starting with [#46](https://github.com/ekutnik/planning-poker/pull/46) (see [Building 7b](#building-7b)), and each section below shows the finished screens in both themes: taken from the app at 1280×800 and 390×844, with made-up names, and kept in [`design/`](design) ([#47](https://github.com/ekutnik/planning-poker/issues/47)).
+The revision of 27 September changed the first design after the team used it: a new typeface and palette, status pills, a quieter status line, no hidden-vote field, a result the team reads by its own rule, and nudges. The revision is built over seven PRs, starting with [#46](https://github.com/ekutnik/planning-poker/pull/46) (see [Building the revision](#building-the-revision)), and each section below shows the finished screens in both themes: taken from the app at 1280×800 and 390×844, with made-up names, and kept in [`design/`](design) ([#47](https://github.com/ekutnik/planning-poker/issues/47)).
 
 ## Who it is for
 
@@ -29,9 +29,9 @@ What follows from that:
 - **Private on screen.** Before reveal, the facilitator view never shows the viewer's own vote. The one visible moment is the pointer moving to a card; see [the facilitator view](#the-facilitator-view).
 - **Words do one job.** One name per action. Errors say what to do and never apologise. The result names no one.
 
-## What changed in Session 7b, and why
+## What changed in the revision, and why
 
-| Session 6                                                                                  | Now                                                                                                                                   | Why                                                                                                                                         |
+| First design                                                                               | Now                                                                                                                                   | Why                                                                                                                                         |
 | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Atkinson Hyperlegible Next, cool paper `#F3F5F2`                                           | Figtree 400/600, warm white `#FAF9F6`                                                                                                 | Chosen side by side against Atkinson, Geist and Instrument Sans: cleaner and smoother, still clearly legible.                               |
 | Dots for voted / not voted, "(away)" as text                                               | Tinted status pills: Voted, Not yet, Away                                                                                             | Readable at a glance in the list, and colour is never the only signal because each pill is a word.                                          |
@@ -123,7 +123,7 @@ One family: **Figtree**, in weights 400 and 600.
 | Controls (buttons, Menu labels) | 15 / 600        | 15 / 600        |
 | Small (a switch's description)  | 14 / 400        | 14 / 400        |
 
-Sizes are px, set in `rem`, so browser zoom scales them. A test checks every role against this table. The numerals are smaller than in Session 6, so the screen-share legibility check is repeated before launch ([#44](https://github.com/ekutnik/planning-poker/issues/44)).
+Sizes are px, set in `rem`, so browser zoom scales them. A test checks every role against this table. The numerals are smaller than in the first design, so the screen-share legibility check is repeated before launch ([#44](https://github.com/ekutnik/planning-poker/issues/44)).
 
 ### Shape and space
 
@@ -370,11 +370,11 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 | Preview               | "Pause preview" / "Play preview"                                                       |
 | Next round (spoken)   | "Next round started."                                                                  |
 
-Removed in 7b: "Your first name is enough.", "Your vote (hidden)", "Vote recorded", "Not a card on the deck", "Close: 3 and 5.", "All numbers agree: 5.", "Only Ada voted: 8.", "Only Ada chose a number: 8.", every "…, talk through your estimates." and "Cy voted ?".
+Removed in the revision: "Your first name is enough.", "Your vote (hidden)", "Vote recorded", "Not a card on the deck", "Close: 3 and 5.", "All numbers agree: 5.", "Only Ada voted: 8.", "Only Ada chose a number: 8.", every "…, talk through your estimates." and "Cy voted ?".
 
 ## Accessibility, built in
 
-Audited in Session 7 against WCAG 2.2 AA; the record, with what was and wasn't tested, is [`docs/audit/2026-09-accessibility.md`](audit/2026-09-accessibility.md). The checks still due before launch are in [#44](https://github.com/ekutnik/planning-poker/issues/44).
+Audited in September 2026 against WCAG 2.2 AA; the record, with what was and wasn't tested, is [`docs/audit/2026-09-accessibility.md`](audit/2026-09-accessibility.md). The checks still due before launch are in [#44](https://github.com/ekutnik/planning-poker/issues/44).
 
 - **The deck is a toolbar of toggle buttons,** described under [Deck](#deck-voting).
 - **Reveal is announced** through a polite live region: "Votes revealed." followed by the sentence, range included, because someone who cannot see the scale needs the numbers. It does not list the non-numeric votes: the scale itself is a list a screen reader can read ("question mark: Cy"). On that list, the cards nobody chose are hidden from screen readers, which hear only the cards that were chosen, each with its names; on screen they stay, so the gaps still show the spread (decided after the VoiceOver check in #44). The person whose focus moved to the new heading has just heard "Votes revealed" from it, so their announcement gives only the sentence; everyone else hears it whole. The new heading reports whether it took focus, and only then is the text chosen.
@@ -388,7 +388,7 @@ Audited in Session 7 against WCAG 2.2 AA; the record, with what was and wasn't t
 
 ## Reviewed against the brief
 
-Session 6's first instincts, and what they became:
+The first design's instincts, and what they became:
 
 | First instinct                       | Changed to                                             | Why                                                                                               |
 | ------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
@@ -409,19 +409,19 @@ Session 6's first instincts, and what they became:
 - **Copy:** the removed strings are gone; the new strings follow the copy rules.
 - **Layout:** the scale's names never clip (no `max-height` or fixed height on the name stack); compact renders only voted cards; the facilitator bar is pinned only in compact and only when the window is tall enough.
 - **Motion:** a test reads the stylesheets and fails if anything animates outside `prefers-reduced-motion: no-preference`, or for 200 ms or more; the preview loop is the one exemption, and must have a pause control.
-- **Theme:** the no-flash script applies exactly what the app would, for every stored value (unit test); the stored choice is applied before first paint (the Session 8 end-to-end suite).
-- **The Session 8 end-to-end suite** also covers what static markup cannot: the Menu closes on Escape (with focus back on its button), on a click outside and when focus leaves it, and stays open while Facilitate or the theme changes; in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked, and after Clear my vote focus is on the first card; pressing a hovered card cancels its lift; the reveal and the next round are each announced once, on the change, and the person who revealed hears "Votes revealed" once, not twice; after a screen change (reveal, "Start next round", joining, a stopped screen arriving from another tab), focus is on the new heading; the title follows the round; creating a room with "I'm running this session" on opens the facilitator view, and joining with it off the participant view; the landing preview advances on its own, Pause stops it on the frame showing, and nothing inside it can be reached with Tab or clicked; and a nudge reaches only its target, with the banner and tab title clearing on voting; "Nudged" keeps keyboard focus after Enter, and focus moves to the people list when a focused Nudge button goes; the button comes back after 30 seconds.
+- **Theme:** the no-flash script applies exactly what the app would, for every stored value (unit test); the stored choice is applied before first paint (the end-to-end suite).
+- **The end-to-end suite** also covers what static markup cannot: the Menu closes on Escape (with focus back on its button), on a click outside and when focus leaves it, and stays open while Facilitate or the theme changes; in the facilitator view, after a mouse click on a card, tabbing out of the deck and back lands on the first card, not the one clicked, and after Clear my vote focus is on the first card; pressing a hovered card cancels its lift; the reveal and the next round are each announced once, on the change, and the person who revealed hears "Votes revealed" once, not twice; after a screen change (reveal, "Start next round", joining, a stopped screen arriving from another tab), focus is on the new heading; the title follows the round; creating a room with "I'm running this session" on opens the facilitator view, and joining with it off the participant view; the landing preview advances on its own, Pause stops it on the frame showing, and nothing inside it can be reached with Tab or clicked; and a nudge reaches only its target, with the banner and tab title clearing on voting; "Nudged" keeps keyboard focus after Enter, and focus moves to the people list when a focused Nudge button goes; the button comes back after 30 seconds.
 
-## Building 7b
+## Building the revision
 
 | PR  | Scope                                                                                                                                                                |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Tokens, Figtree, pill and tinted-card colours, the contrast test extended, and this document                                                                         |
-| 2   | Header: mark, favicon, Menu panel, the Facilitating pill                                                                                                             |
-| 3   | People list with pills and "(you)", the 4:5 cards and their states, the deck one row wide and five by two compact, the quiet status line, own vote without the field |
-| 4   | Results model (`winners`, with the dropping rule), the scale (highlight, stacking, compact voted-only), the sentence, the announcement                               |
-| 5   | Landing and join: the switch, the preview loop with Pause, screen fades                                                                                              |
-| 6   | Nudge, server: protocol, rules, cooldown, ADR 0007                                                                                                                   |
-| 7   | Nudge, client: the button, the banner, the tab title                                                                                                                 |
+| #46 | Tokens, Figtree, pill and tinted-card colours, the contrast test extended, and this document                                                                         |
+| #48 | Header: mark, favicon, Menu panel, the Facilitating pill                                                                                                             |
+| #49 | People list with pills and "(you)", the 4:5 cards and their states, the deck one row wide and five by two compact, the quiet status line, own vote without the field |
+| #50 | Results model (`winners`, with the dropping rule), the scale (highlight, stacking, compact voted-only), the sentence, the announcement                               |
+| #51 | Landing and join: the switch, the preview loop with Pause, screen fades                                                                                              |
+| #52 | Nudge, server: protocol, rules, cooldown, ADR 0007                                                                                                                   |
+| #53 | Nudge, client: the button, the banner, the tab title                                                                                                                 |
 
-Each PR includes screenshots in both themes. PRs 3 to 5 and 7 repeat the keyboard-only and 400% zoom checks and add a line to the audit record.
+Each PR includes screenshots in both themes. #49 to #51 and #53 repeat the keyboard-only and 400% zoom checks and add a line to the audit record.
