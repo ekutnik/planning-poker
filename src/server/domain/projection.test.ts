@@ -76,6 +76,7 @@ describe("project — no-leak (key whitelist)", () => {
       "participants",
       "phase",
       "roomId",
+      "ticket",
       "version",
       "viewerId",
       "yourVote",
@@ -108,6 +109,7 @@ describe("project — no-leak (key whitelist)", () => {
       "phase",
       "results",
       "roomId",
+      "ticket",
       "version",
       "viewerId",
     ]);
@@ -150,5 +152,25 @@ describe("project — determinism and suppression", () => {
     );
     // ...but nothing else in Carol's projection changed.
     expect(stripVersion(after)).toEqual(stripVersion(before));
+  });
+});
+
+describe("the ticket", () => {
+  const viewers = ["alice", "bob", "carol", "dan"] as const;
+
+  it("is the same for every viewer, before and after reveal", () => {
+    const withTicket = { ...mixedRoom(), ticket: "PROJ-482 Fix it" };
+    for (const room of [
+      withTicket,
+      { ...withTicket, phase: "revealed" as const },
+    ]) {
+      for (const viewer of viewers) {
+        expect(project(room, viewer).ticket).toBe("PROJ-482 Fix it");
+      }
+    }
+  });
+
+  it("is null when the room has none", () => {
+    expect(project(mixedRoom(), "alice").ticket).toBeNull();
   });
 });

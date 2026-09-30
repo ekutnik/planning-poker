@@ -5,10 +5,12 @@ import {
   phaseAnnouncement,
   type PhaseCopy,
 } from "./announce.js";
-import { NOT_SAVED_COPY } from "./copy.js";
+import { cleanTicket } from "../shared/rules.js";
+import { NOT_SAVED_COPY, TICKET_COPY } from "./copy.js";
 import { roomTitle, roomTitleAndBanner, useDocumentTitle } from "./title.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { RevealedView } from "./RevealedView.js";
+import { Ticket } from "./Ticket.js";
 import { VotingView } from "./VotingView.js";
 
 /**
@@ -54,6 +56,24 @@ export function RoomView({
     setPhase(snapshot.phase);
     setSpeech({ pending: phaseAnnouncement(phase, snapshot), text: "" });
   }
+  // The ticket, said once through the same region when someone else changes
+  // it; your own Save says nothing, since you just typed it. `saved` holds
+  // what this screen last sent, until the snapshot shows it.
+  const [ticket, setTicket] = useState(snapshot.ticket);
+  const [saved, setSaved] = useState<string | null | undefined>(undefined);
+  if (snapshot.ticket !== ticket) {
+    setTicket(snapshot.ticket);
+    setSaved(undefined);
+    if (snapshot.ticket !== null && snapshot.ticket !== saved) {
+      setSpeech({ pending: null, text: TICKET_COPY.announce(snapshot.ticket) });
+    }
+  }
+  const saveTicket = (text: string) => {
+    const cleaned = cleanTicket(text);
+    if (cleaned !== snapshot.ticket) setSaved(cleaned);
+    onAction({ type: "setTicket", text });
+  };
+
   const onHeadingShown = useCallback((tookFocus: boolean) => {
     setSpeech((current) =>
       current.pending === null
@@ -83,6 +103,12 @@ export function RoomView({
       <div role="status" className="nudge-region">
         {nudgeBanner && <p className="nudge-banner">{nudgeBanner}</p>}
       </div>
+      <Ticket
+        ticket={snapshot.ticket}
+        facilitating={facilitating}
+        live={live}
+        onSave={saveTicket}
+      />
       {snapshot.phase === "voting" ? (
         <VotingView
           snapshot={snapshot}

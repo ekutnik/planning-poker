@@ -552,3 +552,74 @@ button:disabled {
     gap: var(--space-4);
   }
 }
+
+/* The ticket being estimated, above the round: "Now estimating", Quiet and
+   small, then the ticket, large. Compact sets it apart with a rule, as the
+   phone design does; wide puts Edit beside it. */
+.ticket {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) var(--space-16);
+  padding-block: var(--space-16) var(--space-12);
+  border-block-end: 1px solid var(--rule);
+}
+
+.ticket--empty {
+  border-block-end: 0;
+  padding-block-end: 0;
+}
+
+.ticket-words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.ticket-label {
+  margin: 0;
+  color: var(--quiet);
+  font-size: var(--text-small);
+}
+
+.ticket-text {
+  margin: 0;
+  font-size: var(--text-ticket);
+  font-weight: var(--weight-strong);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+/* Edit and Add a ticket: the quiet small button, like Nudge. */
+.ticket-button {
+  min-height: 1.75rem; /* 28px */
+  padding: 0 0.625rem; /* 10px */
+  border-radius: var(--radius-chip);
+  font-size: var(--text-pill);
+}
+
+.ticket--editing {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.ticket-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+/* The name field's look (.text-field), in a row with Save and Cancel. */
+.ticket-input {
+  flex: 1 1 16rem;
+  inline-size: auto;
+  min-inline-size: 0;
+}
+
+@media (width >= 55em) {
+  .ticket {
+    border-block-end: 0;
+    padding-block-end: 0;
+  }
+}

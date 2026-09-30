@@ -20,6 +20,7 @@ function snapshot(yourVote: Card | null): Voting {
     roomId: "abcdefghijk",
     version: 4,
     viewerId: "me",
+    ticket: null,
     yourVote,
     participants: [
       {

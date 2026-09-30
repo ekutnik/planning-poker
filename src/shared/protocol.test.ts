@@ -19,6 +19,24 @@ describe("parseClientMessage — valid messages", () => {
   });
 });
 
+describe("parseClientMessage — setTicket", () => {
+  it("accepts text up to 200 raw characters, the payload cap", () => {
+    for (const text of ["", "PROJ-482", "x".repeat(200)]) {
+      const message = { type: "setTicket", text };
+      expect(parseClientMessage(JSON.stringify(message))).toEqual(message);
+    }
+  });
+
+  it.each([
+    ["201 characters", { type: "setTicket", text: "x".repeat(201) }],
+    ["no text", { type: "setTicket" }],
+    ["text that is not a string", { type: "setTicket", text: 482 }],
+    ["an extra key", { type: "setTicket", text: "PROJ-1", roomId: "x" }],
+  ])("rejects %s", (_, message) => {
+    expect(parseClientMessage(JSON.stringify(message))).toBeNull();
+  });
+});
+
 describe("parseClientMessage — rejections", () => {
   it("rejects an unknown message type", () => {
     expect(parseClientMessage(JSON.stringify({ type: "nuke" }))).toBeNull();

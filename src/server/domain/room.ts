@@ -2,7 +2,12 @@ import type { Card } from "../../shared/deck.js";
 import type { ParticipantId } from "../../shared/ids.js";
 import type { DomainError } from "../../shared/errors.js";
 
-import { MAX_PARTICIPANTS, validName } from "../../shared/rules.js";
+import {
+  cleanTicket,
+  MAX_PARTICIPANTS,
+  MAX_TICKET_LENGTH,
+  validName,
+} from "../../shared/rules.js";
 
 // Defined in src/shared so the client validates exactly as the domain does.
 export { MAX_NAME_LENGTH, MAX_PARTICIPANTS } from "../../shared/rules.js";
@@ -31,6 +36,11 @@ export interface Room {
   readonly phase: Phase;
   readonly participants: ReadonlyMap<ParticipantId, Participant>;
   readonly version: number;
+  /**
+   * The ticket being estimated, cleaned (shared/rules.ts), or null. It stays
+   * across rounds until someone edits it, and goes with the room.
+   */
+  readonly ticket: string | null;
 }
 
 export type Command =
@@ -49,6 +59,11 @@ export type Command =
   | { readonly type: "reset"; readonly participantId: ParticipantId }
   | { readonly type: "disconnect"; readonly participantId: ParticipantId }
   | { readonly type: "leave"; readonly participantId: ParticipantId }
+  | {
+      readonly type: "setTicket";
+      readonly participantId: ParticipantId;
+      readonly text: string;
+    }
   | { readonly type: "expire"; readonly participantId: ParticipantId };
 
 export type { DomainError };
@@ -60,7 +75,13 @@ export type Result =
 type CommandOf<T extends Command["type"]> = Extract<Command, { type: T }>;
 
 export function createRoom(id: string): Room {
-  return { id, phase: "voting", participants: new Map(), version: 0 };
+  return {
+    id,
+    phase: "voting",
+    participants: new Map(),
+    version: 0,
+    ticket: null,
+  };
 }
 
 export function applyCommand(
@@ -85,6 +106,8 @@ export function applyCommand(
       return leave(room, command);
     case "expire":
       return expire(room, command, now);
+    case "setTicket":
+      return setTicket(room, command);
     default: {
       const unreachable: never = command;
       throw new Error(`Unhandled command: ${JSON.stringify(unreachable)}`);
@@ -100,7 +123,7 @@ const fail = (error: DomainError): Result => ({ ok: false, error });
 /** Every real state change goes through here, so version bumps exactly once per change. */
 function commit(
   room: Room,
-  changes: Partial<Pick<Room, "phase" | "participants">>,
+  changes: Partial<Pick<Room, "phase" | "participants" | "ticket">>,
 ): Room {
   return { ...room, ...changes, version: room.version + 1 };
 }
@@ -225,6 +248,23 @@ function disconnect(
 function leave(room: Room, cmd: CommandOf<"leave">): Result {
   if (!room.participants.has(cmd.participantId)) return ok(room); // no-op: already gone
   return ok(without(room, cmd.participantId));
+}
+
+/**
+ * Sets the ticket being estimated, for everyone, in either phase: a view of
+ * the room, like facilitation, so anyone in it may (ADR 0005). Cleaned first;
+ * empty clears it; the same text again is a no-op.
+ */
+function setTicket(room: Room, cmd: CommandOf<"setTicket">): Result {
+  const participant = room.participants.get(cmd.participantId);
+  if (!participant) return fail("UNKNOWN_PARTICIPANT");
+  if (participant.status !== "connected") return fail("NOT_CONNECTED");
+  const ticket = cleanTicket(cmd.text);
+  if (ticket !== null && ticket.length > MAX_TICKET_LENGTH) {
+    return fail("TICKET_TOO_LONG");
+  }
+  if (ticket === room.ticket) return ok(room); // no-op: already the ticket
+  return ok(commit(room, { ticket }));
 }
 
 /**

@@ -36,6 +36,7 @@ export function project(room: Room, viewerId: ParticipantId): RoomSnapshot {
       viewerId,
       participants,
       results: computeResults(room),
+      ticket: room.ticket,
     };
   }
 
@@ -57,5 +58,6 @@ export function project(room: Room, viewerId: ParticipantId): RoomSnapshot {
     viewerId,
     yourVote,
     participants,
+    ticket: room.ticket,
   };
 }

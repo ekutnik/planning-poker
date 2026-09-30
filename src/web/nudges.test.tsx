@@ -117,6 +117,7 @@ describe("the facilitator's voting screen", () => {
     roomId: "abcdefghijk",
     version: 2,
     viewerId: "Ada",
+    ticket: null,
     yourVote: null,
     participants: people,
   };
