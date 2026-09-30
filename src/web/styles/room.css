@@ -313,6 +313,22 @@ button:disabled {
   gap: var(--space-12);
 }
 
+/* As wide as its wider label, "Show my vote" (155 px in Figtree), so the
+   pill beside it doesn't shift when the words change. */
+.show-vote {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  min-inline-size: 9.75rem;
+}
+
+.show-vote-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+}
+
 /* The scale: the deck row after reveal. All ten steps across, names
    stacked above each card, when the scale has room for ten 100px columns:
    the width of a pill holding a long word such as "Oppenheimer", so names

@@ -166,7 +166,7 @@ function castVote(room: Room, cmd: CommandOf<"castVote">): Result {
   // regardless of phase. Re-sending the card you already hold changes nothing, so
   // it succeeds silently even after reveal; a *different* card asks for a change
   // the phase forbids, so it's rejected. This lets a reconnecting client safely
-  // retry its last unacknowledged vote (Session 4) instead of getting an error.
+  // retry its last unacknowledged vote instead of getting an error.
   if (participant.vote === cmd.card) return ok(room); // no-op: same card already cast
   if (room.phase === "revealed") return fail("VOTING_CLOSED");
   const voted: Participant = { ...participant, vote: cmd.card };

@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { createFacilitateStore } from "./facilitate.js";
+import {
+  createFacilitateStore,
+  FACILITATE_KEY,
+  type FacilitateStore,
+} from "./facilitate.js";
 import { HomePage } from "./HomePage.js";
 import type { Identity } from "./identity.js";
 import { JoinScreen } from "./RoomPage.js";
@@ -12,29 +16,52 @@ const identity: Identity = {
   rememberName: () => undefined,
 };
 
-// A store already on: the forms start from their own default, not from it.
-const data = new Map([["planning-poker:facilitate", "on"]]);
-const facilitate = createFacilitateStore(() => ({
-  getItem: (key) => data.get(key) ?? null,
-  setItem: (key, value) => void data.set(key, value),
-}));
+/** A Facilitate store over its own storage, holding `stored` if given. */
+function storeWith(stored?: "on" | "off") {
+  const data = new Map<string, string>();
+  if (stored) data.set(FACILITATE_KEY, stored);
+  return createFacilitateStore(() => ({
+    getItem: (key) => data.get(key) ?? null,
+    setItem: (key, value) => void data.set(key, value),
+  }));
+}
 
-const home = renderToStaticMarkup(
-  <HomePage
-    identity={identity}
-    facilitate={facilitate}
-    onCreated={() => undefined}
-  />,
-);
-const join = renderToStaticMarkup(<JoinScreen onJoin={() => undefined} />);
+const homeWith = (facilitate: FacilitateStore) =>
+  renderToStaticMarkup(
+    <HomePage
+      identity={identity}
+      facilitate={facilitate}
+      onCreated={() => undefined}
+    />,
+  );
+const joinWith = (facilitate: FacilitateStore) =>
+  renderToStaticMarkup(
+    <JoinScreen initialRunning={facilitate.isOn()} onJoin={() => undefined} />,
+  );
+
+// A browser that has never chosen: what most people see.
+const home = homeWith(storeWith());
+const join = joinWith(storeWith());
 
 const theSwitch = (html: string) =>
   /<button[^>]*role="switch"[^>]*>/.exec(html)?.[0] ?? "";
 
 describe("the Facilitate switch on the forms", () => {
-  it("starts on to create a room, and off to join one", () => {
-    expect(theSwitch(home)).toContain('aria-checked="true"');
+  it("starts off to create a room and to join one, when this browser never chose", () => {
+    expect(theSwitch(home)).toContain('aria-checked="false"');
     expect(theSwitch(join)).toContain('aria-checked="false"');
+  });
+
+  it("starts as this browser last left it", () => {
+    expect(theSwitch(homeWith(storeWith("on")))).toContain(
+      'aria-checked="true"',
+    );
+    expect(theSwitch(joinWith(storeWith("on")))).toContain(
+      'aria-checked="true"',
+    );
+    expect(theSwitch(homeWith(storeWith("off")))).toContain(
+      'aria-checked="false"',
+    );
   });
 
   it("is named by its label and described by its note", () => {

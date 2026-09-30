@@ -15,13 +15,17 @@ test("a full round in two browsers: create, join, vote, reveal, next round", asy
   people,
 }) => {
   // Ada creates the room from the landing page. "I'm running this
-  // session" starts on there, so she gets the facilitator view.
+  // session" starts off, as for anyone who never chose; she turns it on,
+  // so she gets the facilitator view.
   const adaFrames = recordFrames(page);
   await page.goto("/");
   await page.getByLabel("Your name").fill("Ada");
-  await expect(
-    page.getByRole("switch", { name: "I'm running this session" }),
-  ).toHaveAttribute("aria-checked", "true");
+  const running = page.getByRole("switch", {
+    name: "I'm running this session",
+  });
+  await expect(running).toHaveAttribute("aria-checked", "false");
+  await running.click();
+  await expect(running).toHaveAttribute("aria-checked", "true");
   await page.getByRole("button", { name: "Create a room" }).click();
   await expect(page).toHaveURL(/\/r\/[\w-]{11}$/);
   const ada = personOn(page, "Ada", adaFrames);

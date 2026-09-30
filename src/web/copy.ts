@@ -73,8 +73,8 @@ export const HOME_COPY = {
 
 /**
  * The Facilitate switch on the landing and join forms: the same setting as
- * the Menu's Facilitate, worded for someone about to start. On to create a
- * room, off to join one.
+ * the Menu's Facilitate, worded for someone about to start. Both forms start
+ * as this browser last left it, off if it never chose.
  */
 export const RUNNING_COPY = {
   label: "I'm running this session",
@@ -136,6 +136,10 @@ export const PEOPLE_COPY = {
   noVote: "No vote",
   youVoted: "You've voted",
   clearVote: "Clear my vote",
+  showVote: "Show my vote",
+  hideVote: "Hide my vote",
+  /** Followed by the card, as CardText gives it. */
+  yourVote: "Your vote:",
 } as const;
 
 /**

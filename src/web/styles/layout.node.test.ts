@@ -4,7 +4,7 @@ import { declarations, readStyles, split } from "./css.node.js";
 
 const css = readStyles();
 
-describe("names on the scale (7b; A-04 revisited)", () => {
+describe("names on the scale (A-04 revisited)", () => {
   const scaleName = declarations(css, ".scale-name");
 
   it("wraps a long name inside its pill, never cuts it", () => {
@@ -56,7 +56,7 @@ describe("names on the scale (7b; A-04 revisited)", () => {
   });
 });
 
-describe("the revealed round (7b)", () => {
+describe("the revealed round", () => {
   const { inside, outside } = split(css, WIDE_QUERY);
 
   it("lists the people with their cards in wide only", () => {
@@ -159,7 +159,7 @@ describe("one breakpoint (docs/design.md, Layout)", () => {
   });
 });
 
-describe("the deck and its cards (7b)", () => {
+describe("the deck and its cards", () => {
   it("draws every card at 4:5, with an Edge outline and a Surface fill", () => {
     const card = declarations(css, ".card");
     expect(card).toMatch(/aspect-ratio:\s*4\s*\/\s*5/);
@@ -217,7 +217,7 @@ describe("the deck and its cards (7b)", () => {
   });
 });
 
-describe("the room's status line (7b)", () => {
+describe("the room's status line", () => {
   it("is quiet: Quiet colour, regular weight", () => {
     const status = declarations(css, ".status");
     expect(status).toMatch(/color:\s*var\(--quiet\)/);
