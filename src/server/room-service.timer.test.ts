@@ -236,14 +236,18 @@ describe("the room timer's scheduling", () => {
     expect(t.ben.sent.length).toBe(before);
   });
 
-  it("an idle room sends nothing extra: serverNow is beside the snapshot, not compared", () => {
+  it("sends nothing extra as time passes: serverNow is beside the snapshot, not compared", () => {
     const t = setup();
-    const before = [t.ada.sent.length, t.ben.sent.length];
+    t.send(t.ben, { type: "castVote", card: "5" });
+    const adaHad = t.ada.sent.length;
+    // Time passes, and Ben changes his vote: a broadcast, but Ada's view is
+    // the same (she sees only that Ben has voted), so she gets nothing.
+    t.advance(30_000);
+    t.send(t.ben, { type: "castVote", card: "8" });
     t.advance(30_000);
     t.send(t.ada, { type: "timerPause" }); // a no-op on an idle timer
-    t.send(t.ada, { type: "timerAdd" });
     t.service.sweep();
-    expect([t.ada.sent.length, t.ben.sent.length]).toEqual(before);
+    expect(t.ada.sent.length).toBe(adaHad);
   });
 
   it("sends the server's clock with every snapshot", () => {
