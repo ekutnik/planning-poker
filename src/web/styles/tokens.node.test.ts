@@ -131,7 +131,7 @@ describe("colour tokens", () => {
 });
 
 describe("type scale (docs/design.md, Type)", () => {
-  // [compact, wide] in px, from the 7b spec's table.
+  // [compact, wide] in px, from design.md's Type table.
   const EXPECTED: Record<string, [number, number]> = {
     body: [16, 17],
     status: [15, 15],

@@ -220,7 +220,7 @@ describe("the reveal announcement", () => {
   });
 });
 
-describe("the room's fade (7b)", () => {
+describe("the room's fade", () => {
   it("sits on the room's main, which both phases share, not on the round", () => {
     const voting: RoomSnapshot = {
       phase: "voting",

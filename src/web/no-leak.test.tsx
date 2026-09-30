@@ -8,8 +8,8 @@ import { VotingView } from "./VotingView.js";
  * The screen-level counterpart of the wire-level vote-privacy test: before
  * reveal, the facilitator view must not show the viewer's own card, visually
  * or in accessibility state, because the facilitator's screen is shared.
- * (Session 7b removed the hidden-vote field: the facilitator votes with a
- * click, and nothing on screen shows the vote afterwards.)
+ * (The design revision removed the hidden-vote field: the facilitator votes
+ * with a click, and nothing on screen shows the vote afterwards.)
  */
 
 type Voting = Extract<RoomSnapshot, { phase: "voting" }>;
