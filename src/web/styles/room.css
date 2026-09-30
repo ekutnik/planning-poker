@@ -313,6 +313,18 @@ button:disabled {
   gap: var(--space-12);
 }
 
+.show-vote {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.show-vote-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+}
+
 /* The scale: the deck row after reveal. All ten steps across, names
    stacked above each card, when the scale has room for ten 100px columns:
    the width of a pill holding a long word such as "Oppenheimer", so names

@@ -13,14 +13,14 @@ Real-time planning poker for a team estimating on a video call. Everyone votes o
 
 ## Why it exists
 
-A team estimates together on a video call, everyone on their own laptop, while the facilitator shares their screen for the whole planning session. So the app has two audiences at once: each person's own screen, and the facilitator's screen, which everyone watches as a compressed thumbnail. It is built to be calm and fast: it answers "are we waiting on someone?" in one read, stays legible over a screen share, and never shows the facilitator's own vote before the reveal. The reasoning is in [docs/design.md](docs/design.md).
+A team estimates together on a video call, everyone on their own laptop, while the facilitator shares their screen for the whole planning session. So the app has two audiences at once: each person's own screen, and the facilitator's screen, which everyone watches as a compressed thumbnail. It is built to be calm and fast: it answers "are we waiting on someone?" in one read, stays legible over a screen share, and never shows the facilitator's own vote before the reveal unless they ask it to. The reasoning is in [docs/design.md](docs/design.md).
 
 ## Features
 
 - **A room is a link.** Create one, share it, and everyone joins with just a name. No accounts, no install.
 - **Votes stay hidden until the reveal,** on the screen and on the wire: the server sends each person only what they may see ([ADR 0004](docs/decisions/0004-vote-privacy-via-projection.md)).
 - **A result sentence that singles no one out:** the spread, then the winning card or a draw, or why there is none. The deck becomes a scale, with each name above the card it chose.
-- **A facilitator view** for sharing your screen: your own vote is never shown, and the controls stay in one place.
+- **A facilitator view** for sharing your screen: your own vote stays hidden unless you choose to show it, and the controls stay in one place.
 - **Nudges:** a quiet, anonymous reminder to someone who hasn't voted ([ADR 0007](docs/decisions/0007-nudges-are-transient-and-anonymous.md)).
 - **It recovers on its own:** pages reconnect after a dropped connection, a laptop that wakes within a minute keeps its seat and its vote, and during a deploy each page says "The server is restarting. Reconnecting…".
 - **Accessible:** light and dark themes, full keyboard and screen-reader support, checked against WCAG 2.2 AA ([Accessibility](#accessibility)).

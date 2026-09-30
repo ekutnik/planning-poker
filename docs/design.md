@@ -18,7 +18,7 @@ What follows from that:
 - **Two layouts, chosen by window width.** People tile the app next to their call (compact) or give it a full window (wide). The window size is the choice, so there is no layout toggle.
 - **Glanceable.** Attention is on the call. The screen answers "are we waiting on someone?" in one read.
 - **Legible over a screen share.** The facilitator's view arrives as a small video thumbnail, so anything that carries meaning must survive downscaling.
-- **Private on a shared screen.** Nothing on the facilitator's screen shows their own vote before reveal.
+- **Private on a shared screen.** Nothing on the facilitator's screen shows their own vote before reveal, unless they choose to show it, and then only until the round ends.
 
 ## Principles
 
@@ -26,7 +26,7 @@ What follows from that:
 - **One element, two jobs.** The deck is both the input and the result.
 - **Calm by default.** Nothing moves because someone else acted, except the names settling onto the scale at reveal and a nudge banner appearing. With reduced motion, nothing moves.
 - **Legible at thumbnail size.** Anything meaningful survives compressed, downscaled video.
-- **Private on screen.** Before reveal, the facilitator view never shows the viewer's own vote. The one visible moment is the pointer moving to a card; see [the facilitator view](#the-facilitator-view).
+- **Private on screen.** Before reveal, the facilitator view shows the viewer's own vote only if they press **Show my vote**, and it hides itself again every round. The one other visible moment is the pointer moving to a card; see [the facilitator view](#the-facilitator-view).
 - **Words do one job.** One name per action. Errors say what to do and never apologise. The result names no one.
 
 ## What changed in the revision, and why
@@ -194,9 +194,9 @@ The room's `h1`, styled quiet (15 px, Quiet). "Waiting for Ben and Cy. Fay is aw
 
 ## The facilitator view
 
-<table><tr><td><img src="design/voting-facilitator-wide-light.png" alt="The facilitator view while voting, wide: six people with status pills, a Nudge button beside the one who has not voted, the deck with no card chosen, Clear my vote and the You've voted pill, and Reveal votes top right, light theme" /></td><td><img src="design/voting-facilitator-wide-dark.png" alt="The facilitator view while voting, wide: six people with status pills, a Nudge button beside the one who has not voted, the deck with no card chosen, Clear my vote and the You've voted pill, and Reveal votes top right, dark theme" /></td></tr></table>
+<table><tr><td><img src="design/voting-facilitator-wide-light.png" alt="The facilitator view while voting, wide: six people with status pills, a Nudge button beside the one who has not voted, the deck with no card chosen, Clear my vote, Show my vote and the You've voted pill, and Reveal votes top right, light theme" /></td><td><img src="design/voting-facilitator-wide-dark.png" alt="The facilitator view while voting, wide: six people with status pills, a Nudge button beside the one who has not voted, the deck with no card chosen, Clear my vote, Show my vote and the You've voted pill, and Reveal votes top right, dark theme" /></td></tr></table>
 
-<table><tr><td width="45%"><img src="design/voting-facilitator-compact-light.png" alt="The facilitator view on a phone: the people list, the deck in two rows of five, Clear my vote, and Reveal votes in the bar pinned to the bottom, light theme" /></td><td width="45%"><img src="design/voting-facilitator-compact-dark.png" alt="The facilitator view on a phone: the people list, the deck in two rows of five, Clear my vote, and Reveal votes in the bar pinned to the bottom, dark theme" /></td></tr></table>
+<table><tr><td width="45%"><img src="design/voting-facilitator-compact-light.png" alt="The facilitator view on a phone: the people list, the deck in two rows of five, Clear my vote and Show my vote, and Reveal votes in the bar pinned to the bottom, light theme" /></td><td width="45%"><img src="design/voting-facilitator-compact-dark.png" alt="The facilitator view on a phone: the people list, the deck in two rows of five, Clear my vote and Show my vote, and Reveal votes in the bar pinned to the bottom, dark theme" /></td></tr></table>
 
 A per-person view, not a role, so the server does not change and anyone can still reveal and reset ([ADR 0005](decisions/0005-anyone-can-reveal.md)).
 
@@ -210,8 +210,11 @@ A per-person view, not a role, so the server does not change and anyone can stil
 **Your own vote, before reveal:**
 
 - No card shows as selected, visually or in accessibility state. The deck looks and reads the same whether you have voted or not.
-- After voting: **Clear my vote**, then the green "You've voted" pill, in that order, so the pill does not sit beside the other status pills and read as one of them. Before voting: nothing; your row shows "Not yet".
+- After voting: **Clear my vote**, **Show my vote**, then the green "You've voted" pill, in that order, so the pill does not sit beside the other status pills and read as one of them. Before voting: nothing; your row shows "Not yet".
 - The confirmation carries no value, and "Clear my vote" says nothing about what is being cleared.
+- **Show my vote** is for the facilitator who wants to check their own card. Pressed, the pill reads "Your vote: 8" (☕ and ? read as "coffee" and "question mark") and the button becomes **Hide my vote**. The deck still marks no card. It hides itself again on a new round, on Clear my vote, when Facilitate is switched off or on, and on a reload: it is this screen's own state, never stored and never sent to the server, which already sends each person their own vote ([ADR 0004](decisions/0004-vote-privacy-via-projection.md) hides it only on screen). The button's words change, so it has no `aria-pressed`, and focus stays on it; its eye icon is hidden from screen readers.
+
+<table><tr><td><img src="design/voting-facilitator-shown-wide-light.png" alt="The facilitator view after Show my vote: the deck still with no card chosen, Clear my vote, Hide my vote, and the pill Your vote: 8, light theme" /></td><td><img src="design/voting-facilitator-shown-wide-dark.png" alt="The facilitator view after Show my vote: the deck still with no card chosen, Clear my vote, Hide my vote, and the pill Your vote: 8, dark theme" /></td></tr></table>
 - **After Clear my vote, focus goes to the deck's Tab stop,** the first card (this view never marks one). Clearing removes the button that had focus, and choosing a card is the next thing to do.
 
 **Accepted consequence of removing the hidden-vote field.** The facilitator votes by clicking a card on the shared screen, so the team can see the pointer move to a card at the moment of voting. Nothing on screen shows the vote afterwards. This is a deliberate trade of a short, visible moment for less clutter, decided by the team. The screen-level no-leak test stays.
@@ -363,7 +366,7 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 | Status (participant)  | "4 of 5 have voted", or "Everyone has voted"                                           |
 | Status (facilitator)  | "Waiting for Ben and Cy. Fay is away.", or "Everyone has voted. Fay is away."          |
 | Primary actions       | "Reveal votes" → "Votes revealed"; "Start next round"                                  |
-| Own vote, facilitator | "Clear my vote"; "You've voted"                                                        |
+| Own vote, facilitator | "Clear my vote"; "Show my vote" / "Hide my vote"; "You've voted" / "Your vote: 8"      |
 | Nudge                 | "Nudge" (accessible name "Nudge Cy"), "Nudged"; "The room is waiting for your vote."   |
 | Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8." |
 | Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."   |
@@ -402,7 +405,7 @@ The first design's instincts, and what they became:
 
 ## Tests that prove the properties
 
-- **Screen-level no-leak test,** mirroring the wire-level vote-privacy test: in the facilitator view before reveal, no element shows the viewer's own card (no selected state on any deck card, no card value in any visible text). Removing the hiding once must fail it.
+- **Screen-level no-leak test,** mirroring the wire-level vote-privacy test: in the facilitator view before reveal, no element shows the viewer's own card (no selected state on any deck card, no card value in any visible text) until they press Show my vote, and the deck never does. Removing the hiding once must fail it.
 - **Contrast, two tiers, both themes:** every text pair and every pill at least 4.5:1; Edge (on Paper and Surface), Cobalt and the tinted cards' borders at least 3:1; Rule below 3:1.
 - **Type scale:** every role matches the table, compact and wide.
 - **Results:** the worked examples of the winning rule and the highlight-and-sentence table, each as an `it.each`.
