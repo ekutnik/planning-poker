@@ -146,7 +146,7 @@ export const PEOPLE_COPY = {
 /** Keep score, in the Menu (facilitator view), and each person's points. */
 export const SCORE_COPY = {
   label: "Keep score",
-  note: "A point when your vote matches the result. For this session only.",
+  note: "Shows everyone's points: one when a vote matches the result. For this session only.",
   /** On screen: "1 pt", "3 pts". */
   short: (points: number) => (points === 1 ? "1 pt" : `${String(points)} pts`),
   /** For a screen reader: "1 point", "3 points". */

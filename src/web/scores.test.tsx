@@ -130,7 +130,7 @@ describe("Keep score in the Menu", () => {
     const html = menu({ on: false, live: true });
     expect(html.indexOf("Keep score")).toBeLessThan(html.indexOf("Facilitate"));
     expect(html).toContain(
-      "A point when your vote matches the result. For this session only.",
+      "Shows everyone&#x27;s points: one when a vote matches the result. For this session only.",
     );
   });
 
