@@ -160,7 +160,7 @@ async function newPerson(
   }
   if (options.facilitate !== undefined) {
     stored.push({
-      name: "planning-poker:facilitate",
+      name: "planning-poker:facilitate:v2",
       value: options.facilitate ? "on" : "off",
     });
   }
