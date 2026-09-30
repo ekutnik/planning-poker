@@ -15,6 +15,7 @@ function voting(
     version: 3,
     viewerId: "Ada",
     ticket: null,
+    scores: null,
     yourVote: "13",
     participants: people.map(([name, status, hasVoted]) => ({
       id: name,
@@ -54,6 +55,7 @@ describe("document titles (A-03)", () => {
         version: 4,
         viewerId: "Ada",
         ticket: null,
+        scores: null,
         participants: [
           { id: "Ada", name: "Ada", status: "connected", vote: "13" },
         ],

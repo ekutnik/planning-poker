@@ -179,6 +179,7 @@ function open(youVoted: boolean, phase: "voting" | "revealed" = "voting") {
             version: 1,
             viewerId: "me",
             ticket: null,
+            scores: null,
             yourVote: youVoted ? "5" : null,
             participants: participants.map((p) => ({
               ...p,
@@ -191,6 +192,7 @@ function open(youVoted: boolean, phase: "voting" | "revealed" = "voting") {
             version: 1,
             viewerId: "me",
             ticket: null,
+            scores: null,
             participants: participants.map((p) => ({ ...p, vote: null })),
             results: {
               voteCount: 0,

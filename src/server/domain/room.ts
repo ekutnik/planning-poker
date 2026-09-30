@@ -8,6 +8,7 @@ import {
   MAX_TICKET_LENGTH,
   validName,
 } from "../../shared/rules.js";
+import { computeResults } from "./results.js";
 
 // Defined in src/shared so the client validates exactly as the domain does.
 export { MAX_NAME_LENGTH, MAX_PARTICIPANTS } from "../../shared/rules.js";
@@ -41,6 +42,14 @@ export interface Room {
    * across rounds until someone edits it, and goes with the room.
    */
   readonly ticket: string | null;
+  /** Keep score: off until someone turns it on. */
+  readonly scoring: boolean;
+  /**
+   * Points per participant, awarded at each reveal while scoring is on and
+   * never recalculated. Turning scoring off keeps them; leaving loses them.
+   * Someone with no entry has 0.
+   */
+  readonly scores: ReadonlyMap<ParticipantId, number>;
 }
 
 export type Command =
@@ -64,6 +73,11 @@ export type Command =
       readonly participantId: ParticipantId;
       readonly text: string;
     }
+  | {
+      readonly type: "setScoring";
+      readonly participantId: ParticipantId;
+      readonly on: boolean;
+    }
   | { readonly type: "expire"; readonly participantId: ParticipantId };
 
 export type { DomainError };
@@ -81,6 +95,8 @@ export function createRoom(id: string): Room {
     participants: new Map(),
     version: 0,
     ticket: null,
+    scoring: false,
+    scores: new Map(),
   };
 }
 
@@ -108,6 +124,8 @@ export function applyCommand(
       return expire(room, command, now);
     case "setTicket":
       return setTicket(room, command);
+    case "setScoring":
+      return setScoring(room, command);
     default: {
       const unreachable: never = command;
       throw new Error(`Unhandled command: ${JSON.stringify(unreachable)}`);
@@ -123,7 +141,9 @@ const fail = (error: DomainError): Result => ({ ok: false, error });
 /** Every real state change goes through here, so version bumps exactly once per change. */
 function commit(
   room: Room,
-  changes: Partial<Pick<Room, "phase" | "participants" | "ticket">>,
+  changes: Partial<
+    Pick<Room, "phase" | "participants" | "ticket" | "scoring" | "scores">
+  >,
 ): Room {
   return { ...room, ...changes, version: room.version + 1 };
 }
@@ -138,7 +158,12 @@ function withParticipant(
 function without(room: Room, participantId: ParticipantId): Room {
   const participants = new Map(room.participants);
   participants.delete(participantId);
-  return commit(room, { participants });
+  // Someone removed from the room loses their points; a newcomer with the
+  // same name starts at 0. A reconnect keeps its id, and so its points.
+  if (!room.scores.has(participantId)) return commit(room, { participants });
+  const scores = new Map(room.scores);
+  scores.delete(participantId);
+  return commit(room, { participants, scores });
 }
 
 function hasAnyVote(room: Room): boolean {
@@ -214,7 +239,28 @@ function reveal(room: Room, cmd: CommandOf<"reveal">): Result {
   // a second reveal must not suddenly start erroring.
   if (room.phase === "revealed") return ok(room);
   if (!hasAnyVote(room)) return fail("NO_VOTES_CAST");
-  return ok(commit(room, { phase: "revealed" }));
+  return ok(commit(room, { phase: "revealed", ...pointsAtReveal(room) }));
+}
+
+/**
+ * Keeping score, a separate step of the reveal, in the same commit so the
+ * version still goes up once. It adds nothing while scoring is off, so the
+ * reveal is then exactly what it was. With exactly one winning card, by the
+ * same rule the result shows (computeResults, not a copy of it), everyone
+ * who voted it gets a point; a draw, no result or no votes gives none.
+ * Every reveal counts, including a second round on the same ticket.
+ */
+function pointsAtReveal(room: Room): Partial<Pick<Room, "scores">> {
+  if (!room.scoring) return {};
+  const [winner, ...others] = computeResults(room).winners;
+  if (winner === undefined || others.length > 0) return {};
+  const scores = new Map(room.scores);
+  for (const participant of room.participants.values()) {
+    if (participant.vote === winner) {
+      scores.set(participant.id, (scores.get(participant.id) ?? 0) + 1);
+    }
+  }
+  return { scores };
 }
 
 function reset(room: Room, cmd: CommandOf<"reset">): Result {
@@ -265,6 +311,18 @@ function setTicket(room: Room, cmd: CommandOf<"setTicket">): Result {
   }
   if (ticket === room.ticket) return ok(room); // no-op: already the ticket
   return ok(commit(room, { ticket }));
+}
+
+/**
+ * Keep score, on or off, for the whole room; anyone in it may (ADR 0005).
+ * Off hides the scores and keeps them; on again shows them as they were.
+ */
+function setScoring(room: Room, cmd: CommandOf<"setScoring">): Result {
+  const participant = room.participants.get(cmd.participantId);
+  if (!participant) return fail("UNKNOWN_PARTICIPANT");
+  if (participant.status !== "connected") return fail("NOT_CONNECTED");
+  if (room.scoring === cmd.on) return ok(room); // no-op: already so
+  return ok(commit(room, { scoring: cmd.on }));
 }
 
 /**

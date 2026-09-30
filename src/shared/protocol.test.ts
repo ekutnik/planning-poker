@@ -37,6 +37,21 @@ describe("parseClientMessage — setTicket", () => {
   });
 });
 
+describe("parseClientMessage — setScoring", () => {
+  it.each([true, false])("accepts on: %s", (on) => {
+    const message = { type: "setScoring", on };
+    expect(parseClientMessage(JSON.stringify(message))).toEqual(message);
+  });
+
+  it.each([
+    ["no value", { type: "setScoring" }],
+    ["a value that is not a boolean", { type: "setScoring", on: "yes" }],
+    ["an extra key", { type: "setScoring", on: true, points: 5 }],
+  ])("rejects %s", (_, message) => {
+    expect(parseClientMessage(JSON.stringify(message))).toBeNull();
+  });
+});
+
 describe("parseClientMessage — rejections", () => {
   it("rejects an unknown message type", () => {
     expect(parseClientMessage(JSON.stringify({ type: "nuke" }))).toBeNull();

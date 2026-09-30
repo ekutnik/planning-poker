@@ -39,6 +39,7 @@ export function RevealedView({
       <People
         participants={snapshot.participants}
         viewerId={snapshot.viewerId}
+        scores={snapshot.scores}
       />
       {/* The scale's own container, so it lays all ten steps across only
           when each has room for a name (docs/design.md). */}

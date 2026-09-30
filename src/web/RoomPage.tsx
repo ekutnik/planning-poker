@@ -116,6 +116,14 @@ function Room({
         facilitate: stores.facilitate,
         link: window.location.href,
         onLeave: () => session.leave(),
+        scoring:
+          facilitating && state.snapshot !== null
+            ? {
+                on: state.snapshot.scores !== null,
+                live: canAct(state),
+                onChange: (on) => session.send({ type: "setScoring", on }),
+              }
+            : undefined,
       }}
     />
   );

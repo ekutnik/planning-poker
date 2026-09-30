@@ -13,12 +13,15 @@ export function SwitchRow({
   checked,
   onChange,
   leading = false,
+  disabled = false,
 }: {
   readonly label: string;
   readonly note: string;
   readonly checked: boolean;
   readonly onChange: (checked: boolean) => void;
   readonly leading?: boolean;
+  /** While a room reconnects, for a switch that changes the room. */
+  readonly disabled?: boolean;
 }) {
   const id = useId();
   return (
@@ -38,6 +41,7 @@ export function SwitchRow({
         className="switch"
         aria-checked={checked}
         aria-describedby={`${id}-note`}
+        disabled={disabled || undefined}
         onClick={() => onChange(!checked)}
       >
         <span className="switch-knob" />

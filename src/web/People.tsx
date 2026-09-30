@@ -2,11 +2,13 @@ import { useCallback, useLayoutEffect, useRef } from "react";
 import type { ParticipantId } from "../shared/ids.js";
 import type {
   RevealedParticipantView,
+  Scores,
   VotingParticipantView,
 } from "../shared/snapshot.js";
 import { CardText } from "./CardText.js";
-import { NUDGE_COPY, PEOPLE_COPY } from "./copy.js";
+import { NUDGE_COPY, PEOPLE_COPY, SCORE_COPY } from "./copy.js";
 import { nudgeControl, type NudgeControl, type SentNudges } from "./nudges.js";
+import { byPoints } from "./scores.js";
 
 /** The facilitator view's nudges: whom they have nudged, and how to nudge. */
 export interface PeopleNudges {
@@ -34,7 +36,8 @@ const STATUS_LABEL: Readonly<Record<PersonStatus, string>> = {
 };
 
 /**
- * Everyone in the room, in join order. While voting, one row each: the name
+ * Everyone in the room, in join order, or while Keep score is on, by points
+ * (most first, ties in join order), each row ending with its points. While voting, one row each: the name
  * ("(you)" after your own), then a pill that says Voted, Not yet or Away in
  * words, so colour is never the only signal. After reveal, each person's
  * card sits next to their name in a neutral chip.
@@ -48,12 +51,15 @@ export function People({
   participants,
   viewerId,
   nudges,
+  scores = null,
 }: {
   readonly participants: readonly (
     VotingParticipantView | RevealedParticipantView
   )[];
   readonly viewerId: string;
   readonly nudges?: PeopleNudges;
+  /** Keep score's points, or null while it is off. */
+  readonly scores?: Scores | null;
 }) {
   const list = useRef<HTMLUListElement>(null);
   // Stable, so a Nudge button's cleanup runs when it goes, not every render.
@@ -66,9 +72,15 @@ export function People({
       aria-label="Participants"
       tabIndex={nudges ? -1 : undefined}
     >
-      {participants.map((p) =>
-        "vote" in p ? (
-          <RevealedPerson key={p.id} person={p} you={p.id === viewerId} />
+      {byPoints(participants, scores).map((p) => {
+        const points = scores === null ? null : (scores[p.id] ?? 0);
+        return "vote" in p ? (
+          <RevealedPerson
+            key={p.id}
+            person={p}
+            you={p.id === viewerId}
+            points={points}
+          />
         ) : (
           <VotingPerson
             key={p.id}
@@ -77,10 +89,25 @@ export function People({
             control={nudges ? nudgeControl(p, viewerId, nudges.sent) : null}
             nudges={nudges}
             onGone={keepFocus}
+            points={points}
           />
-        ),
-      )}
+        );
+      })}
     </ul>
+  );
+}
+
+/**
+ * A person's points at the end of their row: "3 pts" on screen, "3 points"
+ * for a screen reader. Nothing while Keep score is off.
+ */
+function Points({ points }: { readonly points: number | null }) {
+  if (points === null) return null;
+  return (
+    <span className="person-points">
+      <span aria-hidden="true">{SCORE_COPY.short(points)}</span>
+      <span className="visually-hidden">{SCORE_COPY.spoken(points)}</span>
+    </span>
   );
 }
 
@@ -91,12 +118,14 @@ function VotingPerson({
   control,
   nudges,
   onGone,
+  points,
 }: {
   readonly person: VotingParticipantView;
   readonly you: boolean;
   readonly control: NudgeControl;
   readonly nudges: PeopleNudges | undefined;
   readonly onGone: () => void;
+  readonly points: number | null;
 }) {
   const status = personStatus(person);
   return (
@@ -121,6 +150,7 @@ function VotingPerson({
         />
       )}
       <span className={`pill pill--${status}`}>{STATUS_LABEL[status]}</span>
+      <Points points={points} />
     </li>
   );
 }
@@ -188,9 +218,11 @@ function NudgeButton({
 function RevealedPerson({
   person,
   you,
+  points,
 }: {
   readonly person: RevealedParticipantView;
   readonly you: boolean;
+  readonly points: number | null;
 }) {
   const card = person.vote;
   return (
@@ -211,6 +243,7 @@ function RevealedPerson({
       ) : (
         <span className="pill pill--not-yet">{PEOPLE_COPY.noVote}</span>
       )}
+      <Points points={points} />
     </li>
   );
 }

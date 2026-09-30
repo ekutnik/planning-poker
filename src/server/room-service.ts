@@ -664,6 +664,8 @@ function toCommand(
       return { type: "leave", participantId };
     case "setTicket":
       return { type: "setTicket", participantId, text: message.text };
+    case "setScoring":
+      return { type: "setScoring", participantId, on: message.on };
   }
 }
 

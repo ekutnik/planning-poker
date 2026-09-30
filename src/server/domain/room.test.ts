@@ -10,6 +10,7 @@ import {
   type Room,
 } from "./room.js";
 import type { Card } from "../../shared/deck.js";
+import { computeResults } from "./results.js";
 
 const NOW = 1_000;
 
@@ -653,5 +654,186 @@ describe("setTicket", () => {
     const { ticket: before, version: v, ...restBefore } = room;
     expect(rest).toEqual(restBefore);
     expect([before, ticket, version]).toEqual([null, "PROJ-1", v + 1]);
+  });
+});
+
+describe("keeping score", () => {
+  const setScoring = (participantId: string, on: boolean): Command => ({
+    type: "setScoring",
+    participantId,
+    on,
+  });
+  const PEOPLE = ["a", "b", "c", "d", "e", "f"] as const;
+  /** A room with everyone in it, scoring as given. */
+  const room = (scoring: boolean) => {
+    const joined = run(createRoom("r1"), ...PEOPLE.map((id) => join(id)));
+    return scoring ? run(joined, setScoring("a", true)) : joined;
+  };
+  /** Votes by person, then a reveal. */
+  const round = (start: Room, votes: Partial<Record<string, Card>>) =>
+    run(
+      start,
+      ...Object.entries(votes).map(([id, card]) => castVote(id, card as Card)),
+      reveal("a"),
+    );
+  const points = (r: Room) => Object.fromEntries(r.scores);
+
+  it("is off in a new room, with no points", () => {
+    expect(createRoom("r1").scoring).toBe(false);
+    expect(createRoom("r1").scores.size).toBe(0);
+  });
+
+  it.each([
+    [
+      "one winning card: its voters get a point",
+      { a: "5", b: "5", c: "8" },
+      { a: 1, b: 1 },
+    ],
+    ["a draw: nobody", { a: "2", b: "3", c: "3", d: "5", e: "5", f: "8" }, {}],
+    ["no result: nobody", { a: "3", b: "5" }, {}],
+    [
+      "? and ☕ never win, and never score",
+      { a: "5", b: "5", c: "?", d: "☕" },
+      { a: 1, b: 1 },
+    ],
+    [
+      "everyone agrees: everyone scores",
+      { a: "8", b: "8", c: "8" },
+      { a: 1, b: 1, c: 1 },
+    ],
+  ] as const)("%s", (_, votes, expected) => {
+    expect(points(round(room(true), votes))).toEqual(expected);
+  });
+
+  it("awards by the rule the result shows, so the two always agree", () => {
+    // Five numeric votes: one at each end, a 3 and the 8, is set aside, so 5
+    // wins with two. Counting without that step would call 3 and 5 a draw.
+    const revealed = round(room(true), {
+      a: "3",
+      b: "3",
+      c: "5",
+      d: "5",
+      e: "8",
+    });
+    expect(computeResults(revealed).winners).toEqual(["5"]);
+    expect(points(revealed)).toEqual({ c: 1, d: 1 });
+  });
+
+  it("with scoring off, a reveal is exactly the reveal it was before scores existed", () => {
+    const before = run(room(false), castVote("a", "5"), castVote("b", "5"));
+    const after = must(applyCommand(before, reveal("a"), NOW));
+    // Field by field: only the phase and the version change, as in v0.2.1;
+    // the new fields are left as they were, the scores the very same map.
+    expect(after).toEqual({
+      ...before,
+      phase: "revealed",
+      version: before.version + 1,
+    });
+    expect(after.scores).toBe(before.scores);
+    expect(after.scoring).toBe(false);
+  });
+
+  it("with scoring on, the reveal and its points are one change: the version goes up once", () => {
+    const before = run(room(true), castVote("a", "5"), castVote("b", "5"));
+    const after = must(applyCommand(before, reveal("a"), NOW));
+    expect(after.version).toBe(before.version + 1);
+    expect(points(after)).toEqual({ a: 1, b: 1 });
+  });
+
+  it("counts only from when it is turned on", () => {
+    const first = round(room(false), { a: "5", b: "5" });
+    expect(points(first)).toEqual({});
+    const second = round(run(first, reset("a"), setScoring("b", true)), {
+      a: "8",
+      c: "8",
+    });
+    expect(points(second)).toEqual({ a: 1, c: 1 });
+  });
+
+  it("counts every reveal, including a second round on the same ticket", () => {
+    const ticket: Command = {
+      type: "setTicket",
+      participantId: "a",
+      text: "PROJ-1",
+    };
+    const first = round(run(room(true), ticket), { a: "5", b: "5" });
+    const second = round(run(first, reset("a")), { a: "5", b: "5" });
+    expect(second.ticket).toBe("PROJ-1");
+    expect(points(second)).toEqual({ a: 2, b: 2 });
+  });
+
+  it("records points at the reveal and never recalculates them", () => {
+    const revealed = round(room(true), { a: "5", b: "5", c: "8" });
+    // b leaves: 5 would no longer win, but a keeps the point already won.
+    const after = run(revealed, leave("b"), reset("a"));
+    expect(points(after)).toEqual({ a: 1 });
+  });
+
+  it.todo(
+    "a reveal by the timer (timeUp) awards points the same way: PR D makes this pass",
+  );
+
+  describe("seats", () => {
+    const scored = () => round(room(true), { a: "5", b: "5" });
+
+    it("a reconnect within the grace period keeps the points", () => {
+      const back = run(scored(), disconnect("b"), join("b"));
+      expect(points(back)).toEqual({ a: 1, b: 1 });
+    });
+
+    it("someone removed loses them, by leaving or by the grace period ending", () => {
+      expect(points(run(scored(), leave("b")))).toEqual({ a: 1 });
+      const expired = runAt(
+        NOW + DISCONNECT_GRACE_MS,
+        run(scored(), disconnect("b")),
+        expire("b"),
+      );
+      expect(points(expired)).toEqual({ a: 1 });
+    });
+
+    it("a newcomer, even with the same id as someone who left, starts at 0", () => {
+      const rejoined = run(scored(), leave("b"), join("b"));
+      expect(rejoined.scores.get("b")).toBeUndefined();
+    });
+  });
+
+  describe("setScoring", () => {
+    it("turning it off keeps the points; turning it on again brings them back", () => {
+      const off = run(
+        round(room(true), { a: "5", b: "5" }),
+        setScoring("c", false),
+      );
+      expect(off.scoring).toBe(false);
+      expect(points(off)).toEqual({ a: 1, b: 1 });
+      expect(points(run(off, setScoring("d", true)))).toEqual({ a: 1, b: 1 });
+    });
+
+    it("off gives no points at a reveal", () => {
+      const off = run(
+        round(room(true), { a: "5", b: "5" }),
+        reset("a"),
+        setScoring("a", false),
+      );
+      expect(points(round(off, { a: "5", b: "5" }))).toEqual({ a: 1, b: 1 });
+    });
+
+    it("is a no-op when already so: the same room, the same version", () => {
+      for (const on of [true, false]) {
+        const r = room(on);
+        expect(must(applyCommand(r, setScoring("b", on), NOW))).toBe(r);
+      }
+    });
+
+    it("follows the order of checks: unknown, then not connected", () => {
+      const r = run(room(false), disconnect("b"));
+      expect(applyCommand(r, setScoring("zed", true), NOW)).toEqual({
+        ok: false,
+        error: "UNKNOWN_PARTICIPANT",
+      });
+      expect(applyCommand(r, setScoring("b", true), NOW)).toEqual({
+        ok: false,
+        error: "NOT_CONNECTED",
+      });
+    });
   });
 });

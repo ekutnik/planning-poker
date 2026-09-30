@@ -623,3 +623,14 @@ button:disabled {
     padding-block-end: 0;
   }
 }
+
+/* Keep score's points, last in a person's row: Quiet, small, right-aligned
+   in a fixed column so the numbers line up down the list. */
+.person-points {
+  flex: none;
+  min-inline-size: 2.75rem; /* 44px */
+  color: var(--quiet);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
