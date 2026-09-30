@@ -242,7 +242,15 @@ describe("websocket route", () => {
     expect(reads).toBe(readsAtClose);
   });
 
-  it.each(["", "?v=0", "?v=2", "?v=1.0", "?v=1&v=1", "?version=1"])(
+  it.each([
+    "",
+    "?v=0",
+    `?v=${String(PROTOCOL_VERSION - 1)}`, // the client before the last bump
+    `?v=${String(PROTOCOL_VERSION + 1)}`,
+    `?v=${String(PROTOCOL_VERSION)}.0`,
+    `?v=${String(PROTOCOL_VERSION)}&v=${String(PROTOCOL_VERSION)}`,
+    `?version=${String(PROTOCOL_VERSION)}`,
+  ])(
     "closes a client with protocol %j as OUTDATED_CLIENT, before any room state",
     async (query) => {
       const lines: { type?: string }[] = [];
@@ -386,6 +394,45 @@ describe("logging", () => {
     for (const type of ["open", "join", "castVote", "reveal", "supersede"]) {
       expect(types).toContain(type);
     }
+  });
+});
+
+describe("the ticket over real sockets", () => {
+  it("reaches everyone in the room, and never appears in a log line", async () => {
+    const lines: Record<string, unknown>[] = [];
+    await restart({
+      logger: {
+        stream: {
+          write: (line: string) =>
+            lines.push(JSON.parse(line) as Record<string, unknown>),
+        },
+      },
+    });
+    const roomId = await createRoom();
+    const alice = await connect(roomId);
+    alice.send({ type: "join", sessionToken: randomUUID(), name: "Alice" });
+    await alice.snapshot();
+    const bob = await connect(roomId);
+    bob.send({ type: "join", sessionToken: randomUUID(), name: "Bob" });
+    await bob.snapshot();
+    await alice.snapshot();
+
+    const text = "PROJ-482 Quietly-logged-ticket-text";
+    alice.send({ type: "setTicket", text });
+    expect((await alice.snapshot()).ticket).toBe(text);
+    expect((await bob.snapshot()).ticket).toBe(text);
+
+    alice.send({ type: "setTicket", text: "x".repeat(121) });
+    expect(await alice.next()).toEqual({
+      type: "error",
+      code: "TICKET_TOO_LONG",
+    });
+    await app.close();
+
+    // The message type is logged, as for every message; the text never is.
+    expect(lines.map((line) => line.type)).toContain("setTicket");
+    expect(JSON.stringify(lines)).not.toContain("Quietly-logged-ticket-text");
+    expect(JSON.stringify(lines)).not.toContain("x".repeat(121));
   });
 });
 

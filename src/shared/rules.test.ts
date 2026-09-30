@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  cleanTicket,
   MAX_NAME_LENGTH,
+  MAX_TICKET_LENGTH,
   normaliseName,
   ROOM_ID_PATTERN,
   SESSION_TOKEN_PATTERN,
@@ -19,6 +21,50 @@ describe("names", () => {
     );
     expect(validName("x".repeat(MAX_NAME_LENGTH + 1))).toBeNull();
     expect(validName(" \t ")).toBeNull();
+  });
+});
+
+describe("tickets (cleanTicket)", () => {
+  it.each([
+    [
+      "plain text",
+      "PROJ-482 Admins can sign in with SSO",
+      "PROJ-482 Admins can sign in with SSO",
+    ],
+    ["trims the ends", "  PROJ-1  ", "PROJ-1"],
+    [
+      "collapses runs of spaces and tabs",
+      "PROJ-1 \t  Fix   it",
+      "PROJ-1 Fix it",
+    ],
+    [
+      "a pasted line break separates words",
+      "PROJ-1\nFix it\r\nnow",
+      "PROJ-1 Fix it now",
+    ],
+    [
+      "removes control characters",
+      "PROJ\u0000-1\u0007 Fix\u007f it",
+      "PROJ-1 Fix it",
+    ],
+    [
+      "leaves no double space where one went",
+      "PROJ-1 \u0000 Fix",
+      "PROJ-1 Fix",
+    ],
+    ["keeps an emoji and accents", "Café 🚀 résumé", "Café 🚀 résumé"],
+    ["keeps markup as text", "<b>x</b>", "<b>x</b>"],
+    ["empty is no ticket", "", null],
+    ["only whitespace is no ticket", " \t\n ", null],
+    ["only control characters is no ticket", "\u0000\u0007", null],
+  ])("%s", (_, raw, cleaned) => {
+    expect(cleanTicket(raw)).toBe(cleaned);
+  });
+
+  it("leaves the length rule to the caller, measured after cleaning", () => {
+    expect(MAX_TICKET_LENGTH).toBe(120);
+    expect(cleanTicket(`   ${"x".repeat(120)}   `)).toHaveLength(120);
+    expect(cleanTicket("x".repeat(121))).toHaveLength(121);
   });
 });
 

@@ -122,6 +122,7 @@ One family: **Figtree**, in weights 400 and 600.
 | Wordmark                        | 14 / 600        | 17 / 600        |
 | Controls (buttons, Menu labels) | 15 / 600        | 15 / 600        |
 | Small (a switch's description)  | 14 / 400        | 14 / 400        |
+| The ticket being estimated      | 18 / 600        | 26 / 600        |
 
 Sizes are px, set in `rem`, so browser zoom scales them. A test checks every role against this table. The numerals are smaller than in the first design, so the screen-share legibility check was repeated: on 2026-09-29, in a real call, with the result "All good." ([the audit record](audit/2026-09-accessibility.md#before-launch-44-2026-09-29)).
 
@@ -183,6 +184,33 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 - **Wide:** two columns. The status line and the people list on the left, 280 px; the round on the right. In the facilitator view the right column is the controls (top right), the deck, then your own vote; in the participant view it is the deck, then the controls. The people list spans the rows beside the right column, so it starts right under the status line.
 - **Wide, after reveal:** the status line with the controls to its right, then the scale across both columns, the sentence, and the people.
 - **Compact:** one column in reading order: status, people, deck, your own vote, controls, with the facilitator's controls pinned to the bottom when the window is tall enough. The pinned bar is 72 px (a 44 px button, 12 px above and below, a 1 px rule), and focus scrolls clear of exactly that; a test holds the button, the padding and the rule to the height reserved.
+
+### The ticket
+
+<table><tr><td><img src="design/ticket-facilitator-wide-light.png" alt="The facilitator view with a ticket: Now estimating, PROJ-482 Admins can sign in with SSO in large text with a small Edit button beside it, above the room, light theme" /></td><td><img src="design/ticket-facilitator-wide-dark.png" alt="The facilitator view with a ticket: Now estimating, PROJ-482 Admins can sign in with SSO in large text with a small Edit button beside it, above the room, dark theme" /></td></tr></table>
+
+<table><tr><td width="45%"><img src="design/ticket-participant-compact-light.png" alt="A participant on a phone: Now estimating and the ticket at the top, set apart by a rule, above the status line, light theme" /></td><td width="45%"><img src="design/ticket-participant-compact-dark.png" alt="A participant on a phone: Now estimating and the ticket at the top, set apart by a rule, above the status line, dark theme" /></td></tr></table>
+
+What the room is estimating, above the round, so nobody has to ask "which one are we on?".
+
+- **For everyone, the same:** "Now estimating" (Small, Quiet), then the ticket (the Ticket role: 18 / 600 compact, 26 / 600 wide). It wraps anywhere, so a long ticket with no spaces never scrolls the page sideways. It stays across rounds until someone edits it, and goes with the room.
+- **A paragraph, not a heading.** The status line stays the page's `h1`; a heading above it would put the headings out of order.
+- **Nothing while empty,** for participants: no label, no space. The facilitator view shows a quiet **Add a ticket** button instead.
+- **Editing, facilitator view:** a small **Edit** button beside the ticket (a screen reader hears "Edit the ticket") opens an inline field labelled "Now estimating", with **Save** and **Cancel**. Enter saves, Escape cancels, and focus returns to Edit; the Edit and Add a ticket button is one element, so focus stays on it when the saved ticket arrives. Saving an empty field removes the ticket.
+- **Said once when someone else changes it,** through the room's polite live region: "Now estimating: PROJ-482 …". Your own Save says nothing: you just typed it. Clearing the ticket says nothing either, deliberately: nobody needs to hear that there is no ticket.
+- **Server rules** (`setTicket`, the same checks as every command): runs of whitespace become one space, other control characters go, the ends are trimmed; empty means no ticket; at most 120 characters after cleaning (`MAX_TICKET_LENGTH`), and the field's `maxlength` matches; the same text again changes nothing. Anyone in the room may set it, like Reveal ([ADR 0005](decisions/0005-anyone-can-reveal.md)): the controls appear only in the facilitator view. The text is logged nowhere; the log has the message type only.
+
+### Keeping score
+
+<table><tr><td><img src="design/score-facilitator-wide-light.png" alt="Keep score on: the people list in points order, Ben and Dee with 3 pts, Cy and Fay with 2, Ada and Eli with 1 pt, each after the person's pill, light theme" /></td><td><img src="design/score-menu-wide-dark.png" alt="The Menu open in the facilitator view: Keep score, switched on, with its description, above Facilitate, Theme and Leave the room, dark theme" /></td></tr></table>
+
+A light game some teams like: a point when your vote matches the result. Off until someone turns it on, and for this session only.
+
+- **The switch:** "Keep score" in the Menu, first, above Facilitate, with the note "Shows everyone's points: one when a vote matches the result. For this session only." Only the facilitator view shows it; the server takes it from anyone in the room, like Reveal ([ADR 0005](decisions/0005-anyone-can-reveal.md)). Unlike Facilitate, which changes only your own screen, it is the room's setting: everyone sees the points at once, which is why its note starts "Shows everyone's points".
+- **Awarding, at each reveal:** if exactly one card wins, by the same rule the result shows ([The winning card](#the-winning-card)), everyone who voted it gets a point. A draw, no result or no votes gives nobody a point; ? and ☕ never win. Every reveal counts, including a second round on the same ticket. Points are recorded at the reveal and never recalculated: someone leaving afterwards changes nobody's points. The points are part of the reveal's one change, so the room's version still goes up once, and with scoring off a reveal is exactly what it was before.
+- **Seats:** someone who reconnects within the grace period keeps their points; someone removed from the room loses them; a newcomer starts at 0. Nothing is ever stored: the points go with the room.
+- **Off keeps them:** turning it off hides the points and keeps them; on again shows them as they were. While it is off, no score is sent at all (the snapshot's `scores` is null).
+- **On screen:** the people list, and the revealed list in wide, are in points order, most first, ties in join order, so the order changes only at a reveal. Each row ends with its points, Quiet and small, in a right-aligned column: "3 pts", "1 pt" on screen, "3 points", "1 point" for a screen reader.
 
 ### Room status
 
@@ -352,26 +380,31 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 - One name per thing: it is a room, not a game; you choose a card, not pick one; "Create a room" everywhere; "Start next round", never "new round"; and anyone can reveal, so nothing says "until everyone reveals".
 - The result names no one.
 
-| Moment                | Copy                                                                                   |
-| --------------------- | -------------------------------------------------------------------------------------- |
-| Product name          | "Planning Poker Session"                                                               |
-| Landing               | "Estimate together"; "Create a room"; "You'll get a link to share with your team."     |
-| Switch                | "I'm running this session" / "Hides your vote so you can share your screen."           |
-| Room link, no name    | "Join the room"; "Everyone in the room sees your name."; "Join"                        |
-| Not a room            | "There's no room at this link."; "Create a room"                                       |
-| Menu                  | "Facilitate", "Theme", "Leave the room"                                                |
-| Header pill           | "Facilitating"                                                                         |
-| Pills                 | "Voted", "Not yet", "Away", "You've voted"; after reveal, "No vote"                    |
-| Own row               | "(you)"                                                                                |
-| Status (participant)  | "4 of 5 have voted", or "Everyone has voted"                                           |
-| Status (facilitator)  | "Waiting for Ben and Cy. Fay is away.", or "Everyone has voted. Fay is away."          |
-| Primary actions       | "Reveal votes" → "Votes revealed"; "Start next round"                                  |
-| Own vote, facilitator | "Clear my vote"; "Show my vote" / "Hide my vote"; "You've voted" / "Your vote: 8"      |
-| Nudge                 | "Nudge" (accessible name "Nudge Cy"), "Nudged"; "The room is waiting for your vote."   |
-| Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8." |
-| Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."   |
-| Preview               | "Pause preview" / "Play preview"                                                       |
-| Next round (spoken)   | "Next round started."                                                                  |
+| Moment                | Copy                                                                                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| Product name          | "Planning Poker Session"                                                                             |
+| Landing               | "Estimate together"; "Create a room"; "You'll get a link to share with your team."                   |
+| Switch                | "I'm running this session" / "Hides your vote so you can share your screen."                         |
+| Room link, no name    | "Join the room"; "Everyone in the room sees your name."; "Join"                                      |
+| Not a room            | "There's no room at this link."; "Create a room"                                                     |
+| Menu                  | "Facilitate", "Theme", "Leave the room"                                                              |
+| Header pill           | "Facilitating"                                                                                       |
+| Pills                 | "Voted", "Not yet", "Away", "You've voted"; after reveal, "No vote"                                  |
+| Own row               | "(you)"                                                                                              |
+| Status (participant)  | "4 of 5 have voted", or "Everyone has voted"                                                         |
+| Status (facilitator)  | "Waiting for Ben and Cy. Fay is away.", or "Everyone has voted. Fay is away."                        |
+| Primary actions       | "Reveal votes" → "Votes revealed"; "Start next round"                                                |
+| Own vote, facilitator | "Clear my vote"; "Show my vote" / "Hide my vote"; "You've voted" / "Your vote: 8"                    |
+| Ticket                | "Now estimating"; "Add a ticket", "Edit", "Save", "Cancel"                                           |
+| Ticket (spoken)       | "Now estimating: PROJ-482 …", when someone else changes it                                           |
+| Ticket too long       | "That ticket is too long. Keep it to 120 characters."                                                |
+| Keep score            | "Keep score" / "Shows everyone's points: one when a vote matches the result. For this session only." |
+| Points                | "3 pts", "1 pt" (spoken "3 points", "1 point")                                                       |
+| Nudge                 | "Nudge" (accessible name "Nudge Cy"), "Nudged"; "The room is waiting for your vote."                 |
+| Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8."               |
+| Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."                 |
+| Preview               | "Pause preview" / "Play preview"                                                                     |
+| Next round (spoken)   | "Next round started."                                                                                |
 
 Removed in the revision: "Your first name is enough.", "Your vote (hidden)", "Vote recorded", "Not a card on the deck", "Close: 3 and 5.", "All numbers agree: 5.", "Only Ada voted: 8.", "Only Ada chose a number: 8.", every "…, talk through your estimates." and "Cy voted ?".
 

@@ -108,6 +108,8 @@ function snapshot(version: number): RoomSnapshot {
     roomId: ROOM,
     version,
     viewerId: "viewer",
+    ticket: null,
+    scores: null,
     yourVote: null,
     participants: [],
   };

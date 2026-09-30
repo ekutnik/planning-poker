@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from "react";
-import { HEADER_COPY, PRODUCT_NAME } from "./copy.js";
+import { HEADER_COPY, PRODUCT_NAME, SCORE_COPY } from "./copy.js";
 import { CopyLinkButton } from "./CopyLinkButton.js";
 import type { FacilitateStore } from "./facilitate.js";
 import { FacilitateSwitch } from "./FacilitateSwitch.js";
 import { HeaderMenu } from "./HeaderMenu.js";
 import { useWide } from "./layout.js";
 import { Mark } from "./Mark.js";
+import { SwitchRow } from "./SwitchRow.js";
 import type { ThemeStore } from "./theme.js";
 import { ThemeMenu } from "./ThemeMenu.js";
 
@@ -15,6 +16,15 @@ export interface RoomHeader {
   /** The room's own link, copied but never shown: it is the credential. */
   readonly link: string;
   readonly onLeave: () => void;
+  /**
+   * Keep score, for the whole room: given only in the facilitator view, once
+   * the room is shown. `live` is false while it reconnects.
+   */
+  readonly scoring?: {
+    readonly on: boolean;
+    readonly live: boolean;
+    readonly onChange: (on: boolean) => void;
+  };
 }
 
 /**
@@ -57,6 +67,18 @@ export function Header({
         {wide && copyLink}
         <HeaderMenu defaultOpen={menuOpen}>
           {!wide && copyLink}
+          {room?.scoring && (
+            <>
+              <SwitchRow
+                label={SCORE_COPY.label}
+                note={SCORE_COPY.note}
+                checked={room.scoring.on}
+                disabled={!room.scoring.live}
+                onChange={room.scoring.onChange}
+              />
+              <hr className="menu-divider" />
+            </>
+          )}
           {room && <FacilitateSwitch store={room.facilitate} />}
           <ThemeMenu store={theme} />
           {room && (

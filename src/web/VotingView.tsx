@@ -84,6 +84,7 @@ export function VotingView({
       <People
         participants={snapshot.participants}
         viewerId={snapshot.viewerId}
+        scores={snapshot.scores}
         nudges={
           facilitating
             ? {

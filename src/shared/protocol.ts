@@ -1,7 +1,11 @@
 import * as z from "zod";
 import { DECK } from "./deck.js";
 import type { DomainError } from "./errors.js";
-import { PARTICIPANT_ID_PATTERN, SESSION_TOKEN_PATTERN } from "./rules.js";
+import {
+  MAX_TICKET_INPUT,
+  PARTICIPANT_ID_PATTERN,
+  SESSION_TOKEN_PATTERN,
+} from "./rules.js";
 import type { RoomSnapshot } from "./snapshot.js";
 
 /**
@@ -34,6 +38,14 @@ export const ClientMessage = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("reveal") }),
   z.strictObject({ type: z.literal("reset") }),
   z.strictObject({ type: z.literal("leave") }),
+  // The ticket being estimated. The cap is payload sanity; the domain cleans
+  // the text and applies the 120-character rule (shared/rules.ts).
+  z.strictObject({
+    type: z.literal("setTicket"),
+    text: z.string().max(MAX_TICKET_INPUT),
+  }),
+  // Keep score, on or off, for the room.
+  z.strictObject({ type: z.literal("setScoring"), on: z.boolean() }),
   // A nudge (ADR 0007). participantId is the person nudged, by the public id
   // every snapshot shows; the sender is the socket, as for every message.
   z.strictObject({

@@ -33,6 +33,37 @@ export const NUDGE_COOLDOWN_MS = 30_000;
  */
 export const DROP_ENDS_FROM = 4;
 
+/**
+ * The ticket being estimated (the room's "Now estimating"): at most this many
+ * characters once cleaned, in UTF-16 code units like names, which is also how
+ * the input's maxlength counts.
+ */
+export const MAX_TICKET_LENGTH = 120;
+
+/**
+ * The raw text's cap on the wire, a payload-sanity limit like the name's
+ * 200: pasted text with runs of spaces may clean down to 120, but nothing
+ * longer than this is read at all.
+ */
+export const MAX_TICKET_INPUT = 200;
+
+/**
+ * A ticket as the room shows it, or null for none. Runs of whitespace,
+ * newlines and tabs included, become one space first, so a pasted line break
+ * separates words rather than joining them; then any other control character
+ * goes, and the spaces that were either side of it collapse again, so no
+ * double space is left; then the ends are trimmed. Empty means no ticket. Length is checked by
+ * the caller, against MAX_TICKET_LENGTH.
+ */
+export function cleanTicket(raw: string): string | null {
+  const cleaned = raw
+    .replace(/\s+/g, " ")
+    .replace(/\p{Cc}/gu, "")
+    .replace(/ {2,}/g, " ")
+    .trim();
+  return cleaned === "" ? null : cleaned;
+}
+
 /** Session tokens: 22–64 url-safe characters covers a randomUUID without over-fitting. */
 export const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22,64}$/;
 

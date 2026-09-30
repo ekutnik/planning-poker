@@ -11,6 +11,8 @@ function room(...people: [string, "c" | "a", "v" | "-"][]): Voting {
     roomId: "abcdefghijk",
     version: 1,
     viewerId: "Ada",
+    ticket: null,
+    scores: null,
     yourVote: null,
     participants: people.map(([name, status, vote]) => ({
       id: name,

@@ -76,6 +76,8 @@ describe("project — no-leak (key whitelist)", () => {
       "participants",
       "phase",
       "roomId",
+      "scores",
+      "ticket",
       "version",
       "viewerId",
       "yourVote",
@@ -108,6 +110,8 @@ describe("project — no-leak (key whitelist)", () => {
       "phase",
       "results",
       "roomId",
+      "scores",
+      "ticket",
       "version",
       "viewerId",
     ]);
@@ -150,5 +154,61 @@ describe("project — determinism and suppression", () => {
     );
     // ...but nothing else in Carol's projection changed.
     expect(stripVersion(after)).toEqual(stripVersion(before));
+  });
+});
+
+describe("the ticket", () => {
+  const viewers = ["alice", "bob", "carol", "dan"] as const;
+
+  it("is the same for every viewer, before and after reveal", () => {
+    const withTicket = { ...mixedRoom(), ticket: "PROJ-482 Fix it" };
+    for (const room of [
+      withTicket,
+      { ...withTicket, phase: "revealed" as const },
+    ]) {
+      for (const viewer of viewers) {
+        expect(project(room, viewer).ticket).toBe("PROJ-482 Fix it");
+      }
+    }
+  });
+
+  it("is null when the room has none", () => {
+    expect(project(mixedRoom(), "alice").ticket).toBeNull();
+  });
+});
+
+describe("scores", () => {
+  const viewers = ["alice", "bob", "carol", "dan"] as const;
+  const withScores = (scoring: boolean): Room => ({
+    ...mixedRoom(),
+    scoring,
+    scores: new Map([["bob", 2]]),
+  });
+
+  it("appear nowhere while scoring is off, though the room keeps them", () => {
+    const room = withScores(false);
+    for (const r of [room, { ...room, phase: "revealed" as const }]) {
+      for (const viewer of viewers) {
+        const wire = JSON.stringify(project(r, viewer));
+        expect(project(r, viewer).scores).toBeNull();
+        expect(wire).not.toContain('"scores":{');
+      }
+    }
+  });
+
+  it("while on, are everyone's points, the same for every viewer, in join order, 0 for none", () => {
+    const room = withScores(true);
+    for (const r of [room, { ...room, phase: "revealed" as const }]) {
+      for (const viewer of viewers) {
+        const scores = project(r, viewer).scores;
+        expect(scores).toEqual({ alice: 0, bob: 2, carol: 0, dan: 0 });
+        expect(Object.keys(scores ?? {})).toEqual([
+          "alice",
+          "bob",
+          "carol",
+          "dan",
+        ]);
+      }
+    }
   });
 });

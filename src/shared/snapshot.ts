@@ -35,6 +35,9 @@ export type RoomSnapshot =
       readonly viewerId: ParticipantId;
       readonly yourVote: Card | null;
       readonly participants: readonly VotingParticipantView[];
+      /** The ticket being estimated, the same for everyone; null for none. */
+      readonly ticket: string | null;
+      readonly scores: Scores | null;
     }
   | {
       readonly phase: "revealed";
@@ -43,7 +46,17 @@ export type RoomSnapshot =
       readonly viewerId: ParticipantId;
       readonly participants: readonly RevealedParticipantView[];
       readonly results: Results;
+      readonly ticket: string | null;
+      readonly scores: Scores | null;
     };
+
+/**
+ * Keep score: every participant's points, the same for everyone, keyed by
+ * the public id each view already shows, 0 for someone without any. The
+ * snapshot's `scores` is null while scoring is off, so no score can appear
+ * anywhere then; the room keeps them on the server.
+ */
+export type Scores = Readonly<Record<ParticipantId, number>>;
 
 /**
  * What the room shows at reveal. Computed once on the server (see

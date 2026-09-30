@@ -13,6 +13,8 @@ const room: RoomSnapshot = {
   roomId: "abcdefghijk",
   version: 3,
   viewerId: "Cy",
+  ticket: null,
+  scores: null,
   yourVote: null,
   participants: NAMES.map((name) => ({
     id: name,
