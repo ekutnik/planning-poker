@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from "react";
-import { HEADER_COPY, PRODUCT_NAME, SCORE_COPY } from "./copy.js";
+import { useId, useSyncExternalStore, type ReactNode } from "react";
+import { HEADER_COPY, PRODUCT_NAME, SCORE_COPY, TOOLS_COPY } from "./copy.js";
 import { CopyLinkButton } from "./CopyLinkButton.js";
 import type { FacilitateStore } from "./facilitate.js";
 import { FacilitateSwitch } from "./FacilitateSwitch.js";
@@ -17,12 +17,32 @@ export interface RoomHeader {
   readonly link: string;
   readonly onLeave: () => void;
   /**
-   * Keep score, for the whole room: given only in the facilitator view, once
-   * the room is shown. `live` is false while it reconnects.
+   * The Session tools, given only in the facilitator view, once the room is
+   * shown. Keep score is the whole room's; `live` is false while it
+   * reconnects.
    */
   readonly scoring?: {
     readonly on: boolean;
     readonly live: boolean;
+    readonly onChange: (on: boolean) => void;
+  };
+  /**
+   * Ticket, this browser's. Switching it off clears a ticket for the room,
+   * which needs the room, so it waits for `live` as Keep score does.
+   */
+  readonly ticket?: {
+    readonly on: boolean;
+    readonly live: boolean;
+    readonly onChange: (on: boolean) => void;
+  };
+  /**
+   * Timer, this browser's. `busy` while it is on and a timer runs or is
+   * paused: switching it off then would hide the controls of a timer that
+   * is still counting, so it waits until the timer has stopped.
+   */
+  readonly timer?: {
+    readonly on: boolean;
+    readonly busy: boolean;
     readonly onChange: (on: boolean) => void;
   };
 }
@@ -32,8 +52,10 @@ export interface RoomHeader {
  * the controls. The title is fixed: rooms have no names yet (#35), and the
  * room id must never stand in for one, because it is the room's credential
  * and the facilitator's screen is shared. In a room: the Facilitating pill
- * (only while on), Copy link, and a Menu with Facilitate, Theme and Leave
- * the room. Elsewhere the Menu holds Theme alone.
+ * (only while on), Copy link, and a Menu: in the facilitator view, first
+ * the Session tools (Ticket, Timer, Keep score), then Just for you
+ * (Facilitate, Theme); otherwise Facilitate and Theme alone; then Leave the
+ * room. Elsewhere the Menu holds Theme alone.
  *
  * In compact, Copy link moves into the Menu, first, so the pill and the
  * Menu fit beside the name in one row: it is used once a session, by
@@ -67,20 +89,53 @@ export function Header({
         {wide && copyLink}
         <HeaderMenu defaultOpen={menuOpen}>
           {!wide && copyLink}
-          {room?.scoring && (
+          {room && hasSessionTools(room) ? (
             <>
-              <SwitchRow
-                label={SCORE_COPY.label}
-                note={SCORE_COPY.note}
-                checked={room.scoring.on}
-                disabled={!room.scoring.live}
-                onChange={room.scoring.onChange}
-              />
+              <MenuGroup heading={HEADER_COPY.sessionTools}>
+                {room.ticket && (
+                  <SwitchRow
+                    label={TOOLS_COPY.ticket}
+                    note={TOOLS_COPY.ticketNote}
+                    checked={room.ticket.on}
+                    disabled={!room.ticket.live}
+                    onChange={room.ticket.onChange}
+                  />
+                )}
+                {room.timer && (
+                  <SwitchRow
+                    label={TOOLS_COPY.timer}
+                    note={
+                      room.timer.busy
+                        ? TOOLS_COPY.timerBusy
+                        : TOOLS_COPY.timerNote
+                    }
+                    checked={room.timer.on}
+                    disabled={room.timer.busy}
+                    onChange={room.timer.onChange}
+                  />
+                )}
+                {room.scoring && (
+                  <SwitchRow
+                    label={SCORE_COPY.label}
+                    note={SCORE_COPY.note}
+                    checked={room.scoring.on}
+                    disabled={!room.scoring.live}
+                    onChange={room.scoring.onChange}
+                  />
+                )}
+              </MenuGroup>
               <hr className="menu-divider" />
+              <MenuGroup heading={HEADER_COPY.justForYou}>
+                <FacilitateSwitch store={room.facilitate} />
+                <ThemeMenu store={theme} />
+              </MenuGroup>
+            </>
+          ) : (
+            <>
+              {room && <FacilitateSwitch store={room.facilitate} />}
+              <ThemeMenu store={theme} />
             </>
           )}
-          {room && <FacilitateSwitch store={room.facilitate} />}
-          <ThemeMenu store={theme} />
           {room && (
             <>
               <hr className="menu-divider" />
@@ -92,6 +147,38 @@ export function Header({
         </HeaderMenu>
       </div>
     </header>
+  );
+}
+
+function hasSessionTools(room: RoomHeader): boolean {
+  return (
+    room.scoring !== undefined ||
+    room.ticket !== undefined ||
+    room.timer !== undefined
+  );
+}
+
+/**
+ * A group of the Menu's controls under a small heading. Not a heading
+ * element: the page's h1 is the room's status line, further down, and the
+ * Menu comes first in the page. A group named by its words instead, which
+ * a screen reader announces on entering it.
+ */
+function MenuGroup({
+  heading,
+  children,
+}: {
+  readonly heading: string;
+  readonly children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <div role="group" aria-labelledby={id} className="menu-group">
+      <p id={id} className="menu-heading">
+        {heading}
+      </p>
+      {children}
+    </div>
   );
 }
 

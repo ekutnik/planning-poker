@@ -2,8 +2,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { RoomSnapshot, TimerView } from "../shared/snapshot.js";
 import { phaseAnnouncement } from "./announce.js";
-import { TimerControls, TimerLine } from "./Timer.js";
-import { VotingView } from "./VotingView.js";
+import { RoomView } from "./RoomView.js";
+import { TimerControls, TimerReadout } from "./Timer.js";
+import type { Tools } from "./tools.js";
 
 /**
  * The timer on screen (ADR 0008). Its clicks, its countdown and what it says
@@ -32,21 +33,20 @@ const buttons = (html: string) =>
   [...html.matchAll(/<button[^>]*>/g)].map((m) => m[0]);
 
 describe("the facilitator's timer", () => {
-  it("idle: a labelled duration, one minute by default, and Start", () => {
+  it("idle: one block, a clock, the duration (one minute by default) and Start", () => {
     const html = controls(IDLE);
-    // One control named Timer: the select. Every button names itself.
-    expect(html.match(/Timer</g)).toHaveLength(1);
-    expect(html).toMatch(
-      /<label for="([^"]+)" class="timer-label">Timer<\/label><select id="\1"/,
-    );
+    expect(html).toMatch(/^<div class="timer"><div class="timer-block"><svg/);
+    // The select is named Timer; Start is a square play button that names
+    // itself.
+    expect(html).toMatch(/<select aria-label="Timer"/);
     expect(html).toMatch(/<option value="60000" selected="">1 min<\/option>/);
     for (const label of ["30 s", "2 min", "3 min", "5 min", "Custom…"]) {
       expect(html).toContain(`>${label}</option>`);
     }
-    expect(html).toMatch(
-      /<button type="button" class="timer-button">Start<\/button>/,
-    );
-    expect(html).not.toContain("timer-bar");
+    expect(buttons(html)).toEqual([
+      '<button type="button" class="small-button small-button--icon" aria-label="Start the timer">',
+    ]);
+    expect(html).not.toContain("timer-edge");
   });
 
   it("idle with a duration that is no preset: Custom…, with its m:ss field", () => {
@@ -59,16 +59,19 @@ describe("the facilitator's timer", () => {
     );
   });
 
-  it("running: what is left, Pause and +30 s, named for a screen reader, and the bar", () => {
+  it("running: what is left, Pause and +30 s, named for a screen reader, and the edge", () => {
     const html = controls(running());
     expect(html).toContain(
-      '<span class="timer-time">1:24</span><span class="timer-word">left</span>',
+      '<span class="timer-time">1:24</span><span class="visually-hidden"> left</span>',
     );
     expect(buttons(html)).toEqual([
-      '<button type="button" class="timer-button timer-button--icon" aria-label="Pause the timer">',
-      '<button type="button" class="timer-button" aria-label="Add 30 seconds">',
+      '<button type="button" class="small-button small-button--icon" aria-label="Pause the timer">',
+      '<button type="button" class="small-button" aria-label="Add 30 seconds">',
     ]);
-    expect(html).toContain('<div class="timer-bar" aria-hidden="true">');
+    // What is left is the block's underline: 84 of 60 s, so all of it.
+    expect(html).toMatch(
+      /<span class="timer-edge" aria-hidden="true"><span class="timer-edge-fill" style="inline-size:100%"><\/span><\/span><\/div>/,
+    );
   });
 
   it("paused: the time, quiet, with Paused, and Resume", () => {
@@ -87,35 +90,35 @@ describe("the facilitator's timer", () => {
   });
 });
 
-describe("everyone else's line", () => {
-  const line = (timer: TimerView) =>
-    renderToStaticMarkup(<TimerLine timer={timer} />);
+describe("everyone else's block", () => {
+  const readout = (timer: TimerView) =>
+    renderToStaticMarkup(<TimerReadout timer={timer} />);
 
   it("shows nothing at all while idle", () => {
-    expect(line(IDLE)).toBe("");
+    expect(readout(IDLE)).toBe("");
   });
 
-  it("running: the time, then what happens when it ends", () => {
-    expect(line(running())).toContain(
+  it("running: the time, then what happens when it ends, with the edge", () => {
+    const html = readout(running());
+    expect(html).toContain(
       '<span class="timer-time">1:24</span> <span class="timer-word">left, then votes are revealed</span>',
     );
+    expect(html).toContain('class="timer-edge"');
   });
 
-  it("paused: Paused at the time", () => {
-    expect(line(paused)).toContain(
-      '<span class="timer-word">Paused at 1:24</span>',
+  it("paused: the time, quiet, and Paused", () => {
+    expect(readout(paused)).toContain(
+      '<span class="timer-time timer-time--paused">1:24</span> <span class="timer-word">Paused</span>',
     );
   });
 
   it("has no controls", () => {
-    expect(line(running())).not.toContain("<button");
+    expect(readout(running())).not.toContain("<button");
   });
 });
 
-describe("the timer in the voting screen", () => {
-  const snapshot = (
-    timer: TimerView,
-  ): Extract<RoomSnapshot, { phase: "voting" }> => ({
+describe("the timer in the room", () => {
+  const snapshot = (timer: TimerView): RoomSnapshot => ({
     phase: "voting",
     roomId: "abcdefghijk",
     version: 3,
@@ -128,36 +131,55 @@ describe("the timer in the voting screen", () => {
       { id: "ada", name: "Ada", status: "connected", hasVoted: false },
     ],
   });
-  const view = (timer: TimerView, facilitating: boolean) =>
+  const ON: Tools = { ticket: false, timer: true };
+  const OFF: Tools = { ticket: false, timer: false };
+  const room = (timer: TimerView, facilitating: boolean, tools = ON) =>
     renderToStaticMarkup(
-      <VotingView
+      <RoomView
         snapshot={snapshot(timer)}
         facilitating={facilitating}
         live
+        banner={null}
+        notice={null}
+        persistent
+        tools={tools}
         onAction={() => undefined}
       />,
     );
 
-  it("leaves a participant's screen exactly as before while idle: no line, no row for it", () => {
-    const html = view(IDLE, false);
+  it("leaves a participant's screen exactly as before while idle, whatever their settings", () => {
+    const html = room(IDLE, false);
     expect(html).not.toContain("timer");
-    expect(html).toMatch(
-      /^<div class="round round--voting round--participant">/,
+    expect(html).toContain(
+      '<div class="round round--voting round--participant">',
     );
   });
 
-  it("gives a participant's round its timer row only while it runs or is paused", () => {
-    expect(view(running(), false)).toMatch(
-      /^<div class="round round--voting round--participant round--timed">/,
-    );
-    expect(view(paused, false)).toContain("round--timed");
+  it("shows a participant a timer that runs or is paused, whatever their settings", () => {
+    for (const tools of [ON, OFF]) {
+      expect(room(running(), false, tools)).toContain(
+        'class="timer timer--readout"',
+      );
+      expect(room(paused, false, tools)).toContain("timer--readout");
+    }
   });
 
-  it("puts the facilitator's timer just before the round controls in keyboard order", () => {
-    const html = view(IDLE, true);
+  it("gives the facilitator its controls only with Timer on", () => {
+    expect(room(IDLE, true)).toContain('aria-label="Start the timer"');
+    expect(room(IDLE, true, OFF)).not.toContain("timer");
+    // Off, someone else's timer still shows, read only.
+    expect(room(running(), true, OFF)).toContain("timer--readout");
+    expect(room(running(), true, OFF)).not.toContain("Pause the timer");
+  });
+
+  it("comes after the ticket and before the round, Reveal votes still last", () => {
+    const html = room(IDLE, true, { ticket: true, timer: true });
     const timer = html.indexOf('class="timer"');
-    expect(timer).toBeGreaterThan(html.indexOf('role="toolbar"'));
-    expect(timer).toBeLessThan(html.indexOf('class="controls"'));
+    expect(timer).toBeGreaterThan(html.indexOf('class="ticket"'));
+    expect(timer).toBeLessThan(html.indexOf("<h1"));
+    expect(html.lastIndexOf("<button")).toBeGreaterThan(
+      html.indexOf('class="controls"'),
+    );
   });
 });
 

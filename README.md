@@ -21,8 +21,8 @@ A team estimates together on a video call, everyone on their own laptop, while t
 - **Votes stay hidden until the reveal,** on the screen and on the wire: the server sends each person only what they may see ([ADR 0004](docs/decisions/0004-vote-privacy-via-projection.md)).
 - **A result sentence that singles no one out:** the spread, then the winning card or a draw, or why there is none. The deck becomes a scale, with each name above the card it chose.
 - **A facilitator view** for sharing your screen: your own vote stays hidden unless you choose to show it, and the controls stay in one place.
-- **The ticket being estimated,** above the room for everyone, set in place by the facilitator.
-- **A timer, if you want one:** the facilitator starts it, everyone sees it count down, and when it ends the server reveals the votes ([ADR 0008](docs/decisions/0008-the-server-holds-the-timer.md)).
+- **The ticket being estimated,** first in the room for everyone, set in place by the facilitator once they switch Ticket name on in the Menu's Session tools.
+- **A timer, if you want one:** switched on in the same place; the facilitator starts it, everyone sees it count down, and when it ends the server reveals the votes ([ADR 0008](docs/decisions/0008-the-server-holds-the-timer.md)).
 - **Keep score, if you like:** a point when your vote matches the result, off until the facilitator turns it on, for the session only.
 - **Nudges:** a quiet, anonymous reminder to someone who hasn't voted ([ADR 0007](docs/decisions/0007-nudges-are-transient-and-anonymous.md)).
 - **It recovers on its own:** pages reconnect after a dropped connection, a laptop that wakes within a minute keeps its seat and its vote, and during a deploy each page says "The server is restarting. Reconnecting…".
@@ -109,7 +109,7 @@ Checked against WCAG 2.2 AA in September 2026: a self-audit, not an outside one.
 
 - **The room link is the credential.** Room ids are 64 random bits. The id never appears in the page, the page title or the logs (which hold only a hash of it), and the link is never sent to another site (`Referrer-Policy: no-referrer`). Copy link and the address bar are the only places it shows.
 - **Votes are private until the reveal,** enforced by the server's per-viewer projection, not by the client hiding them.
-- **Nothing is stored on the server:** no accounts, no database. Rooms hold first names, votes, the ticket text and any points, kept in memory only, and are gone when the room empties or the server restarts. The ticket text is never logged. The browser keeps its session token, the last name used, the theme and the Facilitate setting, in its own storage.
+- **Nothing is stored on the server:** no accounts, no database. Rooms hold first names, votes, the ticket text and any points, kept in memory only, and are gone when the room empties or the server restarts. The ticket text is never logged. The browser keeps its session token, the last name used, the theme, the Facilitate setting and whether Ticket name and Timer are on, in its own storage.
 - **Logs:** the server logs each request's client address and the type of each message, never names or votes, and room ids only in hashed form. What is logged, and for how long, is being written up for launch ([#65](https://github.com/ekutnik/planning-poker/issues/65)).
 - **Headers:** a strict Content-Security-Policy on every page, and HSTS in production (see [Security headers](#security-headers)).
 
