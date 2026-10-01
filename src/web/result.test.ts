@@ -33,6 +33,13 @@ function revealed(
     viewerId: "Ada",
     ticket: null,
     scores: null,
+    timer: {
+      durationMs: 60_000,
+      state: "idle",
+      endsAt: null,
+      remainingMs: null,
+    },
+    revealCause: null,
     participants,
     results: {
       voteCount: votes.filter((vote) => vote !== null).length,
@@ -183,6 +190,12 @@ describe("phaseAnnouncement: only a change of phase is announced", () => {
     viewerId: "Ada",
     ticket: null,
     scores: null,
+    timer: {
+      durationMs: 60_000,
+      state: "idle",
+      endsAt: null,
+      remainingMs: null,
+    },
     yourVote: null,
     participants: [],
   };

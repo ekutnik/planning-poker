@@ -144,6 +144,7 @@ describe("type scale (docs/design.md, Type)", () => {
     control: [15, 15],
     small: [14, 14],
     ticket: [18, 26],
+    timer: [17, 20],
   };
 
   const sizes = (block: string): Record<string, number> => {

@@ -52,6 +52,32 @@ describe("parseClientMessage — setScoring", () => {
   });
 });
 
+describe("parseClientMessage — the timer", () => {
+  it.each([
+    { type: "timerSetDuration", ms: 60_000 },
+    { type: "timerStart" },
+    { type: "timerPause" },
+    { type: "timerResume" },
+    { type: "timerAdd" },
+  ])("accepts $type", (message) => {
+    expect(parseClientMessage(JSON.stringify(message))).toEqual(message);
+  });
+
+  it.each([
+    ["a duration as a string", { type: "timerSetDuration", ms: "60000" }],
+    ["a fraction of a millisecond", { type: "timerSetDuration", ms: 1.5 }],
+    ["a negative duration", { type: "timerSetDuration", ms: -1 }],
+    ["more than an hour", { type: "timerSetDuration", ms: 3_600_001 }],
+    [
+      "an amount on +30 s: the server decides it",
+      { type: "timerAdd", ms: 600_000 },
+    ],
+    ["a deadline from the client", { type: "timerStart", endsAt: 1 }],
+  ])("rejects %s", (_, message) => {
+    expect(parseClientMessage(JSON.stringify(message))).toBeNull();
+  });
+});
+
 describe("parseClientMessage — rejections", () => {
   it("rejects an unknown message type", () => {
     expect(parseClientMessage(JSON.stringify({ type: "nuke" }))).toBeNull();

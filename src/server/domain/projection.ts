@@ -4,6 +4,7 @@ import type {
   RevealedParticipantView,
   RoomSnapshot,
   Scores,
+  TimerView,
   VotingParticipantView,
 } from "../../shared/snapshot.js";
 import type { Room } from "./room.js";
@@ -39,6 +40,8 @@ export function project(room: Room, viewerId: ParticipantId): RoomSnapshot {
       results: computeResults(room),
       ticket: room.ticket,
       scores: scoresFor(room),
+      timer: timerView(room),
+      revealCause: room.revealCause,
     };
   }
 
@@ -62,7 +65,14 @@ export function project(room: Room, viewerId: ParticipantId): RoomSnapshot {
     participants,
     ticket: room.ticket,
     scores: scoresFor(room),
+    timer: timerView(room),
   };
+}
+
+/** The timer, written out field by field like every view. */
+function timerView(room: Room): TimerView {
+  const { durationMs, state, endsAt, remainingMs } = room.timer;
+  return { durationMs, state, endsAt, remainingMs };
 }
 
 /** Everyone's points in join order, or null while scoring is off. */

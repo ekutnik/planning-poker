@@ -23,6 +23,7 @@ export const ERROR_COPY: Readonly<Record<ErrorCode, string | null>> = {
     "The server couldn't read that. Reload the page to get the latest version.",
   RATE_LIMITED: "That was a lot at once. Wait a moment, then try again.",
   TICKET_TOO_LONG: "That ticket is too long. Keep it to 120 characters.",
+  INVALID_DURATION: "Choose a time from 10 seconds to 10 minutes.",
 };
 
 export interface StopCopy {
@@ -152,6 +153,32 @@ export const SCORE_COPY = {
   /** For a screen reader: "1 point", "3 points". */
   spoken: (points: number) =>
     points === 1 ? "1 point" : `${String(points)} points`,
+} as const;
+
+/** The timer (ADR 0008): the facilitator's controls and everyone's line. */
+export const TIMER_COPY = {
+  label: "Timer",
+  custom: "Custom…",
+  customLabel: "Custom time",
+  customHint: "Minutes and seconds, from 0:10 to 10:00",
+  /** Under the row, while a custom time is out of range: the server's words. */
+  invalid: "Choose a time from 10 seconds to 10 minutes.",
+  start: "Start",
+  pause: "Pause the timer",
+  resume: "Resume the timer",
+  add: "+30 s",
+  addLabel: "Add 30 seconds",
+  left: "left",
+  paused: "Paused",
+  /** After the numeral, for everyone but the facilitator. */
+  thenRevealed: "left, then votes are revealed",
+  pausedAt: (clock: string) => `Paused at ${clock}`,
+  /** Said once each. The countdown itself is never said. */
+  started: (words: string) => `Timer started: ${words}.`,
+  tenLeft: "10 seconds left.",
+  /** The timer ran out with no votes: nothing was revealed. */
+  nobodyVoted: "Time's up. Nobody has voted yet.",
+  timesUp: "Time's up.",
 } as const;
 
 /** The ticket being estimated, above the room (Ticket). */

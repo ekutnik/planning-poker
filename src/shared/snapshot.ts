@@ -38,6 +38,7 @@ export type RoomSnapshot =
       /** The ticket being estimated, the same for everyone; null for none. */
       readonly ticket: string | null;
       readonly scores: Scores | null;
+      readonly timer: TimerView;
     }
   | {
       readonly phase: "revealed";
@@ -48,7 +49,24 @@ export type RoomSnapshot =
       readonly results: Results;
       readonly ticket: string | null;
       readonly scores: Scores | null;
+      readonly timer: TimerView;
+      /** "timer" when the timer revealed this round; null when a person did. */
+      readonly revealCause: "timer" | null;
     };
+
+/**
+ * The room's timer (ADR 0008), the same for everyone. Times are the
+ * server's: `endsAt` is its epoch in ms, while running; `remainingMs` is set
+ * while paused. Neither changes unless the timer does, so snapshots stay
+ * deterministic; the server's clock reading travels beside the snapshot, as
+ * `serverNow`, never in it.
+ */
+export interface TimerView {
+  readonly durationMs: number;
+  readonly state: "idle" | "running" | "paused";
+  readonly endsAt: number | null;
+  readonly remainingMs: number | null;
+}
 
 /**
  * Keep score: every participant's points, the same for everyone, keyed by

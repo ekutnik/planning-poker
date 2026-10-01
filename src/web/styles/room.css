@@ -62,7 +62,13 @@ button:disabled {
 }
 
 .round--voting.round--facilitator {
-  grid-template-areas: "status" "people" "deck" "own" "controls";
+  grid-template-areas: "status" "people" "deck" "own" "timer" "controls";
+}
+
+/* A participant sees a running or paused timer first, above the status
+   line; the row exists only then, so an idle timer changes nothing. */
+.round--voting.round--participant.round--timed {
+  grid-template-areas: "timer" "status" "people" "deck" "controls";
 }
 
 .round--facilitator .controls {
@@ -484,13 +490,23 @@ button:disabled {
       "people controls";
   }
 
-  /* Controls up front, always in the same place: top right. */
-  .round--voting.round--facilitator {
+  .round--voting.round--participant.round--timed {
     grid-template-areas:
-      "status controls"
-      "people controls"
+      "timer timer"
+      "status deck"
       "people deck"
-      "people own";
+      "people controls";
+  }
+
+  /* Controls up front, always in the same place: top right, with the timer
+     on the same row, to their left. The deck and your own vote span both. */
+  .round--voting.round--facilitator {
+    grid-template-columns: 17.5rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "status timer controls"
+      "people timer controls"
+      "people deck deck"
+      "people own own";
   }
 
   /* After reveal the scale takes the full width, so all ten steps fit,
@@ -633,4 +649,120 @@ button:disabled {
   font-size: var(--text-small);
   font-variant-numeric: tabular-nums;
   text-align: end;
+}
+
+/* The timer (ADR 0008): quiet, small controls, the time in tabular
+   numerals, and a 3 px bar of what is left. */
+.timer {
+  grid-area: timer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-inline-size: 0;
+}
+
+.timer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0;
+}
+
+.timer-icon {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  color: var(--quiet);
+}
+
+.timer-label,
+.timer-word {
+  color: var(--quiet);
+  font-size: var(--text-small);
+}
+
+.timer-time {
+  font-size: var(--text-timer);
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
+  /* As tall as the buttons beside it, so the row doesn't grow on Start. */
+  line-height: 1.75rem;
+}
+
+.timer-time--paused {
+  color: var(--quiet);
+}
+
+/* Start, Pause, Resume and +30 s: the app's small button, as Nudge and
+   Add a ticket are, so the timer reads as a quiet tool beside Reveal votes,
+   the one strong control here; the numerals carry the row. 28px tall, above
+   WCAG 2.2's 24px minimum. The select and the custom field are as tall, so
+   the row keeps its height when Start becomes Pause. */
+.timer-button,
+.timer-select,
+.timer-custom {
+  min-height: 1.75rem; /* 28px */
+  font-size: var(--text-pill);
+}
+
+.timer-button {
+  padding: 0 0.625rem; /* 10px */
+  border-radius: var(--radius-chip);
+}
+
+/* Pause and Resume: square, with a 14px icon. */
+.timer-button--icon {
+  inline-size: 1.75rem;
+  padding: 0;
+}
+
+.timer-button .timer-icon {
+  inline-size: 0.875rem; /* 14px */
+  block-size: 0.875rem;
+  color: currentColor;
+}
+
+.timer-select {
+  padding: 0 var(--space-4);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+}
+
+.timer-custom {
+  inline-size: 4.5rem;
+  min-block-size: 1.75rem;
+  padding: 0 var(--space-8);
+  border-width: 1px;
+  border-radius: var(--radius-chip);
+}
+
+.timer-error {
+  margin: 0;
+  font-size: var(--text-small);
+}
+
+.timer-bar {
+  inline-size: 100%;
+  max-inline-size: 15rem; /* 240px */
+  block-size: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--rule);
+}
+
+.timer--line .timer-bar {
+  max-inline-size: none;
+}
+
+.timer-bar-fill {
+  block-size: 100%;
+  background: var(--cobalt);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .timer-bar-fill {
+    transition: inline-size 150ms linear;
+  }
 }

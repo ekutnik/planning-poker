@@ -129,8 +129,27 @@ export function redactRoomIds(log: RoomLog): RoomLog {
   };
 }
 
+/**
+ * One-shot timers for the room timer (ADR 0008), injected so tests use a
+ * fake one. The production one is setTimeout, unref'd, so a pending timer
+ * never keeps the process alive: shutdown clears them all anyway.
+ */
+export interface Scheduler {
+  set(delayMs: number, callback: () => void): unknown;
+  clear(handle: unknown): void;
+}
+
+export const REAL_SCHEDULER: Scheduler = {
+  set: (delayMs, callback) => setTimeout(callback, delayMs).unref(),
+  clear: (handle) => {
+    clearTimeout(handle as ReturnType<typeof setTimeout>);
+  },
+};
+
 export interface ServiceOptions {
   readonly log?: RoomLog;
+  /** The room timer's scheduler (ADR 0008); setTimeout unless a test fakes it. */
+  readonly scheduler?: Scheduler;
   /** The interval the caller runs sweep() at; sets the stall threshold (#26). */
   readonly sweepIntervalMs?: number;
   /** How long a room may stay empty before the sweep evicts it (#18). */
@@ -161,7 +180,9 @@ interface Binding {
 /**
  * Transport-agnostic room registry. Sockets are a Connection; Fastify is just
  * one adapter. Time comes only from the injected clock, and every time-based
- * rule runs in sweep(), so tests use fake time and no timers.
+ * rule runs in sweep(), so tests use fake time. The one exception is the room
+ * timer, whose reveal cannot wait up to a sweep interval: it has one timer
+ * per room with a running timer, from the injected scheduler (ADR 0008).
  */
 export class RoomService {
   private readonly rooms = new Map<string, Room>();
@@ -178,6 +199,15 @@ export class RoomService {
   // sweep forgets an entry once its cooldown has passed, and endCooldowns
   // once its person votes or the round ends.
   private readonly nudgedAt = new Map<string, number>();
+  // One scheduled timeUp per room whose timer is running, with the deadline
+  // it was scheduled for (ADR 0008). Only syncTimer(), clearTimer() and
+  // timeUp() write it, and store() calls syncTimer() on every write of a
+  // room, so it always matches the room; evict() and shutdown() clear it.
+  private readonly timers = new Map<
+    string,
+    { readonly endsAt: number; readonly handle: unknown }
+  >();
+  private readonly scheduler: Scheduler;
   // Weak on purpose: it dedupes a second close() without keeping any connection
   // alive, so it cannot leak. A WeakSet can't be sized, which is why
   // bookkeeping() doesn't report it.
@@ -198,8 +228,10 @@ export class RoomService {
       log = NO_LOG,
       sweepIntervalMs = SWEEP_INTERVAL_MS,
       roomTtlMs = ROOM_TTL_MS,
+      scheduler = REAL_SCHEDULER,
     }: ServiceOptions = {},
   ) {
+    this.scheduler = scheduler;
     this.stallAfterMs = sweepIntervalMs * STALL_INTERVALS;
     this.roomTtlMs = roomTtlMs;
     this.log = redactRoomIds(log);
@@ -302,6 +334,9 @@ export class RoomService {
    */
   shutdown(): void {
     this.stopping = true;
+    // No timer may reveal a round while the process goes, or keep it alive.
+    for (const { handle } of this.timers.values()) this.scheduler.clear(handle);
+    this.timers.clear();
     const everyone = [...this.pending.keys(), ...this.bindings.keys()];
     this.log.info({ type: "shutdown" });
     for (const conn of everyone) conn.close(1001, "going away");
@@ -436,6 +471,7 @@ export class RoomService {
     lastSent: number;
     liveness: number;
     nudges: number;
+    timers: number;
   } {
     let sockets = 0;
     for (const room of this.current.values()) sockets += room.size;
@@ -451,6 +487,7 @@ export class RoomService {
       lastSent: this.lastSent.size,
       liveness: this.liveness.size,
       nudges: this.nudgedAt.size,
+      timers: this.timers.size,
     };
   }
 
@@ -580,7 +617,11 @@ export class RoomService {
     if (command.type === "castVote" || command.type === "leave") {
       this.nudgedAt.delete(nudgeKey(roomId, command.participantId));
     }
-    if (command.type === "reveal" || command.type === "reset") {
+    if (
+      command.type === "reveal" ||
+      command.type === "timeUp" ||
+      command.type === "reset"
+    ) {
       for (const key of this.nudgedAt.keys()) {
         if (key.startsWith(`${roomId} `)) this.nudgedAt.delete(key);
       }
@@ -606,7 +647,9 @@ export class RoomService {
     const key = JSON.stringify(content);
     if (this.lastSent.get(conn) === key) return;
     this.lastSent.set(conn, key);
-    conn.send({ type: "snapshot", snapshot });
+    // serverNow goes beside the snapshot, after the comparison above, so it
+    // never makes an unchanged room send again (ADR 0008).
+    conn.send({ type: "snapshot", snapshot, serverNow: this.clock() });
   }
 
   private sendError(conn: Connection, code: ErrorCode, room?: string): void {
@@ -625,11 +668,67 @@ export class RoomService {
     // when it became empty.
     if (room.participants.size > 0) this.emptySince.delete(room.id);
     else this.emptySince.set(room.id, now);
+    this.syncTimer(room, now);
   }
 
   private evict(roomId: string): void {
     this.rooms.delete(roomId);
     this.emptySince.delete(roomId);
+    this.clearTimer(roomId);
+  }
+
+  /**
+   * Keeps the room's scheduled timeUp in step with its timer (ADR 0008): one
+   * for a running timer, at its deadline; none otherwise. Called on every
+   * write of a room, so a pause, a reveal, Start next round or +30 s moves
+   * or clears it without any path having to remember to.
+   */
+  private syncTimer(room: Room, now: number): void {
+    const { state, endsAt } = room.timer;
+    if (state !== "running" || endsAt === null) {
+      this.clearTimer(room.id);
+      return;
+    }
+    if (this.timers.get(room.id)?.endsAt === endsAt) return;
+    this.clearTimer(room.id);
+    const handle = this.scheduler.set(Math.max(0, endsAt - now), () => {
+      this.timeUp(room.id, endsAt);
+    });
+    this.timers.set(room.id, { endsAt, handle });
+  }
+
+  private clearTimer(roomId: string): void {
+    const scheduled = this.timers.get(roomId);
+    if (!scheduled) return;
+    this.scheduler.clear(scheduled.handle);
+    this.timers.delete(roomId);
+  }
+
+  /**
+   * A scheduled deadline arrived. Everything is checked again before acting,
+   * because a callback can outlive what it was scheduled for: the room must
+   * still exist, its timer must still be running with this same deadline,
+   * and the deadline must have passed. A stale callback does nothing; one
+   * that fired early is scheduled again. Only then is timeUp applied, and
+   * the domain checks it once more.
+   */
+  private timeUp(roomId: string, endsAt: number): void {
+    if (this.timers.get(roomId)?.endsAt === endsAt) this.timers.delete(roomId);
+    if (this.stopping) return;
+    const room = this.rooms.get(roomId);
+    if (room?.timer.state !== "running" || room.timer.endsAt !== endsAt) return;
+    const now = this.clock();
+    if (now < endsAt) {
+      this.syncTimer(room, now);
+      return;
+    }
+    const command = { type: "timeUp" } as const;
+    const result = applyCommand(room, command, now);
+    if (!result.ok || result.room === room) return;
+    this.store(result.room, now);
+    this.endCooldowns(roomId, command);
+    this.log.info({ room: roomId, type: "time-up" });
+    this.broadcast(result.room);
   }
 
   private forget(conn: Connection): void {
@@ -666,6 +765,13 @@ function toCommand(
       return { type: "setTicket", participantId, text: message.text };
     case "setScoring":
       return { type: "setScoring", participantId, on: message.on };
+    case "timerSetDuration":
+      return { type: "timerSetDuration", participantId, ms: message.ms };
+    case "timerStart":
+    case "timerPause":
+    case "timerResume":
+    case "timerAdd":
+      return { type: message.type, participantId };
   }
 }
 

@@ -22,6 +22,12 @@ function snapshot(yourVote: Card | null): Voting {
     viewerId: "me",
     ticket: null,
     scores: null,
+    timer: {
+      durationMs: 60_000,
+      state: "idle",
+      endsAt: null,
+      remainingMs: null,
+    },
     yourVote,
     participants: [
       {

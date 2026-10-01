@@ -16,6 +16,8 @@ const snapshot: Revealed = {
   viewerId: "Ada",
   ticket: null,
   scores: null,
+  timer: { durationMs: 60_000, state: "idle", endsAt: null, remainingMs: null },
+  revealCause: null,
   participants: [
     { id: "Ada", name: "Ada", status: "connected", vote: "3" },
     { id: "Ben", name: "Ben", status: "connected", vote: "8" },
@@ -231,6 +233,12 @@ describe("the room's fade", () => {
       viewerId: "Ada",
       ticket: null,
       scores: null,
+      timer: {
+        durationMs: 60_000,
+        state: "idle",
+        endsAt: null,
+        remainingMs: null,
+      },
       yourVote: null,
       participants: [
         { id: "Ada", name: "Ada", status: "connected", hasVoted: false },

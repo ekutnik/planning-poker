@@ -12,6 +12,7 @@ import { OwnVote, stillShown } from "./OwnVote.js";
 import { People } from "./People.js";
 import { ScreenHeading } from "./ScreenHeading.js";
 import { roundStatus } from "./status.js";
+import { TimerControls, TimerLine } from "./Timer.js";
 import { voteFor } from "./view.js";
 
 type Voting = Extract<RoomSnapshot, { phase: "voting" }>;
@@ -76,8 +77,11 @@ export function VotingView({
     <div
       className={`round round--voting ${
         facilitating ? "round--facilitator" : "round--participant"
-      }`}
+      }${!facilitating && snapshot.timer.state !== "idle" ? " round--timed" : ""}`}
     >
+      {/* Everyone else's view of a running or paused timer: first, above
+          the status line. Nothing, and no row for it, while idle. */}
+      {!facilitating && <TimerLine timer={snapshot.timer} />}
       <ScreenHeading className="status" onShown={onHeadingShown}>
         {facilitating ? status.facilitatorLine : status.participantLine}
       </ScreenHeading>
@@ -134,6 +138,11 @@ export function VotingView({
             onAction({ type: "clearVote" });
           }}
         />
+      )}
+      {/* The facilitator's timer, beside Reveal votes in wide, above the
+          pinned bar in compact; before the controls in keyboard order. */}
+      {facilitating && (
+        <TimerControls timer={snapshot.timer} live={live} onAction={onAction} />
       )}
       {/* Last in the DOM, so keyboard order follows the task: read the
           status, see who is in, vote, then reveal. Wide shows the controls

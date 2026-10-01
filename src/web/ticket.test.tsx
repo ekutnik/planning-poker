@@ -73,6 +73,12 @@ describe("the ticket in the room", () => {
     viewerId: "ada",
     ticket,
     scores: null,
+    timer: {
+      durationMs: 60_000,
+      state: "idle",
+      endsAt: null,
+      remainingMs: null,
+    },
     yourVote: null,
     participants: [
       { id: "ada", name: "Ada", status: "connected", hasVoted: false },
