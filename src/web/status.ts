@@ -14,8 +14,6 @@ export interface RoundStatus {
   readonly participantLine: string;
   /** "Waiting for Cy. Fay is away.", or "Everyone has voted". */
   readonly facilitatorLine: string;
-  /** "1 hasn't voted", beside the reveal button; null once everyone has. */
-  readonly notVotedLine: string | null;
 }
 
 /**
@@ -40,7 +38,6 @@ export function roundStatus(snapshot: Voting): RoundStatus {
     away.length === 0
       ? ""
       : `. ${listNames(away)} ${away.length === 1 ? "is" : "are"} away.`;
-  const notVoted = counted.length - voted;
 
   return {
     counted: counted.length,
@@ -54,10 +51,6 @@ export function roundStatus(snapshot: Voting): RoundStatus {
       (everyone
         ? "Everyone has voted"
         : `Waiting for ${listNames(waitingFor)}`) + awaySentence,
-    notVotedLine:
-      notVoted === 0
-        ? null
-        : `${notVoted} ${notVoted === 1 ? "hasn't" : "haven't"} voted`,
   };
 }
 

@@ -12,13 +12,14 @@ import { OwnVote, stillShown } from "./OwnVote.js";
 import { People } from "./People.js";
 import { ScreenHeading } from "./ScreenHeading.js";
 import { roundStatus } from "./status.js";
-import { TimerControls, TimerLine } from "./Timer.js";
 import { voteFor } from "./view.js";
 
 type Voting = Extract<RoomSnapshot, { phase: "voting" }>;
 
 /**
- * The voting screen, one tree for both layouts (CSS grid areas switch them).
+ * The voting screen's part of the round, one tree for both layouts: its
+ * children are items of the round's grid (RoomView), whose areas switch
+ * them.
  * In the facilitator view the viewer's own vote is not rendered unless they
  * press Show my vote: the deck gets no selection, ever, clicking a card
  * always casts it (toggling would mean a click on the hidden choice clears
@@ -74,36 +75,34 @@ export function VotingView({
   );
 
   return (
-    <div
-      className={`round round--voting ${
-        facilitating ? "round--facilitator" : "round--participant"
-      }${!facilitating && snapshot.timer.state !== "idle" ? " round--timed" : ""}`}
-    >
-      {/* Everyone else's view of a running or paused timer: first, above
-          the status line. Nothing, and no row for it, while idle. */}
-      {!facilitating && <TimerLine timer={snapshot.timer} />}
-      <ScreenHeading className="status" onShown={onHeadingShown}>
-        {facilitating ? status.facilitatorLine : status.participantLine}
-      </ScreenHeading>
-      <People
-        participants={snapshot.participants}
-        viewerId={snapshot.viewerId}
-        scores={snapshot.scores}
-        nudges={
-          facilitating
-            ? {
-                sent: standing,
-                live,
-                onNudge: (participantId) => {
-                  onAction({ type: "nudge", participantId });
-                  setSent((current) =>
-                    new Map(current).set(participantId, Date.now()),
-                  );
-                },
-              }
-            : undefined
-        }
-      />
+    <>
+      {/* The status line and the people, one column of their own in wide,
+          so a status that wraps onto more lines pushes only the people
+          down, never the deck. */}
+      <div className="round-side">
+        <ScreenHeading className="status" onShown={onHeadingShown}>
+          {facilitating ? status.facilitatorLine : status.participantLine}
+        </ScreenHeading>
+        <People
+          participants={snapshot.participants}
+          viewerId={snapshot.viewerId}
+          scores={snapshot.scores}
+          nudges={
+            facilitating
+              ? {
+                  sent: standing,
+                  live,
+                  onNudge: (participantId) => {
+                    onAction({ type: "nudge", participantId });
+                    setSent((current) =>
+                      new Map(current).set(participantId, Date.now()),
+                    );
+                  },
+                }
+              : undefined
+          }
+        />
+      </div>
       {/* The deck's own container, so the deck can choose ten cards in a
           row or two rows of five by the width it actually has. */}
       <div className="deck-area" ref={deckArea}>
@@ -139,20 +138,11 @@ export function VotingView({
           }}
         />
       )}
-      {/* The facilitator's timer, beside Reveal votes in wide, above the
-          pinned bar in compact; before the controls in keyboard order. */}
-      {facilitating && (
-        <TimerControls timer={snapshot.timer} live={live} onAction={onAction} />
-      )}
       {/* Last in the DOM, so keyboard order follows the task: read the
           status, see who is in, vote, then reveal. Wide shows the controls
-          top right; grid areas move them without reordering (design.md). */}
-      <div className="controls">
-        {reveal}
-        {facilitating && status.notVotedLine && (
-          <p className="not-voted">{status.notVotedLine}</p>
-        )}
-      </div>
-    </div>
+          at the end of the action row; grid areas move them without
+          reordering (design.md). */}
+      <div className="controls">{reveal}</div>
+    </>
   );
 }

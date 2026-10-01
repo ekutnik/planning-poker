@@ -143,8 +143,10 @@ describe("type scale (docs/design.md, Type)", () => {
     wordmark: [14, 17],
     control: [15, 15],
     small: [14, 14],
-    ticket: [18, 26],
-    timer: [17, 20],
+    ticket: [17, 20],
+    timer: [17, 17],
+    label: [12, 12],
+    field: [16, 16],
   };
 
   const sizes = (block: string): Record<string, number> => {

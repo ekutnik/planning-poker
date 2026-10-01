@@ -12,11 +12,17 @@ import { roomTitle, roomTitleAndBanner, useDocumentTitle } from "./title.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { RevealedView } from "./RevealedView.js";
 import { Ticket } from "./Ticket.js";
+import { TimerControls, TimerReadout } from "./Timer.js";
+import type { Tools } from "./tools.js";
 import { VotingView } from "./VotingView.js";
 
 /**
- * The room: banners, then the voting screen or the revealed round. The room
- * id is never shown; Copy link in the header shares it.
+ * The room: banners, then the round. The round is one grid for both
+ * phases, whose first row is the action row: the ticket slot, the timer
+ * and the round's one action. The ticket and the timer are rendered here,
+ * above the phase, so they stay in the page across the reveal: an open
+ * edit and a focused Edit button survive it. The room id is never shown;
+ * Copy link in the header shares it.
  */
 export function RoomView({
   snapshot,
@@ -25,6 +31,7 @@ export function RoomView({
   banner,
   notice,
   persistent,
+  tools = NO_TOOLS,
   nudged = false,
   onAction,
 }: {
@@ -34,6 +41,8 @@ export function RoomView({
   readonly banner: string | null;
   readonly notice: string | null;
   readonly persistent: boolean;
+  /** This browser's Session tools, which the facilitator view follows. */
+  readonly tools?: Tools;
   /** Someone nudged you, and it still stands (RoomSession). */
   readonly nudged?: boolean;
   readonly onAction: (action: RoomAction) => void;
@@ -95,6 +104,17 @@ export function RoomView({
     onAction({ type: "setTicket", text });
   };
 
+  const voting = snapshot.phase === "voting";
+  const ticketEditable = facilitating && tools.ticket;
+  // The facilitator's timer while voting with Timer on; otherwise anyone's
+  // view of a timer that runs or is paused, whatever their own settings.
+  const timerControls = voting && facilitating && tools.timer;
+  const timerShown =
+    timerControls || (voting && snapshot.timer.state !== "idle");
+  // On a phone the ticket and the timer are a block of their own, at the
+  // top, only while there is something in it (docs/design.md).
+  const tooled = snapshot.ticket !== null || ticketEditable || timerShown;
+
   const onHeadingShown = useCallback((tookFocus: boolean) => {
     setSpeech((current) =>
       current.pending === null
@@ -124,29 +144,48 @@ export function RoomView({
       <div role="status" className="nudge-region">
         {nudgeBanner && <p className="nudge-banner">{nudgeBanner}</p>}
       </div>
-      <Ticket
-        ticket={snapshot.ticket}
-        facilitating={facilitating}
-        live={live}
-        onSave={saveTicket}
-      />
-      {snapshot.phase === "voting" ? (
-        <VotingView
-          snapshot={snapshot}
-          facilitating={facilitating}
-          live={live}
-          onHeadingShown={onHeadingShown}
-          onAction={onAction}
-        />
-      ) : (
-        <RevealedView
-          snapshot={snapshot}
-          facilitating={facilitating}
-          live={live}
-          onHeadingShown={onHeadingShown}
-          onAction={onAction}
-        />
-      )}
+      <div
+        className={`round round--${snapshot.phase} ${
+          facilitating ? "round--facilitator" : "round--participant"
+        }${tooled ? " round--tooled" : ""}`}
+      >
+        <div className="round-tools">
+          <Ticket
+            ticket={snapshot.ticket}
+            editable={ticketEditable}
+            live={live}
+            onSave={saveTicket}
+          />
+          {timerControls ? (
+            <TimerControls
+              timer={snapshot.timer}
+              live={live}
+              onAction={onAction}
+            />
+          ) : (
+            voting && <TimerReadout timer={snapshot.timer} />
+          )}
+        </div>
+        {snapshot.phase === "voting" ? (
+          <VotingView
+            snapshot={snapshot}
+            facilitating={facilitating}
+            live={live}
+            onHeadingShown={onHeadingShown}
+            onAction={onAction}
+          />
+        ) : (
+          <RevealedView
+            snapshot={snapshot}
+            facilitating={facilitating}
+            live={live}
+            onHeadingShown={onHeadingShown}
+            onAction={onAction}
+          />
+        )}
+      </div>
     </main>
   );
 }
+
+const NO_TOOLS: Tools = { ticket: false, timer: false };

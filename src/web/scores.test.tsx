@@ -126,12 +126,13 @@ describe("Keep score in the Menu", () => {
     expect(menu({ on: false, live: true })).toContain("Keep score");
   });
 
-  it("comes first, above Facilitate, with its description", () => {
+  it("is in the Session tools, above Facilitate, with its description", () => {
     const html = menu({ on: false, live: true });
-    expect(html.indexOf("Keep score")).toBeLessThan(html.indexOf("Facilitate"));
-    expect(html).toContain(
-      "Shows everyone&#x27;s points: one when a vote matches the result. For this session only.",
+    expect(html.indexOf("Session tools")).toBeLessThan(
+      html.indexOf("Keep score"),
     );
+    expect(html.indexOf("Keep score")).toBeLessThan(html.indexOf("Facilitate"));
+    expect(html).toContain("A point when a vote matches the result.");
   });
 
   it("is a switch showing the room's setting, disabled while reconnecting", () => {

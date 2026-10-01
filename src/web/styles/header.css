@@ -120,6 +120,27 @@
   font-size: var(--text-control);
 }
 
+/* The Menu's groups: Session tools, then Just for you. */
+.menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.menu-heading {
+  margin: 0;
+  color: var(--quiet);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+}
+
+/* A switch's description in the Menu: lines short enough to read at a
+   glance, so "Reveal the votes when time" and "A point when a vote
+   matches" end their first lines at the default size. */
+.menu-panel .switch-note {
+  max-inline-size: 12rem; /* 192px */
+}
+
 .menu-divider {
   margin: 0;
   border: 0;
