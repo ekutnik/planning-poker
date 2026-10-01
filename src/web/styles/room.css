@@ -629,6 +629,52 @@ button:disabled {
     padding: 0;
     border: 0;
   }
+
+  /* The room's own width decides the rule below. */
+  .room-screen {
+    container: room / inline-size;
+  }
+}
+
+/* A narrower wide window, below about 1030px: the action row cannot hold a
+   ticket being edited beside the timer and the action, so the ticket slot
+   takes a row of its own, above them. Both rows are always there at this
+   width, so nothing moves here either; the status line lines up with the
+   ticket's row. */
+@container room (width < 58.5rem) {
+  .round--voting {
+    grid-template-rows: auto auto auto auto 1fr;
+  }
+
+  .round--voting.round--participant,
+  .round--tooled.round--voting.round--participant {
+    grid-template-areas:
+      "side . ticket ticket ticket"
+      "side . . timer controls"
+      "side . deck deck deck"
+      "side . . . ."
+      "side . . . .";
+  }
+
+  .round--voting.round--facilitator,
+  .round--tooled.round--voting.round--facilitator {
+    grid-template-areas:
+      "side . ticket ticket ticket"
+      "side . . timer controls"
+      "side . deck deck deck"
+      "side . own own own"
+      "side . . . .";
+  }
+
+  .round--revealed,
+  .round--tooled.round--revealed {
+    grid-template-areas:
+      "status . ticket ticket ticket"
+      ". . . timer controls"
+      "scale scale scale scale scale"
+      "result result result result result"
+      "people people people people people";
+  }
 }
 
 /* All ten across, on one baseline, once every column can be as wide as a
@@ -684,9 +730,12 @@ button:disabled {
 
 .ticket-label {
   margin: 0;
+  overflow: hidden;
   color: var(--quiet);
   font-size: var(--text-label);
   line-height: 1rem; /* 16px */
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ticket-row {

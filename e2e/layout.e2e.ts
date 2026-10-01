@@ -42,67 +42,110 @@ async function toggle(page: Page, name: string) {
   await expect(page.locator(".menu-panel")).toBeHidden();
 }
 
+/** Pairs of the action row's parts that overlap: none, at any width. */
+async function overlaps(page: Page) {
+  return page.evaluate(() => {
+    const parts = [
+      ...document.querySelectorAll<HTMLElement>(
+        ".ticket-label, .ticket-row > *, .timer-block, .controls button",
+      ),
+    ].map((element) => ({
+      name: element.className,
+      box: element.getBoundingClientRect(),
+    }));
+    const found: string[] = [];
+    for (const [i, a] of parts.entries()) {
+      for (const b of parts.slice(i + 1)) {
+        if (
+          a.box.left < b.box.right - 0.5 &&
+          b.box.left < a.box.right - 0.5 &&
+          a.box.top < b.box.bottom - 0.5 &&
+          b.box.top < a.box.bottom - 0.5
+        ) {
+          found.push(`${a.name} / ${b.name}`);
+        }
+      }
+    }
+    return found;
+  });
+}
+
 async function join(
   people: People,
   roomId: string,
   name: string,
   options: Omit<PersonOptions, "name"> = {},
+  size = WIDE,
 ) {
   const person = await people.join(roomId, name, options);
-  await person.page.setViewportSize(WIDE);
+  await person.page.setViewportSize(size);
   return person;
 }
 
-test("nothing moves in the facilitator view as each tool comes and is used", async ({
-  people,
-  baseURL,
-}) => {
-  const roomId = await newRoom(baseURL ?? "");
-  const ada = await join(people, roomId, "Ada", { facilitate: true });
-  await join(people, roomId, "Ben");
-  const page = ada.page;
-  const still = await positions(page);
-  const check = async (step: string) => {
-    expect(await positions(page), step).toEqual(still);
-  };
+// 880px: the narrowest wide window, where the ticket has a row of its own.
+for (const width of [1280, 880]) {
+  test(`nothing moves in the facilitator view as each tool comes and is used, ${String(width)} px`, async ({
+    people,
+    baseURL,
+  }) => {
+    const roomId = await newRoom(baseURL ?? "");
+    const size = { width, height: 800 };
+    const ada = await join(people, roomId, "Ada", { facilitate: true }, size);
+    await join(people, roomId, "Ben");
+    const page = ada.page;
+    const still = await positions(page);
+    const check = async (step: string) => {
+      expect(await positions(page), step).toEqual(still);
+      expect(await overlaps(page), step).toEqual([]);
+    };
 
-  await toggle(page, "Ticket");
-  await expect(
-    page.getByRole("button", { name: "Add a ticket" }),
-  ).toBeVisible();
-  await check("Ticket on");
-  await toggle(page, "Timer");
-  await expect(
-    page.getByRole("button", { name: "Start the timer" }),
-  ).toBeVisible();
-  await check("Timer on");
-  await toggle(page, "Keep score");
-  await expect(page.getByText("0 pts").first()).toBeVisible();
-  await check("Keep score on");
-  await page.getByRole("button", { name: "Start the timer" }).click();
-  await expect(
-    page.getByRole("button", { name: "Pause the timer" }),
-  ).toBeVisible();
-  await check("timer running");
-  await page.getByRole("button", { name: "Add a ticket" }).click();
-  await expect(page.getByLabel("Now estimating")).toBeFocused();
-  await check("adding a ticket");
-  await page
-    .getByLabel("Now estimating")
-    .fill("PROJ-482 Admins can sign in with SSO from the company directory");
-  await page.getByLabel("Now estimating").press("Enter");
-  await expect(page.locator(".ticket-text")).toBeVisible();
-  await check("a ticket");
-  await page.getByRole("button", { name: "Edit the ticket" }).click();
-  await expect(page.getByLabel("Now estimating")).toBeFocused();
-  await check("editing the ticket");
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Pause the timer" }).click();
-  await expect(
-    page.getByRole("button", { name: "Resume the timer" }),
-  ).toBeVisible();
-  await check("timer paused");
-});
+    await toggle(page, "Ticket");
+    await expect(
+      page.getByRole("button", { name: "Add a ticket" }),
+    ).toBeVisible();
+    await check("Ticket on");
+    await toggle(page, "Timer");
+    await expect(
+      page.getByRole("button", { name: "Start the timer" }),
+    ).toBeVisible();
+    await check("Timer on");
+    await toggle(page, "Keep score");
+    await expect(page.getByText("0 pts").first()).toBeVisible();
+    await check("Keep score on");
+    await page.getByRole("button", { name: "Start the timer" }).click();
+    await expect(
+      page.getByRole("button", { name: "Pause the timer" }),
+    ).toBeVisible();
+    await check("timer running");
+    await page.getByRole("button", { name: "Add a ticket" }).click();
+    await expect(page.getByLabel("Now estimating")).toBeFocused();
+    await check("adding a ticket");
+    await page
+      .getByLabel("Now estimating")
+      .fill("PROJ-482 Admins can sign in with SSO from the company directory");
+    await page.getByLabel("Now estimating").press("Enter");
+    await expect(page.locator(".ticket-text")).toBeVisible();
+    await check("a ticket");
+    await page.getByRole("button", { name: "Edit the ticket" }).click();
+    await expect(page.getByLabel("Now estimating")).toBeFocused();
+    await check("editing the ticket");
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Pause the timer" }).click();
+    await expect(
+      page.getByRole("button", { name: "Resume the timer" }),
+    ).toBeVisible();
+    await check("timer paused");
+    await page.getByRole("button", { name: "Resume the timer" }).click();
+    await ada.card("5").click();
+    await expect(page.getByText("You've voted")).toBeVisible();
+    await check("your own vote");
+    await page.getByRole("button", { name: "Reveal votes" }).click();
+    await page.getByRole("button", { name: "Start next round" }).click();
+    await page.getByRole("combobox", { name: "Timer" }).selectOption("custom");
+    await expect(page.getByLabel("Custom time")).toBeFocused();
+    await check("a custom time");
+  });
+}
 
 test("nothing moves for a participant as a ticket and a timer arrive", async ({
   people,
