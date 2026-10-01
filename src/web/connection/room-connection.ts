@@ -271,13 +271,13 @@ export class RoomConnection {
     if (!message) return; // unknown types are ignored (forward compatibility)
     switch (message.type) {
       case "snapshot":
-        // The timer's deadline, moved from the server's clock to this one.
+        // The timer's deadline, moved from the server's clock into Date.now(),
+        // the clock the countdown and its announcements read (Timer.tsx,
+        // RoomView). Deliberately not this.deps.clock, which only times the
+        // connection: if that ever became performance.now(), every
+        // countdown would break.
         this.handleSnapshot(
-          inLocalTime(
-            message.snapshot,
-            message.serverNow,
-            this.deps.clock.now(),
-          ),
+          inLocalTime(message.snapshot, message.serverNow, Date.now()),
         );
         return;
       case "error":

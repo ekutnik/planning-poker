@@ -65,7 +65,7 @@ describe("the facilitator's timer", () => {
       '<span class="timer-time">1:24</span><span class="timer-word">left</span>',
     );
     expect(buttons(html)).toEqual([
-      '<button type="button" class="timer-button" aria-label="Pause the timer">',
+      '<button type="button" class="timer-button timer-button--icon" aria-label="Pause the timer">',
       '<button type="button" class="timer-button" aria-label="Add 30 seconds">',
     ]);
     expect(html).toContain('<div class="timer-bar" aria-hidden="true">');

@@ -1,4 +1,5 @@
 import type { RoomSnapshot, TimerView } from "../shared/snapshot.js";
+import { TIMER_COPY } from "./copy.js";
 
 /**
  * The timer in the browser (ADR 0008). The server holds the deadline in its
@@ -72,4 +73,47 @@ export function presetLabel(ms: number): string {
 export function tenSecondsWait(endsAt: number, now: number): number | null {
   const wait = endsAt - 10_000 - now;
   return wait > 0 ? wait : null;
+}
+
+/** What the timer's announcements need to remember from one snapshot to the next. */
+export interface TimerSeen {
+  readonly state: TimerView["state"];
+  /** While voting, whether anyone had voted. */
+  readonly anyVote: boolean;
+}
+
+export function timerSeen(snapshot: RoomSnapshot): TimerSeen {
+  return {
+    state: snapshot.timer.state,
+    anyVote:
+      snapshot.phase === "voting" &&
+      snapshot.participants.some((p) => p.hasVoted),
+  };
+}
+
+/**
+ * What to say when the timer changes, once: "Timer started: …" when it
+ * starts (not on Resume), and "Time's up. Nobody has voted yet." when it
+ * ran out with no votes, so nothing was revealed. That is the one way a
+ * running timer goes idle while the round goes on with nobody having voted:
+ * Start next round stops it only when there are votes to clear, and a
+ * reveal changes the phase. null means say nothing.
+ */
+export function timerAnnouncement(
+  before: TimerSeen,
+  snapshot: RoomSnapshot,
+): string | null {
+  const { state, durationMs } = snapshot.timer;
+  if (before.state === "idle" && state === "running") {
+    return TIMER_COPY.started(durationWords(durationMs));
+  }
+  if (
+    before.state === "running" &&
+    state === "idle" &&
+    snapshot.phase === "voting" &&
+    !before.anyVote
+  ) {
+    return TIMER_COPY.nobodyVoted;
+  }
+  return null;
 }

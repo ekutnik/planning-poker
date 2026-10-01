@@ -7,7 +7,7 @@ import {
 } from "./announce.js";
 import { cleanTicket } from "../shared/rules.js";
 import { NOT_SAVED_COPY, TICKET_COPY, TIMER_COPY } from "./copy.js";
-import { durationWords, tenSecondsWait } from "./countdown.js";
+import { tenSecondsWait, timerAnnouncement, timerSeen } from "./countdown.js";
 import { roomTitle, roomTitleAndBanner, useDocumentTitle } from "./title.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { RevealedView } from "./RevealedView.js";
@@ -71,15 +71,12 @@ export function RoomView({
   }
   // The timer, said once each through the same region: when it starts, and
   // when 10 seconds are left. The countdown itself is never said.
-  const [timerState, setTimerState] = useState(snapshot.timer.state);
-  if (snapshot.timer.state !== timerState) {
-    setTimerState(snapshot.timer.state);
-    if (timerState === "idle" && snapshot.timer.state === "running") {
-      setSpeech({
-        pending: null,
-        text: TIMER_COPY.started(durationWords(snapshot.timer.durationMs)),
-      });
-    }
+  const [seen, setSeen] = useState(() => timerSeen(snapshot));
+  const now = timerSeen(snapshot);
+  if (now.state !== seen.state || now.anyVote !== seen.anyVote) {
+    setSeen(now);
+    const text = timerAnnouncement(seen, snapshot);
+    if (text !== null) setSpeech({ pending: null, text });
   }
   const { state: runState, endsAt } = snapshot.timer;
   useEffect(() => {

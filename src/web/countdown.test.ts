@@ -8,6 +8,8 @@ import {
   presetLabel,
   remainingMs,
   tenSecondsWait,
+  timerAnnouncement,
+  timerSeen,
 } from "./countdown.js";
 
 /** The timer's arithmetic in the browser (ADR 0008). */
@@ -137,5 +139,53 @@ describe("tenSecondsWait", () => {
     ["less than 10 s left", 15_000, 10_000],
   ])("stays quiet for %s", (_, endsAt, now) => {
     expect(tenSecondsWait(endsAt, now)).toBeNull();
+  });
+});
+
+describe("timerAnnouncement: said once when the timer changes", () => {
+  const voting = (timer: TimerView, anyVote: boolean): RoomSnapshot => ({
+    phase: "voting",
+    roomId: "abcdefghijk",
+    version: 1,
+    viewerId: "me",
+    ticket: null,
+    scores: null,
+    timer,
+    yourVote: null,
+    participants: [
+      { id: "ben", name: "Ben", status: "connected", hasVoted: anyVote },
+    ],
+  });
+  const idle: TimerView = { ...running(0), state: "idle", endsAt: null };
+  const paused: TimerView = {
+    ...running(0),
+    state: "paused",
+    endsAt: null,
+    remainingMs: 5_000,
+  };
+
+  it.each([
+    [
+      "it starts",
+      voting(idle, false),
+      voting(running(1), false),
+      "Timer started: 1 minute.",
+    ],
+    ["it resumes", voting(paused, false), voting(running(1), false), null],
+    ["it pauses", voting(running(1), true), voting(paused, true), null],
+    [
+      "it runs out with nobody having voted",
+      voting(running(1), false),
+      voting(idle, false),
+      "Time's up. Nobody has voted yet.",
+    ],
+    [
+      "Start next round stops it, clearing votes",
+      voting(running(1), true),
+      voting(idle, false),
+      null,
+    ],
+  ] as const)("when %s", (_, before, after, said) => {
+    expect(timerAnnouncement(timerSeen(before), after)).toBe(said);
   });
 });

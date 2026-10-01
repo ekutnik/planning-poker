@@ -161,6 +161,8 @@ export const TIMER_COPY = {
   custom: "Custom…",
   customLabel: "Custom time",
   customHint: "Minutes and seconds, from 0:10 to 10:00",
+  /** Under the row, while a custom time is out of range: the server's words. */
+  invalid: "Choose a time from 10 seconds to 10 minutes.",
   start: "Start",
   pause: "Pause the timer",
   resume: "Resume the timer",
@@ -174,6 +176,8 @@ export const TIMER_COPY = {
   /** Said once each. The countdown itself is never said. */
   started: (words: string) => `Timer started: ${words}.`,
   tenLeft: "10 seconds left.",
+  /** The timer ran out with no votes: nothing was revealed. */
+  nobodyVoted: "Time's up. Nobody has voted yet.",
   timesUp: "Time's up.",
 } as const;
 

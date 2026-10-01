@@ -686,31 +686,61 @@ button:disabled {
   font-size: var(--text-timer);
   font-weight: var(--weight-strong);
   font-variant-numeric: tabular-nums;
+  /* As tall as the buttons beside it, so the row doesn't grow on Start. */
+  line-height: 1.75rem;
 }
 
 .timer-time--paused {
   color: var(--quiet);
 }
 
-/* Start, Pause, Resume and +30 s: smaller than the round's buttons, as the
-   timer is secondary to Reveal, and still well above the 24 px minimum. */
+/* Start, Pause, Resume and +30 s: the app's small button, as Nudge and
+   Add a ticket are, so the timer reads as a quiet tool beside Reveal votes,
+   the one strong control here; the numerals carry the row. 28px tall, above
+   WCAG 2.2's 24px minimum. The select and the custom field are as tall, so
+   the row keeps its height when Start becomes Pause. */
 .timer-button,
-.timer-select {
-  min-height: 2.25rem; /* 36px */
-  min-inline-size: 2.25rem;
+.timer-select,
+.timer-custom {
+  min-height: 1.75rem; /* 28px */
+  font-size: var(--text-pill);
+}
+
+.timer-button {
   padding: 0 0.625rem; /* 10px */
-  font-size: var(--text-small);
+  border-radius: var(--radius-chip);
+}
+
+/* Pause and Resume: square, with a 14px icon. */
+.timer-button--icon {
+  inline-size: 1.75rem;
+  padding: 0;
+}
+
+.timer-button .timer-icon {
+  inline-size: 0.875rem; /* 14px */
+  block-size: 0.875rem;
+  color: currentColor;
 }
 
 .timer-select {
+  padding: 0 var(--space-4);
   border: 1px solid var(--edge);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-chip);
   background: var(--surface);
 }
 
 .timer-custom {
-  inline-size: 5rem;
-  min-block-size: 2.25rem;
+  inline-size: 4.5rem;
+  min-block-size: 1.75rem;
+  padding: 0 var(--space-8);
+  border-width: 1px;
+  border-radius: var(--radius-chip);
+}
+
+.timer-error {
+  margin: 0;
+  font-size: var(--text-small);
 }
 
 .timer-bar {
