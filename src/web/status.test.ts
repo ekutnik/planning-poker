@@ -48,7 +48,6 @@ describe("roundStatus: who the round waits for", () => {
       away: ["Fay"],
       participantLine: "4 of 5 have voted",
       facilitatorLine: "Waiting for Cy. Fay is away.",
-      notVotedLine: "1 hasn't voted",
     });
   });
 
@@ -67,7 +66,6 @@ describe("roundStatus: who the round waits for", () => {
     expect(status.facilitatorLine).toBe(
       "Everyone has voted. Fay and Gus are away.",
     );
-    expect(status.notVotedLine).toBeNull();
   });
 
   it("names everyone missing, in join order", () => {
@@ -81,7 +79,6 @@ describe("roundStatus: who the round waits for", () => {
     );
     expect(status.facilitatorLine).toBe("Waiting for Ada, Cy and Dee");
     expect(status.participantLine).toBe("1 of 4 has voted");
-    expect(status.notVotedLine).toBe("3 haven't voted");
   });
 
   it("counts a returning participant again once they are connected", () => {

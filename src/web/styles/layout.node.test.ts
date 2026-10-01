@@ -69,14 +69,15 @@ describe("the revealed round", () => {
   });
 
   it("gives the scale the full width in wide, the people below the sentence", () => {
-    const areas = /\.round--revealed\s*\{\s*grid-template-areas:([^;]*);/.exec(
-      inside,
-    )?.[1];
+    const areas =
+      /\.round--revealed,\s*\.round--tooled\.round--revealed\s*\{\s*grid-template-areas:([^;]*);/.exec(
+        inside,
+      )?.[1];
     expect(areas?.match(/"[^"]*"/g)).toEqual([
-      '"status controls"',
-      '"scale scale"',
-      '"result result"',
-      '"people people"',
+      '"status . ticket timer controls"',
+      '"scale scale scale scale scale"',
+      '"result result result result result"',
+      '"people people people people people"',
     ]);
   });
 });

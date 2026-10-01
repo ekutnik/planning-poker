@@ -5,16 +5,16 @@ import { RoomView } from "./RoomView.js";
 import { Ticket } from "./Ticket.js";
 
 /**
- * The ticket above the room (Ticket): what each view shows, with and
+ * The ticket slot (Ticket): what each view shows, with and
  * without a ticket. Editing, focus and the announcement are clicks and
  * speech, so they are in the end-to-end suite (e2e/ticket.e2e.ts).
  */
 
-const render = (ticket: string | null, facilitating: boolean) =>
+const render = (ticket: string | null, editable: boolean) =>
   renderToStaticMarkup(
     <Ticket
       ticket={ticket}
-      facilitating={facilitating}
+      editable={editable}
       live
       onSave={() => undefined}
     />,
@@ -22,39 +22,42 @@ const render = (ticket: string | null, facilitating: boolean) =>
 
 const TICKET = "PROJ-482 Admins can sign in with SSO";
 
-describe("the ticket, participant view", () => {
-  it("shows nothing at all while there is no ticket", () => {
-    expect(render(null, false)).toBe("");
+describe("the ticket, read only", () => {
+  it("keeps its slot, empty, while there is no ticket", () => {
+    // In wide the slot holds the action row at its height, so a ticket
+    // arriving moves nothing below it.
+    expect(render(null, false)).toBe('<div class="ticket"></div>');
   });
 
-  it("shows the label and the ticket, as paragraphs, with no controls", () => {
+  it("shows the label and the ticket on one line, whole in its title, with no controls", () => {
     expect(render(TICKET, false)).toBe(
-      '<div class="ticket"><div class="ticket-words"><p class="ticket-label">Now estimating</p><p class="ticket-text">PROJ-482 Admins can sign in with SSO</p></div></div>',
+      `<div class="ticket"><p class="ticket-label">Now estimating</p><div class="ticket-row"><p class="ticket-text" title="${TICKET}">${TICKET}</p></div></div>`,
     );
   });
 });
 
-describe("the ticket, facilitator view", () => {
-  it("offers only Add a ticket while there is none", () => {
+describe("the ticket, editable (facilitator view, Ticket on)", () => {
+  it("offers Add a ticket under the label while there is none", () => {
     const html = render(null, true);
-    expect(html).toContain(">Add a ticket</button>");
-    expect(html).not.toContain("Now estimating");
+    expect(html).toMatch(
+      /^<div class="ticket"><p class="ticket-label">Now estimating<\/p><div class="ticket-row"><button type="button" class="small-button small-button--quiet"><svg[^>]*aria-hidden="true"[^>]*>.*<\/svg>Add a ticket<\/button><\/div><\/div>$/,
+    );
   });
 
-  it("puts Edit beside the ticket, named for a screen reader", () => {
+  it("puts Edit beside the ticket, with a pencil, named for a screen reader", () => {
     const html = render(TICKET, true);
     expect(html).toContain(TICKET);
     expect(html).toMatch(
-      /<button type="button" class="ticket-button">Edit<span class="visually-hidden"> the ticket<\/span><\/button>/,
+      /<button type="button" class="small-button small-button--quiet"><svg[^>]*aria-hidden="true"[^>]*>.*<\/svg>Edit<span class="visually-hidden"> the ticket<\/span><\/button>/,
     );
   });
 });
 
 describe("the ticket in any view", () => {
   it.each([true, false])(
-    "is never a heading (facilitating: %s): the status line stays the h1",
-    (facilitating) => {
-      expect(render(TICKET, facilitating)).not.toMatch(/<h[1-6]/);
+    "is never a heading (editable: %s): the status line stays the h1",
+    (editable) => {
+      expect(render(TICKET, editable)).not.toMatch(/<h[1-6]/);
     },
   );
 
@@ -84,7 +87,11 @@ describe("the ticket in the room", () => {
       { id: "ada", name: "Ada", status: "connected", hasVoted: false },
     ],
   });
-  const renderRoom = (ticket: string | null, facilitating: boolean) =>
+  const renderRoom = (
+    ticket: string | null,
+    facilitating: boolean,
+    tools = { ticket: true, timer: false },
+  ) =>
     renderToStaticMarkup(
       <RoomView
         snapshot={room(ticket)}
@@ -93,26 +100,51 @@ describe("the ticket in the room", () => {
         banner={null}
         notice={null}
         persistent
+        tools={tools}
         onAction={() => undefined}
       />,
     );
+  const off = { ticket: false, timer: false };
 
-  it("sits above the round, before its h1", () => {
+  it("sits first in the round, before its h1", () => {
     const html = renderRoom(TICKET, false);
     expect(html.indexOf('class="ticket"')).toBeGreaterThan(-1);
     expect(html.indexOf('class="ticket"')).toBeLessThan(html.indexOf("<h1"));
   });
 
-  it("leaves the room exactly as before for a participant while there is no ticket", () => {
-    // Nothing new on screen until someone adds a ticket.
-    expect(renderRoom(null, false)).not.toContain("ticket");
+  it("keeps its slot for a participant while there is no ticket, and nothing else is new", () => {
+    const html = renderRoom(null, false);
+    expect(html).toContain('<div class="ticket"></div>');
+    expect(html).not.toContain("Now estimating");
+    // On a phone there is no block at the top for it.
+    expect(html).not.toContain("round--tooled");
   });
 
-  it("goes to everyone the same: both views show the same text", () => {
+  it("goes to everyone the same: every view shows the same text", () => {
     for (const facilitating of [true, false]) {
-      expect(renderRoom(TICKET, facilitating)).toContain(
-        `<p class="ticket-text">${TICKET}</p>`,
-      );
+      for (const tools of [off, { ticket: true, timer: false }]) {
+        expect(renderRoom(TICKET, facilitating, tools)).toContain(
+          `<p class="ticket-text" title="${TICKET}">${TICKET}</p>`,
+        );
+      }
     }
+  });
+
+  it("is editable only in the facilitator view with Ticket on", () => {
+    expect(renderRoom(TICKET, true)).toContain("Edit<span");
+    expect(renderRoom(null, true)).toContain("Add a ticket");
+    // Ticket off: someone else's ticket still shows, read only.
+    expect(renderRoom(TICKET, true, off)).not.toContain(
+      '<button type="button" class="small-button',
+    );
+    expect(renderRoom(null, true, off)).not.toContain("Add a ticket");
+    // A participant's own settings change nothing.
+    expect(renderRoom(TICKET, false)).not.toContain("Edit<span");
+  });
+
+  it("gives the phone its top block only while there is something in it", () => {
+    expect(renderRoom(TICKET, false)).toContain("round--tooled");
+    expect(renderRoom(null, true)).toContain("round--tooled");
+    expect(renderRoom(null, true, off)).not.toContain("round--tooled");
   });
 });

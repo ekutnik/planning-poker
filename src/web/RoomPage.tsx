@@ -13,11 +13,13 @@ import { RoomView } from "./RoomView.js";
 import { StoppedScreen } from "./StoppedScreen.js";
 import { SwitchRow } from "./SwitchRow.js";
 import type { ThemeStore } from "./theme.js";
+import type { ToolsStore } from "./tools.js";
 import { bannerFor, canAct } from "./view.js";
 
 interface Stores {
   readonly theme: ThemeStore;
   readonly facilitate: FacilitateStore;
+  readonly tools: ToolsStore;
 }
 
 /** A direct link asks for a name first; then the room itself. */
@@ -94,6 +96,7 @@ function Room({
     stores.facilitate.subscribe,
     stores.facilitate.isOn,
   );
+  const tools = useSyncExternalStore(stores.tools.subscribe, stores.tools.get);
 
   if (state.status === "stopped") {
     return (
@@ -109,6 +112,9 @@ function Room({
       </>
     );
   }
+  // The Session tools: the facilitator view's, once the room is shown.
+  const shown = facilitating ? state.snapshot : null;
+  const live = canAct(state);
   const header = (
     <Header
       theme={stores.theme}
@@ -116,14 +122,30 @@ function Room({
         facilitate: stores.facilitate,
         link: window.location.href,
         onLeave: () => session.leave(),
-        scoring:
-          facilitating && state.snapshot !== null
-            ? {
-                on: state.snapshot.scores !== null,
-                live: canAct(state),
-                onChange: (on) => session.send({ type: "setScoring", on }),
+        ...(shown && {
+          ticket: {
+            on: tools.ticket,
+            live,
+            onChange: (on) => {
+              stores.tools.set("ticket", on);
+              // Nobody is left managing a ticket once its controls go, so
+              // it goes for the whole room, by the room's own message.
+              if (!on && shown.ticket !== null) {
+                session.send({ type: "setTicket", text: "" });
               }
-            : undefined,
+            },
+          },
+          timer: {
+            on: tools.timer,
+            busy: tools.timer && shown.timer.state !== "idle",
+            onChange: (on) => stores.tools.set("timer", on),
+          },
+          scoring: {
+            on: shown.scores !== null,
+            live,
+            onChange: (on) => session.send({ type: "setScoring", on }),
+          },
+        }),
       }}
     />
   );
@@ -145,6 +167,7 @@ function Room({
         banner={bannerFor(state)}
         notice={notice}
         persistent={identity.persistent}
+        tools={tools}
         nudged={nudged}
         onAction={(action) => session.send(action)}
       />

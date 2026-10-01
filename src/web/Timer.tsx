@@ -36,10 +36,11 @@ function useLeft(timer: TimerView): number {
 }
 
 /**
- * The facilitator's timer, beside Reveal votes, while voting. Idle: the
+ * The facilitator's timer block, in the action row while voting. Idle: the
  * duration and Start. Running: what is left, Pause and +30 s. Paused: the
  * time, quiet, with "Paused", Resume and +30 s. Start, Pause and Resume are
- * one button in one place, so focus stays on it as its job changes.
+ * one button in one place, so focus stays on it as its job changes. What
+ * is left of the duration is the block's own bottom edge.
  *
  * While a custom time that is out of range sits in its field, Start is
  * disabled, so a timer never starts with a length nobody meant, and once
@@ -65,7 +66,7 @@ export function TimerControls({
   const blocked = idle && entry.invalid;
   return (
     <div className="timer">
-      <div className="timer-row">
+      <div className="timer-block">
         <ClockIcon />
         {idle ? (
           <DurationPicker
@@ -90,11 +91,11 @@ export function TimerControls({
         )}
         <button
           type="button"
-          className={idle ? "timer-button" : "timer-button timer-button--icon"}
+          className="small-button small-button--icon"
           disabled={!live || blocked}
           aria-label={
             idle
-              ? undefined
+              ? TIMER_COPY.start
               : timer.state === "running"
                 ? TIMER_COPY.pause
                 : TIMER_COPY.resume
@@ -109,18 +110,12 @@ export function TimerControls({
             })
           }
         >
-          {idle ? (
-            TIMER_COPY.start
-          ) : timer.state === "running" ? (
-            <PauseIcon />
-          ) : (
-            <PlayIcon />
-          )}
+          {timer.state === "running" ? <PauseIcon /> : <PlayIcon />}
         </button>
         {!idle && (
           <button
             type="button"
-            className="timer-button"
+            className="small-button"
             disabled={!live}
             aria-label={TIMER_COPY.addLabel}
             onClick={() => onAction({ type: "timerAdd" })}
@@ -128,27 +123,28 @@ export function TimerControls({
             {TIMER_COPY.add}
           </button>
         )}
+        {!idle && <TimerEdge timer={timer} />}
       </div>
       {idle && (
         <p id={errorId} role="alert" className="field-message timer-error">
           {entry.message}
         </p>
       )}
-      {!idle && <TimerBar timer={timer} />}
     </div>
   );
 }
 
 /**
- * Everyone else's view of a timer: "1:24 left, then votes are revealed",
- * or "Paused at 1:24", with the bar. Nothing at all while idle.
+ * Everyone else's timer: the same block without its buttons, "1:24 left,
+ * then votes are revealed", or the time, quiet, and "Paused". Nothing at
+ * all while idle.
  */
-export function TimerLine({ timer }: { readonly timer: TimerView }) {
+export function TimerReadout({ timer }: { readonly timer: TimerView }) {
   if (timer.state === "idle") return null;
-  return <ActiveLine timer={timer} />;
+  return <ActiveReadout timer={timer} />;
 }
 
-/** The facilitator's time: "1:24 left", or quiet with "Paused". */
+/** The facilitator's time: "1:24", or quiet with "Paused". */
 function TimeLeft({ timer }: { readonly timer: TimerView }) {
   const left = useLeft(timer);
   const paused = timer.state === "paused";
@@ -157,29 +153,32 @@ function TimeLeft({ timer }: { readonly timer: TimerView }) {
       <span className={paused ? "timer-time timer-time--paused" : "timer-time"}>
         {formatClock(left)}
       </span>
-      <span className="timer-word">
-        {paused ? TIMER_COPY.paused : TIMER_COPY.left}
-      </span>
+      {paused ? (
+        <span className="timer-word">{TIMER_COPY.paused}</span>
+      ) : (
+        <span className="visually-hidden"> {TIMER_COPY.left}</span>
+      )}
     </>
   );
 }
 
-function ActiveLine({ timer }: { readonly timer: TimerView }) {
+function ActiveReadout({ timer }: { readonly timer: TimerView }) {
   const clock = formatClock(useLeft(timer));
+  const paused = timer.state === "paused";
   return (
-    <div className="timer timer--line">
-      <p className="timer-row">
+    <div className="timer timer--readout">
+      <p className="timer-block">
         <ClockIcon />
-        {timer.state === "paused" ? (
-          <span className="timer-word">{TIMER_COPY.pausedAt(clock)}</span>
-        ) : (
-          <>
-            <span className="timer-time">{clock}</span>{" "}
-            <span className="timer-word">{TIMER_COPY.thenRevealed}</span>
-          </>
-        )}
+        <span
+          className={paused ? "timer-time timer-time--paused" : "timer-time"}
+        >
+          {clock}
+        </span>{" "}
+        <span className="timer-word">
+          {paused ? TIMER_COPY.paused : TIMER_COPY.thenRevealed}
+        </span>
+        <TimerEdge timer={timer} />
       </p>
-      <TimerBar timer={timer} />
     </div>
   );
 }
@@ -208,7 +207,6 @@ function DurationPicker({
   readonly onEntry: (invalid: boolean, committed: boolean) => void;
   readonly onChange: (ms: number) => void;
 }) {
-  const selectId = useId();
   const hintId = useId();
   const preset = TIMER_PRESETS_MS.includes(durationMs);
   // Chose Custom… here. Forgotten when the room's duration changes to
@@ -242,42 +240,41 @@ function DurationPicker({
 
   return (
     <>
-      <label htmlFor={selectId} className="timer-label">
-        {TIMER_COPY.label}
-      </label>
-      <select
-        id={selectId}
-        className="timer-select"
-        disabled={!live}
-        value={custom ? "custom" : String(durationMs)}
-        onChange={(event) => {
-          if (event.target.value === "custom") {
-            focusField.current = true;
-            setChose(true);
+      <span className="timer-select">
+        <select
+          aria-label={TIMER_COPY.label}
+          disabled={!live}
+          value={custom ? "custom" : String(durationMs)}
+          onChange={(event) => {
+            if (event.target.value === "custom") {
+              focusField.current = true;
+              setChose(true);
+              onEntry(false, false);
+              return;
+            }
+            setChose(false);
             onEntry(false, false);
-            return;
-          }
-          setChose(false);
-          onEntry(false, false);
-          const ms = Number(event.target.value);
-          setSent(ms);
-          onChange(ms);
-        }}
-      >
-        {TIMER_PRESETS_MS.map((ms) => (
-          <option key={ms} value={String(ms)}>
-            {presetLabel(ms)}
-          </option>
-        ))}
-        <option value="custom">{TIMER_COPY.custom}</option>
-      </select>
+            const ms = Number(event.target.value);
+            setSent(ms);
+            onChange(ms);
+          }}
+        >
+          {TIMER_PRESETS_MS.map((ms) => (
+            <option key={ms} value={String(ms)}>
+              {presetLabel(ms)}
+            </option>
+          ))}
+          <option value="custom">{TIMER_COPY.custom}</option>
+        </select>
+        <ChevronIcon />
+      </span>
       {custom && (
         <>
           <input
             // A new room duration from someone else shows in the field.
             key={durationMs}
             ref={field}
-            className="text-field timer-custom"
+            className="timer-custom"
             type="text"
             inputMode="numeric"
             aria-label={TIMER_COPY.customLabel}
@@ -301,16 +298,18 @@ function DurationPicker({
   );
 }
 
-/** The 3 px bar: what is left of the duration. Decoration: the time says it. */
-function TimerBar({ timer }: { readonly timer: TimerView }) {
+/**
+ * What is left of the duration, as the block's 2 px bottom edge. Decoration:
+ * the time says it.
+ */
+function TimerEdge({ timer }: { readonly timer: TimerView }) {
   const share = Math.min(1, useLeft(timer) / timer.durationMs);
   return (
-    <div className="timer-bar" aria-hidden="true">
-      <div
-        className="timer-bar-fill"
-        style={{ inlineSize: `${String(Math.round(share * 1000) / 10)}%` }}
-      />
-    </div>
+    <span
+      className="timer-edge"
+      aria-hidden="true"
+      style={{ inlineSize: `${String(Math.round(share * 1000) / 10)}%` }}
+    />
   );
 }
 
@@ -341,6 +340,14 @@ function PauseIcon() {
     <svg {...icon}>
       <path d="M9 5v14" />
       <path d="M15 5v14" />
+    </svg>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg {...icon} className="timer-chevron">
+      <path d="M6 9l6 6 6-6" />
     </svg>
   );
 }

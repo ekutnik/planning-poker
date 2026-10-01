@@ -200,7 +200,7 @@ describe("the revealed round", () => {
     const html = render();
     expect(html.match(/<button/g)).toHaveLength(1);
     expect(html).toMatch(
-      /<div class="controls"><button type="button" class="primary">Start next round<\/button><\/div><\/div>$/,
+      /<div class="controls"><button type="button" class="primary">Start next round<\/button><\/div>$/,
     );
     expect(render(false)).toContain('class="secondary">Start next round');
   });

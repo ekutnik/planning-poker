@@ -120,6 +120,19 @@ export const HEADER_COPY = {
   facilitating: "Facilitating",
   theme: "Theme",
   leave: "Leave the room",
+  /** The Menu's two groups: the room's tools (facilitator view), then yours. */
+  sessionTools: "Session tools",
+  justForYou: "Just for you",
+} as const;
+
+/** Ticket and Timer in the Menu's Session tools: this browser's settings. */
+export const TOOLS_COPY = {
+  ticket: "Ticket",
+  ticketNote: "Show what the room is estimating.",
+  timer: "Timer",
+  timerNote: "Reveal the votes when time runs out.",
+  /** Instead of the note, while a running or paused timer holds it on. */
+  timerBusy: "Available once the timer has stopped.",
 } as const;
 
 /** Copy link, and what it says after a copy, for a few seconds. */
@@ -147,7 +160,7 @@ export const PEOPLE_COPY = {
 /** Keep score, in the Menu (facilitator view), and each person's points. */
 export const SCORE_COPY = {
   label: "Keep score",
-  note: "Shows everyone's points: one when a vote matches the result. For this session only.",
+  note: "A point when a vote matches the result.",
   /** On screen: "1 pt", "3 pts". */
   short: (points: number) => (points === 1 ? "1 pt" : `${String(points)} pts`),
   /** For a screen reader: "1 point", "3 points". */
@@ -163,16 +176,16 @@ export const TIMER_COPY = {
   customHint: "Minutes and seconds, from 0:10 to 10:00",
   /** Under the row, while a custom time is out of range: the server's words. */
   invalid: "Choose a time from 10 seconds to 10 minutes.",
-  start: "Start",
+  start: "Start the timer",
   pause: "Pause the timer",
   resume: "Resume the timer",
   add: "+30 s",
   addLabel: "Add 30 seconds",
+  /** After the numeral: for a screen reader in the facilitator's block. */
   left: "left",
   paused: "Paused",
   /** After the numeral, for everyone but the facilitator. */
   thenRevealed: "left, then votes are revealed",
-  pausedAt: (clock: string) => `Paused at ${clock}`,
   /** Said once each. The countdown itself is never said. */
   started: (words: string) => `Timer started: ${words}.`,
   tenLeft: "10 seconds left.",
@@ -181,10 +194,10 @@ export const TIMER_COPY = {
   timesUp: "Time's up.",
 } as const;
 
-/** The ticket being estimated, above the room (Ticket). */
+/** The ticket being estimated, first in the action row (Ticket). */
 export const TICKET_COPY = {
   label: "Now estimating",
-  /** Visible as "Edit"; a screen reader hears "Edit the ticket". */
+  /** Visible as "Edit", with a pencil; a screen reader hears "Edit the ticket". */
   edit: "Edit",
   editTarget: "the ticket",
   add: "Add a ticket",

@@ -9,8 +9,10 @@ type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
 
 /**
  * The revealed round: the people list with each card, the deck as the scale,
- * the result in one sentence that names no one, and the one next action. Same grid and the
- * same controls position as the voting screen, so nothing jumps at reveal.
+ * the result in one sentence that names no one, and the one next action.
+ * Its children are items of the same round grid as the voting screen's
+ * (RoomView), with the next action in the same place, so nothing jumps at
+ * reveal.
  */
 export function RevealedView({
   snapshot,
@@ -28,11 +30,7 @@ export function RevealedView({
 }) {
   const copy = resultCopy(snapshot);
   return (
-    <div
-      className={`round round--revealed ${
-        facilitating ? "round--facilitator" : "round--participant"
-      }`}
-    >
+    <>
       <ScreenHeading className="status" onShown={onHeadingShown}>
         Votes revealed
       </ScreenHeading>
@@ -57,6 +55,6 @@ export function RevealedView({
           Start next round
         </button>
       </div>
-    </div>
+    </>
   );
 }

@@ -13,6 +13,7 @@ import { createRouter } from "./router.js";
 import { trackFocus } from "./focus.js";
 import { watchStorage } from "./storage.js";
 import { createThemeStore } from "./theme.js";
+import { createToolsStore } from "./tools.js";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("index.html has no #root element");
@@ -24,6 +25,7 @@ const identity = loadIdentity(
   () => newToken(crypto),
 );
 const facilitate = createFacilitateStore(() => window.localStorage);
+const tools = createToolsStore(() => window.localStorage);
 const theme = createThemeStore(
   () => window.localStorage,
   document.documentElement,
@@ -37,6 +39,7 @@ createRoot(root).render(
       identity={identity}
       theme={theme}
       facilitate={facilitate}
+      tools={tools}
     />
   </StrictMode>,
 );

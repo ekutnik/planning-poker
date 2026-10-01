@@ -158,3 +158,103 @@ describe("Copy link, by layout", () => {
     expect(html.indexOf("pill--facilitating")).toBeLessThan(html.indexOf(tag));
   });
 });
+
+describe("the Menu's Session tools (facilitator view)", () => {
+  const tools = ({
+    ticket = false,
+    timer = false,
+    busy = false,
+    live = true,
+  } = {}) =>
+    renderToStaticMarkup(
+      <Header
+        theme={theme}
+        menuOpen
+        layout="wide"
+        room={{
+          facilitate: facilitate(true),
+          link: "http://localhost/r/abcdefghijk",
+          onLeave: () => undefined,
+          ticket: { on: ticket, live, onChange: () => undefined },
+          timer: { on: timer, busy, onChange: () => undefined },
+          scoring: { on: false, live, onChange: () => undefined },
+        }}
+      />,
+    );
+  const switchFor = (html: string, label: string) =>
+    /<button[^>]*role="switch"[^>]*>/.exec(
+      html.slice(html.indexOf(`>${label}</label>`)),
+    )?.[0] ?? "";
+
+  it("groups Ticket, Timer and Keep score, then Facilitate and Theme, then Leave", () => {
+    const { after } = menuButton(tools());
+    const order = [
+      ">Session tools<",
+      ">Ticket<",
+      ">Timer<",
+      ">Keep score<",
+      '<hr class="menu-divider"/>',
+      ">Just for you<",
+      ">Facilitate<",
+      ">Theme<",
+      ">Leave the room<",
+    ].map((text) => after.indexOf(text));
+    expect(order.every((at) => at > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(after.match(/<hr class="menu-divider"\/>/g)).toHaveLength(2);
+  });
+
+  it("names each group by its words, which are not headings", () => {
+    const html = tools();
+    for (const name of ["Session tools", "Just for you"]) {
+      const id = new RegExp(
+        `<p id="([^"]+)" class="menu-heading">${name}</p>`,
+      ).exec(html)?.[1];
+      expect(id).toBeDefined();
+      expect(html).toContain(
+        `<div role="group" aria-labelledby="${id ?? ""}" class="menu-group">`,
+      );
+    }
+    expect(html).not.toMatch(/<h[1-6]/);
+  });
+
+  it("describes each tool", () => {
+    const html = tools();
+    expect(html).toContain("Show what the room is estimating.");
+    expect(html).toContain("Reveal the votes when time runs out.");
+  });
+
+  it("shows this browser's Ticket and Timer as switches", () => {
+    expect(switchFor(tools(), "Ticket")).toContain('aria-checked="false"');
+    expect(switchFor(tools({ ticket: true }), "Ticket")).toContain(
+      'aria-checked="true"',
+    );
+    expect(switchFor(tools({ timer: true }), "Timer")).toContain(
+      'aria-checked="true"',
+    );
+  });
+
+  it("holds Timer on, with the reason, while a timer runs or is paused", () => {
+    const busy = tools({ timer: true, busy: true });
+    expect(switchFor(busy, "Timer")).toContain('disabled=""');
+    expect(busy).toContain("Available once the timer has stopped.");
+    expect(busy).not.toContain("Reveal the votes when time runs out.");
+    const idle = tools({ timer: true });
+    expect(switchFor(idle, "Timer")).not.toContain("disabled");
+    expect(idle).not.toContain("Available once");
+  });
+
+  it("waits for the room before Ticket can change, since off clears the room's ticket", () => {
+    expect(switchFor(tools({ live: false }), "Ticket")).toContain(
+      'disabled=""',
+    );
+    expect(switchFor(tools(), "Ticket")).not.toContain("disabled");
+  });
+
+  it("is not there outside the facilitator view: no groups, as before", () => {
+    const { after } = menuButton(inRoom(false, true));
+    expect(after).not.toContain("Session tools");
+    expect(after).not.toContain("Just for you");
+    expect(after.match(/role="switch"/g)).toHaveLength(1);
+  });
+});

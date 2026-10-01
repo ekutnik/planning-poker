@@ -8,7 +8,8 @@ import { expect, newRoom, recordSpeech, spoken, test } from "./fixtures.js";
  * it, and at its deadline the server reveals the votes for everyone.
  */
 
-const line = (page: Page) => page.locator(".timer--line");
+/** Everyone else's timer: the block without its buttons. */
+const line = (page: Page) => page.locator(".timer--readout");
 
 test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers", async ({
   people,
@@ -16,7 +17,10 @@ test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers
 }) => {
   test.setTimeout(60_000);
   const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { timer: true },
+  });
   const ben = await people.join(roomId, "Ben");
   await recordSpeech(ada.page);
   await recordSpeech(ben.page);
@@ -25,7 +29,7 @@ test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers
   // Idle: Ben sees nothing of it; Ada has the duration and Start.
   await expect(ben.heading).toHaveText("0 of 2 have voted");
   await expect(line(ben.page)).toHaveCount(0);
-  const select = page.getByLabel("Timer", { exact: true });
+  const select = page.getByRole("combobox", { name: "Timer" });
   await expect(select).toHaveValue("60000");
 
   // Custom 0:10, then Start from the keyboard: focus stays on the button,
@@ -35,7 +39,7 @@ test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers
   await expect(custom).toBeFocused();
   await custom.fill("0:10");
   await custom.press("Enter");
-  const start = page.getByRole("button", { name: "Start" });
+  const start = page.getByRole("button", { name: "Start the timer" });
   await start.focus();
   await page.keyboard.press("Enter");
   const pause = page.getByRole("button", { name: "Pause the timer" });
@@ -56,7 +60,7 @@ test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers
   await expect(
     page.getByRole("button", { name: "Resume the timer" }),
   ).toBeFocused();
-  await expect(line(ben.page)).toContainText("Paused at 0:");
+  await expect(line(ben.page)).toContainText("Paused");
   const held = await line(ben.page).innerText();
   await page.waitForTimeout(3_000);
   await expect(line(ben.page)).toHaveText(held);
@@ -79,35 +83,43 @@ test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers
 
   // The next round: the timer is idle again, its 0:10 kept.
   await page.getByRole("button", { name: "Start next round" }).click();
-  await expect(page.getByRole("button", { name: "Start" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Start the timer" }),
+  ).toBeVisible();
   await expect(page.getByLabel("Custom time")).toHaveValue("0:10");
   await expect(line(ben.page)).toHaveCount(0);
 });
 
 test("+30 s adds to what is left", async ({ people, baseURL }) => {
   const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { timer: true },
+  });
   const page = ada.page;
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.getByRole("button", { name: "Start the timer" }).click();
   await expect(page.locator(".timer-time")).toHaveText(/^(1:00|0:59)$/);
   await page.getByRole("button", { name: "Add 30 seconds" }).click();
   await expect(page.locator(".timer-time")).toHaveText(/^(1:30|1:29)$/);
 });
 
-test("axe: the timer idle, running and paused, and a participant's line", async ({
+test("axe: the timer idle, running and paused, and a participant's block", async ({
   people,
   baseURL,
 }) => {
   const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { timer: true },
+  });
   const ben = await people.join(roomId, "Ben");
   await expectAccessible(ada.page, "timer, idle");
-  await ada.page.getByRole("button", { name: "Start" }).click();
+  await ada.page.getByRole("button", { name: "Start the timer" }).click();
   await expect(line(ben.page)).toBeVisible();
   await expectAccessible(ada.page, "timer, running");
-  await expectAccessible(ben.page, "timer line, participant");
+  await expectAccessible(ben.page, "timer block, participant");
   await ada.page.getByRole("button", { name: "Pause the timer" }).click();
-  await expect(line(ben.page)).toContainText("Paused at");
+  await expect(line(ben.page)).toContainText("Paused");
   await expectAccessible(ada.page, "timer, paused");
 });
 
@@ -116,13 +128,16 @@ test("a custom time out of range shows why, and Start waits for a good one", asy
   baseURL,
 }) => {
   const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { timer: true },
+  });
   const page = ada.page;
-  const start = page.getByRole("button", { name: "Start" });
+  const start = page.getByRole("button", { name: "Start the timer" });
   const message = page.getByText(
     "Choose a time from 10 seconds to 10 minutes.",
   );
-  await page.getByLabel("Timer", { exact: true }).selectOption("custom");
+  await page.getByRole("combobox", { name: "Timer" }).selectOption("custom");
   const custom = page.getByLabel("Custom time");
   await custom.fill("0:05");
   await expect(start).toBeDisabled(); // at once, while typing
@@ -148,13 +163,18 @@ test("with no votes when time runs out, nothing is revealed, and it says so", as
 }) => {
   test.setTimeout(45_000);
   const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { timer: true },
+  });
   const ben = await people.join(roomId, "Ben");
   await recordSpeech(ben.page);
-  await ada.page.getByLabel("Timer", { exact: true }).selectOption("custom");
+  await ada.page
+    .getByRole("combobox", { name: "Timer" })
+    .selectOption("custom");
   await ada.page.getByLabel("Custom time").fill("0:10");
   await ada.page.getByLabel("Custom time").press("Enter");
-  await ada.page.getByRole("button", { name: "Start" }).click();
+  await ada.page.getByRole("button", { name: "Start the timer" }).click();
   await expect(line(ben.page)).toBeVisible();
   await expect(line(ben.page)).toHaveCount(0, { timeout: 15_000 });
   await expect(ben.heading).toHaveText("0 of 2 have voted");
@@ -171,36 +191,53 @@ test("a second facilitator's select shows the room's duration, custom or not", a
   baseURL,
 }) => {
   const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", { facilitate: true });
-  const ben = await people.join(roomId, "Ben", { facilitate: true });
-  await ada.page.getByLabel("Timer", { exact: true }).selectOption("custom");
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { timer: true },
+  });
+  const ben = await people.join(roomId, "Ben", {
+    facilitate: true,
+    tools: { timer: true },
+  });
+  await ada.page
+    .getByRole("combobox", { name: "Timer" })
+    .selectOption("custom");
   await ada.page.getByLabel("Custom time").fill("0:45");
   await ada.page.getByLabel("Custom time").press("Enter");
-  await expect(ben.page.getByLabel("Timer", { exact: true })).toHaveValue(
+  await expect(ben.page.getByRole("combobox", { name: "Timer" })).toHaveValue(
     "custom",
   );
   await expect(ben.page.getByLabel("Custom time")).toHaveValue("0:45");
-  await ben.page.getByLabel("Timer", { exact: true }).selectOption("120000");
-  await expect(ada.page.getByLabel("Timer", { exact: true })).toHaveValue(
+  await ben.page
+    .getByRole("combobox", { name: "Timer" })
+    .selectOption("120000");
+  await expect(ada.page.getByRole("combobox", { name: "Timer" })).toHaveValue(
     "120000",
   );
   await expect(ada.page.getByLabel("Custom time")).toHaveCount(0);
 });
 
-test("the timer's row keeps its height when Start becomes Pause", async ({
+test("the timer's block keeps its height when Start becomes Pause", async ({
   people,
   baseURL,
 }) => {
   const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", { facilitate: true });
-  const row = ada.page.locator(".timer-row");
-  const height = async () => (await row.boundingBox())?.height;
-  const idle = await height();
-  await ada.page.getByRole("button", { name: "Start" }).click();
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { timer: true },
+  });
+  const block = ada.page.locator(".timer-block");
+  const height = async () => (await block.boundingBox())?.height;
+  expect(await height()).toBe(40);
+  const start = await ada.page
+    .getByRole("button", { name: "Start the timer" })
+    .boundingBox();
+  expect([start?.width, start?.height]).toEqual([28, 28]);
+  await ada.page.getByRole("button", { name: "Start the timer" }).click();
   await expect(
     ada.page.getByRole("button", { name: "Pause the timer" }),
   ).toBeVisible();
-  expect(await height()).toBe(idle);
+  expect(await height()).toBe(40);
   for (const name of ["Pause the timer", "Add 30 seconds"]) {
     const box = await ada.page.getByRole("button", { name }).boundingBox();
     expect(box?.height).toBe(28);

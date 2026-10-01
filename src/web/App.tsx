@@ -8,6 +8,7 @@ import { RoomPage } from "./RoomPage.js";
 import { roomPath, type Router } from "./router.js";
 import { ScreenHeading } from "./ScreenHeading.js";
 import type { ThemeStore } from "./theme.js";
+import type { ToolsStore } from "./tools.js";
 import { titleOf, useDocumentTitle } from "./title.js";
 
 export function App({
@@ -15,11 +16,13 @@ export function App({
   identity,
   theme,
   facilitate,
+  tools,
 }: {
   readonly router: Router;
   readonly identity: Identity;
   readonly theme: ThemeStore;
   readonly facilitate: FacilitateStore;
+  readonly tools: ToolsStore;
 }) {
   const route = useSyncExternalStore(router.subscribe, router.getRoute);
   const home = () => router.navigate("/");
@@ -41,7 +44,7 @@ export function App({
           key={route.roomId}
           roomId={route.roomId}
           identity={identity}
-          stores={{ theme, facilitate }}
+          stores={{ theme, facilitate, tools }}
           onHome={home}
         />
       );

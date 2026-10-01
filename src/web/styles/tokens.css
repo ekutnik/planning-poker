@@ -87,8 +87,10 @@
   --text-wordmark: 0.875rem; /* 14px, strong */
   --text-control: 0.9375rem; /* 15px, strong: buttons, menu labels, select */
   --text-small: 0.875rem; /* 14px, regular: a switch's description */
-  --text-ticket: 1.125rem; /* 18px, strong: the ticket being estimated */
+  --text-ticket: 1.0625rem; /* 17px, strong: the ticket, on one line */
   --text-timer: 1.0625rem; /* 17px, strong: the timer's numerals */
+  --text-label: 0.75rem; /* 12px: "Now estimating", the Menu's group names */
+  --text-field: 1rem; /* 16px, strong: the ticket while editing */
 
   /* Space: 4, 8, 12, 16, 24, 32, 48, 80 px. Sections separate by space. */
   --space-4: 0.25rem;
@@ -103,7 +105,8 @@
   /* Corners. */
   --radius-control: 0.5rem; /* cards, buttons, inputs */
   --radius-container: 0.75rem; /* the menu panel, the preview, the banner */
-  --radius-chip: 0.375rem; /* value chips, the nudge button */
+  --radius-chip: 0.375rem; /* value chips, the small buttons */
+  --radius-block: 0.625rem; /* 10px: the timer block */
   --radius-pill: 999px;
 
   /* The content column, and the gutter that centres it in the window. */
@@ -124,8 +127,7 @@
     --text-scale: 1.75rem; /* 28px */
     --text-result: 1.125rem; /* 18px */
     --text-wordmark: 1.0625rem; /* 17px */
-    --text-ticket: 1.625rem; /* 26px */
-    --text-timer: 1.25rem; /* 20px */
+    --text-ticket: 1.25rem; /* 20px */
     --gutter: max(var(--space-48), calc((100% - var(--content-width)) / 2));
   }
 }

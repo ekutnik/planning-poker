@@ -3,8 +3,9 @@ import { expectAccessible } from "./axe.js";
 import { expect, newRoom, recordSpeech, spoken, test } from "./fixtures.js";
 
 /**
- * The ticket above the room: the facilitator adds and edits it in place,
- * everyone sees it, and a change by someone else is said once.
+ * The ticket slot, first in the action row: the facilitator (with the
+ * Menu's Ticket on) adds and edits it in place, everyone sees it, and a
+ * change by someone else is said once.
  */
 
 const ticketText = (page: Page) => page.locator(".ticket-text");
@@ -16,7 +17,10 @@ test("the facilitator sets a ticket, and everyone sees it", async ({
   baseURL,
 }) => {
   const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { ticket: true },
+  });
   const ben = await people.join(roomId, "Ben");
   await recordSpeech(ada.page);
   await recordSpeech(ben.page);
@@ -85,14 +89,16 @@ test("the facilitator sets a ticket, and everyone sees it", async ({
   await expect(nowEstimating(ben.page)).toHaveCount(0);
 });
 
-test("a ticket is cleaned, shown as typed, and wraps on a phone", async ({
+test("a ticket is cleaned, shown as typed, and kept to one line, whole in its title", async ({
   people,
   baseURL,
 }) => {
   const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { ticket: true },
+  });
   const ben = await people.join(roomId, "Ben");
-  await ben.page.setViewportSize({ width: 390, height: 844 });
 
   await ada.page.getByRole("button", { name: "Add a ticket" }).click();
   await ada.page.getByLabel("Now estimating").fill("  <b>x</b>   &  more ");
@@ -100,17 +106,80 @@ test("a ticket is cleaned, shown as typed, and wraps on a phone", async ({
   await expect(ticketText(ben.page)).toHaveText("<b>x</b> & more");
   await expect(ben.page.locator(".ticket-text b")).toHaveCount(0);
 
-  // 120 characters with no space to break at: it wraps, the page never
-  // scrolls sideways.
-  await ada.page.getByRole("button", { name: "Edit the ticket" }).click();
-  await ada.page.getByLabel("Now estimating").fill("W".repeat(120));
+  // 120 characters, on a wide screen and on a phone: one line, cut short
+  // with "…", the whole text in its title and its accessible name. With
+  // no space to break at, the page never scrolls sideways either.
+  const long = `PROJ-482 ${"Admins can sign in with SSO ".repeat(4)}`.slice(
+    0,
+    111,
+  );
+  for (const text of [long, "W".repeat(120)]) {
+    await ada.page.getByRole("button", { name: "Edit the ticket" }).click();
+    await ada.page.getByLabel("Now estimating").fill(text);
+    await ada.page.getByLabel("Now estimating").press("Enter");
+    for (const size of [
+      { width: 1280, height: 800 },
+      { width: 390, height: 844 },
+    ]) {
+      await ben.page.setViewportSize(size);
+      const shown = ticketText(ben.page);
+      await expect(shown).toHaveText(text.trim());
+      await expect(shown).toHaveAttribute("title", text.trim());
+      // A screen reader reads the paragraph whole: "…" is only drawn.
+      await expect(shown).toMatchAriaSnapshot(
+        `- paragraph: ${JSON.stringify(text.trim())}`,
+      );
+      const { lines, cut, ellipsis } = await shown.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          lines: Math.round(
+            element.getBoundingClientRect().height /
+              Number.parseFloat(style.lineHeight),
+          ),
+          cut: element.scrollWidth > element.clientWidth,
+          ellipsis: style.textOverflow,
+        };
+      });
+      expect([lines, cut, ellipsis]).toEqual([1, true, "ellipsis"]);
+      expect(
+        await ben.page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      ).toBe(true);
+    }
+  }
+});
+
+test("switching Ticket off clears the ticket for everyone", async ({
+  people,
+  baseURL,
+}) => {
+  const roomId = await newRoom(baseURL ?? "");
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { ticket: true },
+  });
+  const ben = await people.join(roomId, "Ben");
+  await ada.page.getByRole("button", { name: "Add a ticket" }).click();
+  await ada.page.getByLabel("Now estimating").fill("PROJ-482");
   await ada.page.getByLabel("Now estimating").press("Enter");
-  await expect(ticketText(ben.page)).toHaveText("W".repeat(120));
+  await expect(ticketText(ben.page)).toHaveText("PROJ-482");
+
+  await ada.page.getByRole("button", { name: "Menu" }).click();
+  await ada.page.getByRole("switch", { name: "Ticket" }).click();
+  await expect(
+    ada.page.getByRole("switch", { name: "Ticket" }),
+  ).toHaveAttribute("aria-checked", "false");
+  // Gone for Ben, and Ada has no ticket controls left.
+  await expect(ben.heading).toHaveText("0 of 2 have voted");
+  await expect(nowEstimating(ben.page)).toHaveCount(0);
+  await expect(nowEstimating(ada.page)).toHaveCount(0);
+  await expect(
+    ada.page.getByRole("button", { name: /Add a ticket|Edit/ }),
+  ).toHaveCount(0);
   expect(
-    await ben.page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
-    ),
-  ).toBe(true);
+    ada.frames.sent.filter((frame) => frame.type === "setTicket").at(-1),
+  ).toEqual({ type: "setTicket", text: "" });
 });
 
 test("axe: the room with a ticket, and while editing it", async ({
@@ -118,7 +187,10 @@ test("axe: the room with a ticket, and while editing it", async ({
   baseURL,
 }) => {
   const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { ticket: true },
+  });
   const ben = await people.join(roomId, "Ben");
   await ada.page.getByRole("button", { name: "Add a ticket" }).click();
   await ada.page
