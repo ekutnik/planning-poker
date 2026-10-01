@@ -125,9 +125,9 @@ export const HEADER_COPY = {
   justForYou: "Just for you",
 } as const;
 
-/** Ticket and Timer in the Menu's Session tools: this browser's settings. */
+/** Ticket name and Timer in the Menu's Session tools: this browser's settings. */
 export const TOOLS_COPY = {
-  ticket: "Ticket",
+  ticket: "Ticket name",
   ticketNote: "Show what the room is estimating.",
   timer: "Timer",
   timerNote: "Reveal the votes when time runs out.",
@@ -197,9 +197,8 @@ export const TIMER_COPY = {
 /** The ticket being estimated, first in the action row (Ticket). */
 export const TICKET_COPY = {
   label: "Now estimating",
-  /** Visible as "Edit", with a pencil; a screen reader hears "Edit the ticket". */
-  edit: "Edit",
-  editTarget: "the ticket",
+  /** Edit is a pencil alone: its name, and its tooltip. */
+  edit: "Edit the ticket",
   add: "Add a ticket",
   save: "Save",
   cancel: "Cancel",

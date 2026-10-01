@@ -4,7 +4,7 @@ import { expect, newRoom, recordSpeech, spoken, test } from "./fixtures.js";
 
 /**
  * The ticket slot, first in the action row: the facilitator (with the
- * Menu's Ticket on) adds and edits it in place, everyone sees it, and a
+ * Menu's Ticket name on) adds and edits it in place, everyone sees it, and a
  * change by someone else is said once.
  */
 
@@ -150,7 +150,7 @@ test("a ticket is cleaned, shown as typed, and kept to one line, whole in its ti
   }
 });
 
-test("switching Ticket off clears the ticket for everyone", async ({
+test("switching Ticket name off clears the ticket for everyone", async ({
   people,
   baseURL,
 }) => {
@@ -166,9 +166,9 @@ test("switching Ticket off clears the ticket for everyone", async ({
   await expect(ticketText(ben.page)).toHaveText("PROJ-482");
 
   await ada.page.getByRole("button", { name: "Menu" }).click();
-  await ada.page.getByRole("switch", { name: "Ticket" }).click();
+  await ada.page.getByRole("switch", { name: "Ticket name" }).click();
   await expect(
-    ada.page.getByRole("switch", { name: "Ticket" }),
+    ada.page.getByRole("switch", { name: "Ticket name" }),
   ).toHaveAttribute("aria-checked", "false");
   // Gone for Ben, and Ada has no ticket controls left.
   await expect(ben.heading).toHaveText("0 of 2 have voted");

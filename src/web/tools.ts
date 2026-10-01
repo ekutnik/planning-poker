@@ -37,8 +37,8 @@ export function parseTools(stored: string | null): Tools {
 }
 
 /**
- * Ticket and Timer, remembered per browser like Facilitate, and off until
- * this browser turns them on. They decide only which controls the
+ * Ticket name and Timer, remembered per browser like Facilitate, and off
+ * until this browser turns them on. They decide only which controls the
  * facilitator view shows: a ticket or a running timer reaches everyone
  * whatever their own settings say. The server never knows them.
  */

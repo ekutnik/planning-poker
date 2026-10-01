@@ -804,10 +804,12 @@ button:disabled {
   text-align: end;
 }
 
-/* The timer block (ADR 0008), in the action row: one 40px block with a
-   Rule outline on Surface. The clock, then the duration and Start, or the
-   time, Pause and +30 s; what is left of the duration is its own 2px bottom
-   edge. Everyone else's is the same block without the buttons. */
+/* The timer block (ADR 0008), in the action row: one 40px row sitting on
+   the page, no outline and no fill, the clock at the content's edge. The
+   clock, then the duration and Start, or the time, Pause and +30 s; only
+   the buttons have a surface and an edge. What is left of the duration is
+   its 2px underline: a Rule track, filled in Cobalt. Everyone else's is
+   the same block without the buttons. */
 .timer {
   grid-area: timer;
   position: relative;
@@ -822,17 +824,8 @@ button:disabled {
   box-sizing: border-box;
   block-size: 2.5rem; /* 40px */
   margin: 0;
-  padding: 0 var(--space-8) 0 var(--space-12);
-  overflow: hidden;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-block);
-  background: var(--surface);
+  padding: 0;
   white-space: nowrap;
-}
-
-/* Without buttons, the words end the block: the same space both sides. */
-.timer--readout .timer-block {
-  padding-inline-end: var(--space-12);
 }
 
 .timer-icon {
@@ -910,14 +903,22 @@ button:disabled {
 .timer-edge {
   position: absolute;
   inset-block-end: 0;
-  inset-inline-start: 0;
+  inset-inline: 0;
   display: block;
   block-size: 2px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--rule);
+}
+
+.timer-edge-fill {
+  display: block;
+  block-size: 100%;
   background: var(--cobalt);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .timer-edge {
+  .timer-edge-fill {
     transition: inline-size 150ms linear;
   }
 }

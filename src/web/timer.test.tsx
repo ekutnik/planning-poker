@@ -68,9 +68,9 @@ describe("the facilitator's timer", () => {
       '<button type="button" class="small-button small-button--icon" aria-label="Pause the timer">',
       '<button type="button" class="small-button" aria-label="Add 30 seconds">',
     ]);
-    // What is left is the block's own bottom edge: 84 of 60 s, so all of it.
+    // What is left is the block's underline: 84 of 60 s, so all of it.
     expect(html).toMatch(
-      /<span class="timer-edge" aria-hidden="true" style="inline-size:100%"><\/span><\/div>/,
+      /<span class="timer-edge" aria-hidden="true"><span class="timer-edge-fill" style="inline-size:100%"><\/span><\/span><\/div>/,
     );
   });
 

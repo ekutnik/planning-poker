@@ -12,7 +12,7 @@ class MemoryStore implements KeyValueStore {
   }
 }
 
-describe("the Session tools a browser keeps (Ticket and Timer)", () => {
+describe("the Session tools a browser keeps (Ticket name and Timer)", () => {
   it("are off in a browser that has never set them", () => {
     const store = createToolsStore(() => new MemoryStore());
     expect(store.get()).toEqual({ ticket: false, timer: false });

@@ -94,7 +94,7 @@ export interface PersonOptions {
   readonly name?: string | null;
   /** The facilitator view (the Menu's Facilitate). */
   readonly facilitate?: boolean;
-  /** The Menu's Session tools that this browser keeps: Ticket and Timer. */
+  /** The Menu's Session tools that this browser keeps: Ticket name and Timer. */
   readonly tools?: { readonly ticket?: boolean; readonly timer?: boolean };
   /** A stored theme choice. */
   readonly theme?: "light" | "dark";

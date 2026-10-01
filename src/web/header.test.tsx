@@ -190,7 +190,7 @@ describe("the Menu's Session tools (facilitator view)", () => {
     const { after } = menuButton(tools());
     const order = [
       ">Session tools<",
-      ">Ticket<",
+      ">Ticket name<",
       ">Timer<",
       ">Keep score<",
       '<hr class="menu-divider"/>',
@@ -224,9 +224,9 @@ describe("the Menu's Session tools (facilitator view)", () => {
     expect(html).toContain("Reveal the votes when time runs out.");
   });
 
-  it("shows this browser's Ticket and Timer as switches", () => {
-    expect(switchFor(tools(), "Ticket")).toContain('aria-checked="false"');
-    expect(switchFor(tools({ ticket: true }), "Ticket")).toContain(
+  it("shows this browser's Ticket name and Timer as switches", () => {
+    expect(switchFor(tools(), "Ticket name")).toContain('aria-checked="false"');
+    expect(switchFor(tools({ ticket: true }), "Ticket name")).toContain(
       'aria-checked="true"',
     );
     expect(switchFor(tools({ timer: true }), "Timer")).toContain(
@@ -245,10 +245,10 @@ describe("the Menu's Session tools (facilitator view)", () => {
   });
 
   it("waits for the room before Ticket can change, since off clears the room's ticket", () => {
-    expect(switchFor(tools({ live: false }), "Ticket")).toContain(
+    expect(switchFor(tools({ live: false }), "Ticket name")).toContain(
       'disabled=""',
     );
-    expect(switchFor(tools(), "Ticket")).not.toContain("disabled");
+    expect(switchFor(tools(), "Ticket name")).not.toContain("disabled");
   });
 
   it("is not there outside the facilitator view: no groups, as before", () => {

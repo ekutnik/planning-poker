@@ -36,7 +36,7 @@ describe("the ticket, read only", () => {
   });
 });
 
-describe("the ticket, editable (facilitator view, Ticket on)", () => {
+describe("the ticket, editable (facilitator view, Ticket name on)", () => {
   it("offers Add a ticket under the label while there is none", () => {
     const html = render(null, true);
     expect(html).toMatch(
@@ -44,11 +44,11 @@ describe("the ticket, editable (facilitator view, Ticket on)", () => {
     );
   });
 
-  it("puts Edit beside the ticket, with a pencil, named for a screen reader", () => {
+  it("puts Edit beside the ticket: a square pencil, named, with a tooltip", () => {
     const html = render(TICKET, true);
     expect(html).toContain(TICKET);
     expect(html).toMatch(
-      /<button type="button" class="small-button small-button--quiet"><svg[^>]*aria-hidden="true"[^>]*>.*<\/svg>Edit<span class="visually-hidden"> the ticket<\/span><\/button>/,
+      /<button type="button" class="small-button small-button--quiet small-button--icon" aria-label="Edit the ticket" title="Edit the ticket"><svg[^>]*aria-hidden="true"[^>]*>.*<\/svg><\/button>/,
     );
   });
 });
@@ -130,16 +130,16 @@ describe("the ticket in the room", () => {
     }
   });
 
-  it("is editable only in the facilitator view with Ticket on", () => {
-    expect(renderRoom(TICKET, true)).toContain("Edit<span");
+  it("is editable only in the facilitator view with Ticket name on", () => {
+    expect(renderRoom(TICKET, true)).toContain('aria-label="Edit the ticket"');
     expect(renderRoom(null, true)).toContain("Add a ticket");
-    // Ticket off: someone else's ticket still shows, read only.
+    // Ticket name off: someone else's ticket still shows, read only.
     expect(renderRoom(TICKET, true, off)).not.toContain(
       '<button type="button" class="small-button',
     );
     expect(renderRoom(null, true, off)).not.toContain("Add a ticket");
     // A participant's own settings change nothing.
-    expect(renderRoom(TICKET, false)).not.toContain("Edit<span");
+    expect(renderRoom(TICKET, false)).not.toContain("Edit the ticket");
   });
 
   it("gives the phone its top block only while there is something in it", () => {

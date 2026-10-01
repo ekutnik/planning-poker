@@ -106,7 +106,6 @@
   --radius-control: 0.5rem; /* cards, buttons, inputs */
   --radius-container: 0.75rem; /* the menu panel, the preview, the banner */
   --radius-chip: 0.375rem; /* value chips, the small buttons */
-  --radius-block: 0.625rem; /* 10px: the timer block */
   --radius-pill: 999px;
 
   /* The content column, and the gutter that centres it in the window. */

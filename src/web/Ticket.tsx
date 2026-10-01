@@ -12,8 +12,8 @@ import { TICKET_COPY } from "./copy.js";
  * The slot is always in the page, empty when there is nothing to show: in
  * wide it is what holds the action row at its height, so nothing below it
  * moves when a ticket comes or goes (docs/design.md, The room's layout).
- * With `editable` (the facilitator view with Ticket on), Edit or Add a
- * ticket, editing in place in the same row.
+ * With `editable` (the facilitator view with Ticket name on), a pencil
+ * (Edit the ticket) or Add a ticket, editing in place in the same row.
  */
 export function Ticket({
   ticket,
@@ -44,7 +44,7 @@ export function Ticket({
     }
   }, [editing]);
 
-  // Editing belongs to the facilitator view with Ticket on; switching
+  // Editing belongs to the facilitator view with Ticket name on; switching
   // either off ends it.
   if (editing && !editable) setEditing(false);
 
@@ -113,7 +113,13 @@ export function Ticket({
           <button
             type="button"
             ref={opener}
-            className="small-button small-button--quiet"
+            className={
+              ticket === null
+                ? "small-button small-button--quiet"
+                : "small-button small-button--quiet small-button--icon"
+            }
+            aria-label={ticket === null ? undefined : TICKET_COPY.edit}
+            title={ticket === null ? undefined : TICKET_COPY.edit}
             onClick={() => setEditing(true)}
           >
             {ticket === null ? (
@@ -122,14 +128,7 @@ export function Ticket({
                 {TICKET_COPY.add}
               </>
             ) : (
-              <>
-                <PencilIcon />
-                {TICKET_COPY.edit}
-                <span className="visually-hidden">
-                  {" "}
-                  {TICKET_COPY.editTarget}
-                </span>
-              </>
+              <PencilIcon />
             )}
           </button>
         )}

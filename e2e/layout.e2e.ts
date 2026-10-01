@@ -99,11 +99,11 @@ for (const width of [1280, 880]) {
       expect(await overlaps(page), step).toEqual([]);
     };
 
-    await toggle(page, "Ticket");
+    await toggle(page, "Ticket name");
     await expect(
       page.getByRole("button", { name: "Add a ticket" }),
     ).toBeVisible();
-    await check("Ticket on");
+    await check("Ticket name on");
     await toggle(page, "Timer");
     await expect(
       page.getByRole("button", { name: "Start the timer" }),
@@ -304,6 +304,50 @@ test("every control in the room is 44, 40 or 28 px tall, as its kind says", asyn
   expect(seen.get("the timer block")).toBe(40);
 });
 
+test("the timer block sits on the page: no fill, no outline, an underline for what is left", async ({
+  people,
+  baseURL,
+}) => {
+  const roomId = await newRoom(baseURL ?? "");
+  const ada = await join(people, roomId, "Ada", {
+    facilitate: true,
+    tools: { timer: true },
+  });
+  const ben = await join(people, roomId, "Ben");
+  const look = (page: Page) =>
+    page.locator(".timer-block").evaluate((block) => {
+      const style = getComputedStyle(block);
+      const edge = block.querySelector(".timer-edge");
+      const fill = block.querySelector(".timer-edge-fill");
+      return {
+        background: style.backgroundColor,
+        border: [
+          style.borderTopWidth,
+          style.borderRightWidth,
+          style.borderBottomWidth,
+          style.borderLeftWidth,
+        ],
+        track: edge && getComputedStyle(edge).height,
+        filled: fill !== null && getComputedStyle(fill).backgroundColor,
+        trackColour: edge && getComputedStyle(edge).backgroundColor,
+      };
+    });
+  const plain = {
+    background: "rgba(0, 0, 0, 0)",
+    border: ["0px", "0px", "0px", "0px"],
+  };
+  expect(await look(ada.page)).toMatchObject({ ...plain, track: null });
+  await ada.page.getByRole("button", { name: "Start the timer" }).click();
+  await expect(ben.page.locator(".timer--readout")).toBeVisible();
+  for (const page of [ada.page, ben.page]) {
+    const seen = await look(page);
+    expect(seen).toMatchObject({ ...plain, track: "2px" });
+    // A Rule track with a Cobalt fill: two different colours.
+    expect(seen.filled).not.toBe(seen.trackColour);
+    expect(seen.filled).not.toBe("rgba(0, 0, 0, 0)");
+  }
+});
+
 test("Timer can be switched off only while the timer is idle", async ({
   people,
   baseURL,
@@ -350,7 +394,7 @@ test("Timer can be switched off only while the timer is idle", async ({
   await expect(timer).toHaveAttribute("aria-checked", "false");
 });
 
-test("Ticket and Timer are this browser's, kept under planning-poker:tools:v1", async ({
+test("Ticket name and Timer are this browser's, kept under planning-poker:tools:v1", async ({
   people,
   baseURL,
 }) => {
@@ -362,7 +406,7 @@ test("Ticket and Timer are this browser's, kept under planning-poker:tools:v1", 
 
   // Never set: both off, and nothing stored.
   await page.getByRole("button", { name: "Menu" }).click();
-  for (const name of ["Ticket", "Timer"]) {
+  for (const name of ["Ticket name", "Timer"]) {
     await expect(page.getByRole("switch", { name })).toHaveAttribute(
       "aria-checked",
       "false",

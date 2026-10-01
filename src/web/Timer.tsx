@@ -40,7 +40,7 @@ function useLeft(timer: TimerView): number {
  * duration and Start. Running: what is left, Pause and +30 s. Paused: the
  * time, quiet, with "Paused", Resume and +30 s. Start, Pause and Resume are
  * one button in one place, so focus stays on it as its job changes. What
- * is left of the duration is the block's own bottom edge.
+ * is left of the duration is the block's underline.
  *
  * While a custom time that is out of range sits in its field, Start is
  * disabled, so a timer never starts with a length nobody meant, and once
@@ -299,17 +299,18 @@ function DurationPicker({
 }
 
 /**
- * What is left of the duration, as the block's 2 px bottom edge. Decoration:
- * the time says it.
+ * What is left of the duration, as a 2 px underline under the block: a
+ * Rule track, filled in Cobalt. Decoration: the time says it.
  */
 function TimerEdge({ timer }: { readonly timer: TimerView }) {
   const share = Math.min(1, useLeft(timer) / timer.durationMs);
   return (
-    <span
-      className="timer-edge"
-      aria-hidden="true"
-      style={{ inlineSize: `${String(Math.round(share * 1000) / 10)}%` }}
-    />
+    <span className="timer-edge" aria-hidden="true">
+      <span
+        className="timer-edge-fill"
+        style={{ inlineSize: `${String(Math.round(share * 1000) / 10)}%` }}
+      />
+    </span>
   );
 }
 
