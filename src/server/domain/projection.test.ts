@@ -78,6 +78,7 @@ describe("project — no-leak (key whitelist)", () => {
       "roomId",
       "scores",
       "ticket",
+      "timer",
       "version",
       "viewerId",
       "yourVote",
@@ -109,9 +110,11 @@ describe("project — no-leak (key whitelist)", () => {
       "participants",
       "phase",
       "results",
+      "revealCause",
       "roomId",
       "scores",
       "ticket",
+      "timer",
       "version",
       "viewerId",
     ]);
@@ -210,5 +213,40 @@ describe("scores", () => {
         ]);
       }
     }
+  });
+});
+
+describe("the timer", () => {
+  const viewers = ["alice", "bob", "carol", "dan"] as const;
+  const running: Room = {
+    ...mixedRoom(),
+    timer: {
+      durationMs: 60_000,
+      state: "running",
+      endsAt: 5_000,
+      remainingMs: null,
+    },
+  };
+
+  it("is the same for every viewer, and only what the room holds: no time relative to now", () => {
+    for (const viewer of viewers) {
+      expect(project(running, viewer).timer).toEqual({
+        durationMs: 60_000,
+        state: "running",
+        endsAt: 5_000,
+        remainingMs: null,
+      });
+      expect(project(running, viewer)).toEqual(project(running, viewer));
+    }
+  });
+
+  it("says after reveal whether the timer revealed the round", () => {
+    const revealed: Room = {
+      ...mixedRoom(),
+      phase: "revealed",
+      revealCause: "timer",
+    };
+    const snapshot = project(revealed, "alice");
+    expect(snapshot.phase === "revealed" && snapshot.revealCause).toBe("timer");
   });
 });

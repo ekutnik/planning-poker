@@ -1,11 +1,16 @@
 import type { Card } from "../../shared/deck.js";
 import type { ParticipantId } from "../../shared/ids.js";
 import type { DomainError } from "../../shared/errors.js";
+import type { TimerView } from "../../shared/snapshot.js";
 
 import {
   cleanTicket,
   MAX_PARTICIPANTS,
   MAX_TICKET_LENGTH,
+  TIMER_ADD_MS,
+  TIMER_DEFAULT_MS,
+  TIMER_MAX_MS,
+  validDuration,
   validName,
 } from "../../shared/rules.js";
 import { computeResults } from "./results.js";
@@ -50,6 +55,13 @@ export interface Room {
    * Someone with no entry has 0.
    */
   readonly scores: ReadonlyMap<ParticipantId, number>;
+  /**
+   * The timer (ADR 0008): idle until someone starts it, back to idle at every
+   * reveal and at Start next round. Its duration stays across rounds.
+   */
+  readonly timer: TimerView;
+  /** "timer" once the timer has revealed the round; null otherwise. */
+  readonly revealCause: "timer" | null;
 }
 
 export type Command =
@@ -78,6 +90,20 @@ export type Command =
       readonly participantId: ParticipantId;
       readonly on: boolean;
     }
+  | {
+      readonly type: "timerSetDuration";
+      readonly participantId: ParticipantId;
+      readonly ms: number;
+    }
+  | { readonly type: "timerStart"; readonly participantId: ParticipantId }
+  | { readonly type: "timerPause"; readonly participantId: ParticipantId }
+  | { readonly type: "timerResume"; readonly participantId: ParticipantId }
+  | { readonly type: "timerAdd"; readonly participantId: ParticipantId }
+  /**
+   * The server's own command, when a running timer's deadline has passed: it
+   * comes from the room service's timer, never from a client.
+   */
+  | { readonly type: "timeUp" }
   | { readonly type: "expire"; readonly participantId: ParticipantId };
 
 export type { DomainError };
@@ -97,6 +123,8 @@ export function createRoom(id: string): Room {
     ticket: null,
     scoring: false,
     scores: new Map(),
+    timer: idleTimer(TIMER_DEFAULT_MS),
+    revealCause: null,
   };
 }
 
@@ -126,6 +154,18 @@ export function applyCommand(
       return setTicket(room, command);
     case "setScoring":
       return setScoring(room, command);
+    case "timerSetDuration":
+      return timerSetDuration(room, command);
+    case "timerStart":
+      return timerStart(room, command, now);
+    case "timerPause":
+      return timerPause(room, command, now);
+    case "timerResume":
+      return timerResume(room, command, now);
+    case "timerAdd":
+      return timerAdd(room, command, now);
+    case "timeUp":
+      return timeUp(room, now);
     default: {
       const unreachable: never = command;
       throw new Error(`Unhandled command: ${JSON.stringify(unreachable)}`);
@@ -142,7 +182,16 @@ const fail = (error: DomainError): Result => ({ ok: false, error });
 function commit(
   room: Room,
   changes: Partial<
-    Pick<Room, "phase" | "participants" | "ticket" | "scoring" | "scores">
+    Pick<
+      Room,
+      | "phase"
+      | "participants"
+      | "ticket"
+      | "scoring"
+      | "scores"
+      | "timer"
+      | "revealCause"
+    >
   >,
 ): Room {
   return { ...room, ...changes, version: room.version + 1 };
@@ -239,7 +288,33 @@ function reveal(room: Room, cmd: CommandOf<"reveal">): Result {
   // a second reveal must not suddenly start erroring.
   if (room.phase === "revealed") return ok(room);
   if (!hasAnyVote(room)) return fail("NO_VOTES_CAST");
-  return ok(commit(room, { phase: "revealed", ...pointsAtReveal(room) }));
+  return ok(revealRound(room));
+}
+
+/**
+ * The one way a round is revealed, by a person or by the timer, so both
+ * score the same and both stop the timer. One commit: the version goes up
+ * once. Fields that are already as they should be are left alone, so with
+ * nothing new switched on a reveal is exactly the reveal it always was.
+ */
+function revealRound(room: Room, cause: "timer" | null = null): Room {
+  return commit(room, {
+    phase: "revealed",
+    ...pointsAtReveal(room),
+    ...stopTimer(room),
+    ...(cause === room.revealCause ? {} : { revealCause: cause }),
+  });
+}
+
+function idleTimer(durationMs: number): TimerView {
+  return { durationMs, state: "idle", endsAt: null, remainingMs: null };
+}
+
+/** The timer back to idle, keeping its duration; nothing if it already is. */
+function stopTimer(room: Room): Partial<Pick<Room, "timer">> {
+  return room.timer.state === "idle"
+    ? {}
+    : { timer: idleTimer(room.timer.durationMs) };
 }
 
 /**
@@ -272,7 +347,14 @@ function reset(room: Room, cmd: CommandOf<"reset">): Result {
   for (const [id, p] of participants) {
     if (p.vote !== null) participants.set(id, { ...p, vote: null });
   }
-  return ok(commit(room, { phase: "voting", participants }));
+  return ok(
+    commit(room, {
+      phase: "voting",
+      participants,
+      ...stopTimer(room),
+      ...(room.revealCause === null ? {} : { revealCause: null }),
+    }),
+  );
 }
 
 function disconnect(
@@ -323,6 +405,132 @@ function setScoring(room: Room, cmd: CommandOf<"setScoring">): Result {
   if (participant.status !== "connected") return fail("NOT_CONNECTED");
   if (room.scoring === cmd.on) return ok(room); // no-op: already so
   return ok(commit(room, { scoring: cmd.on }));
+}
+
+// --- the timer (ADR 0008) ---
+//
+// Every command but timeUp checks who sent it first, as every command does.
+// A timer command whose end state already holds is a no-op, and so is one
+// that no longer applies (Pause after the timer ended, +30 s while idle):
+// those race with the deadline itself, so they must not turn into errors.
+
+/** The sender's checks, shared by the timer's commands. */
+function sender(room: Room, participantId: ParticipantId): DomainError | null {
+  const participant = room.participants.get(participantId);
+  if (!participant) return "UNKNOWN_PARTICIPANT";
+  if (participant.status !== "connected") return "NOT_CONNECTED";
+  return null;
+}
+
+/** Any time: the length used from the next start. A running timer keeps its deadline. */
+function timerSetDuration(
+  room: Room,
+  cmd: CommandOf<"timerSetDuration">,
+): Result {
+  const refused = sender(room, cmd.participantId);
+  if (refused) return fail(refused);
+  if (!validDuration(cmd.ms)) return fail("INVALID_DURATION");
+  if (room.timer.durationMs === cmd.ms) return ok(room); // no-op
+  return ok(commit(room, { timer: { ...room.timer, durationMs: cmd.ms } }));
+}
+
+/** While voting and idle: the deadline is now plus the duration. */
+function timerStart(
+  room: Room,
+  cmd: CommandOf<"timerStart">,
+  now: number,
+): Result {
+  const refused = sender(room, cmd.participantId);
+  if (refused) return fail(refused);
+  if (room.timer.state !== "idle") return ok(room); // no-op: already started
+  if (room.phase === "revealed") return fail("VOTING_CLOSED");
+  return ok(
+    commit(room, {
+      timer: {
+        durationMs: room.timer.durationMs,
+        state: "running",
+        endsAt: now + room.timer.durationMs,
+        remainingMs: null,
+      },
+    }),
+  );
+}
+
+/** While running: keep what is left. */
+function timerPause(
+  room: Room,
+  cmd: CommandOf<"timerPause">,
+  now: number,
+): Result {
+  const refused = sender(room, cmd.participantId);
+  if (refused) return fail(refused);
+  const { state, endsAt, durationMs } = room.timer;
+  if (state !== "running" || endsAt === null) return ok(room); // no-op
+  return ok(
+    commit(room, {
+      timer: {
+        durationMs,
+        state: "paused",
+        endsAt: null,
+        remainingMs: Math.max(0, endsAt - now),
+      },
+    }),
+  );
+}
+
+/** While paused: a new deadline, from what was left. */
+function timerResume(
+  room: Room,
+  cmd: CommandOf<"timerResume">,
+  now: number,
+): Result {
+  const refused = sender(room, cmd.participantId);
+  if (refused) return fail(refused);
+  const { state, remainingMs, durationMs } = room.timer;
+  if (state !== "paused" || remainingMs === null) return ok(room); // no-op
+  return ok(
+    commit(room, {
+      timer: {
+        durationMs,
+        state: "running",
+        endsAt: now + remainingMs,
+        remainingMs: null,
+      },
+    }),
+  );
+}
+
+/** Running or paused: 30 s more, never past TIMER_MAX_MS left. */
+function timerAdd(room: Room, cmd: CommandOf<"timerAdd">, now: number): Result {
+  const refused = sender(room, cmd.participantId);
+  if (refused) return fail(refused);
+  const { state, endsAt, remainingMs } = room.timer;
+  if (state === "running" && endsAt !== null) {
+    const next = Math.min(endsAt + TIMER_ADD_MS, now + TIMER_MAX_MS);
+    if (next <= endsAt) return ok(room); // no-op: already at the most
+    return ok(commit(room, { timer: { ...room.timer, endsAt: next } }));
+  }
+  if (state === "paused" && remainingMs !== null) {
+    const next = Math.min(remainingMs + TIMER_ADD_MS, TIMER_MAX_MS);
+    if (next <= remainingMs) return ok(room); // no-op: already at the most
+    return ok(commit(room, { timer: { ...room.timer, remainingMs: next } }));
+  }
+  return ok(room); // no-op: nothing to add to
+}
+
+/**
+ * The deadline has passed: reveal, whether or not everyone has voted, by the
+ * same revealRound as a person, and record that the timer did it. Checked
+ * again here, whatever the caller believes: only a running timer whose
+ * deadline is past can reveal. With no votes at all there is nothing to
+ * reveal, so the timer only goes back to idle.
+ */
+function timeUp(room: Room, now: number): Result {
+  const { state, endsAt } = room.timer;
+  if (state !== "running" || endsAt === null) return ok(room); // no-op
+  if (now < endsAt) return ok(room); // no-op: not yet
+  if (!hasAnyVote(room)) return ok(commit(room, stopTimer(room)));
+  return ok(revealRound(room, "timer"));
 }
 
 /**

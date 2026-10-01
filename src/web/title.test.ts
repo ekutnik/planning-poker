@@ -16,6 +16,12 @@ function voting(
     viewerId: "Ada",
     ticket: null,
     scores: null,
+    timer: {
+      durationMs: 60_000,
+      state: "idle",
+      endsAt: null,
+      remainingMs: null,
+    },
     yourVote: "13",
     participants: people.map(([name, status, hasVoted]) => ({
       id: name,
@@ -56,6 +62,13 @@ describe("document titles (A-03)", () => {
         viewerId: "Ada",
         ticket: null,
         scores: null,
+        timer: {
+          durationMs: 60_000,
+          state: "idle",
+          endsAt: null,
+          remainingMs: null,
+        },
+        revealCause: null,
         participants: [
           { id: "Ada", name: "Ada", status: "connected", vote: "13" },
         ],

@@ -1,4 +1,5 @@
 import type { RoomSnapshot } from "../shared/snapshot.js";
+import { TIMER_COPY } from "./copy.js";
 import { resultCopy } from "./result.js";
 
 type Phase = RoomSnapshot["phase"];
@@ -26,6 +27,14 @@ export function phaseAnnouncement(
   if (previous === snapshot.phase) return null;
   if (snapshot.phase === "revealed") {
     const copy = resultCopy(snapshot);
+    // The timer revealed it: "Time's up. Votes revealed. …" in place of
+    // "Votes revealed. …", so nobody wonders who pressed Reveal.
+    if (snapshot.revealCause === "timer") {
+      return {
+        full: `${TIMER_COPY.timesUp} ${copy.announcement}`,
+        afterHeading: `${TIMER_COPY.timesUp} ${copy.summary}`,
+      };
+    }
     return { full: copy.announcement, afterHeading: copy.summary };
   }
   // The new heading says who is missing, not that a round started: no repeat.

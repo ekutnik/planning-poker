@@ -2,6 +2,7 @@ import type { ErrorCode, ServerMessage } from "../../shared/protocol.js";
 import type { ClientMessage } from "../../shared/protocol.js";
 import { socketPath } from "../../shared/socket.js";
 import type { RoomSnapshot } from "../../shared/snapshot.js";
+import { inLocalTime } from "../countdown.js";
 import {
   BACKOFF,
   backoffDelay,
@@ -270,7 +271,14 @@ export class RoomConnection {
     if (!message) return; // unknown types are ignored (forward compatibility)
     switch (message.type) {
       case "snapshot":
-        this.handleSnapshot(message.snapshot);
+        // The timer's deadline, moved from the server's clock into Date.now(),
+        // the clock the countdown and its announcements read (Timer.tsx,
+        // RoomView). Deliberately not this.deps.clock, which only times the
+        // connection: if that ever became performance.now(), every
+        // countdown would break.
+        this.handleSnapshot(
+          inLocalTime(message.snapshot, message.serverNow, Date.now()),
+        );
         return;
       case "error":
         this.handleError(message.code);

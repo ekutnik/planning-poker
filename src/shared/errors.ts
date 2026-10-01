@@ -10,4 +10,5 @@ export type DomainError =
   | "NOT_CONNECTED"
   | "VOTING_CLOSED"
   | "NO_VOTES_CAST"
-  | "TICKET_TOO_LONG";
+  | "TICKET_TOO_LONG"
+  | "INVALID_DURATION";
