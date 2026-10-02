@@ -16,7 +16,6 @@ import { project } from "./domain/projection.js";
 import { derivePublicId, roomLogId } from "./identity.js";
 import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
 import { KeyedLimiter } from "./limits/keyed.js";
-import { INVALID_KEY } from "./limits/limit-key.js";
 import { LogCaps } from "./limits/log-cap.js";
 import { TokenBucket } from "./limits/token-bucket.js";
 import { nudgeRefusal } from "./nudge.js";
@@ -341,10 +340,11 @@ export class RoomService {
 
   /**
    * `key` is the client's limitKey(), never its address: the service only
-   * uses it to count the rooms that client creates. Without one, as in
-   * tests, every connection shares INVALID_KEY.
+   * uses it to count the rooms that client creates. Required, so a caller
+   * can't forget it and quietly put every client into one shared bucket of
+   * rooms (ADR 0009).
    */
-  open(conn: Connection, roomId: string, key = INVALID_KEY): void {
+  open(conn: Connection, roomId: string, key: string): void {
     if (this.stopping) {
       conn.close(1001, "going away");
       return;

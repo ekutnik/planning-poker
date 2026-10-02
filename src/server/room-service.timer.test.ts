@@ -16,6 +16,8 @@ import {
  */
 
 const ROOM = "abcdefghijk";
+/** Every connection here comes from one client address (ADR 0009). */
+const ADDRESS = "203.0.113.1";
 const MIN = 60_000;
 
 class FakeConnection implements Connection {
@@ -69,7 +71,7 @@ function setup() {
   );
   const people = ["Ada", "Ben"].map((name) => {
     const conn = new FakeConnection(name);
-    service.open(conn, ROOM);
+    service.open(conn, ROOM, ADDRESS);
     service.message(
       conn,
       JSON.stringify({

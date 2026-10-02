@@ -684,7 +684,11 @@ describe("failure containment", () => {
       close: id === "broken" ? boom : () => closed.push(id),
     }));
     for (const socket of sockets) {
-      service.open(toConnection(socket, socket.id, quiet), "abcdefghijk");
+      service.open(
+        toConnection(socket, socket.id, quiet),
+        "abcdefghijk",
+        "203.0.113.1",
+      );
     }
 
     now += JOIN_TIMEOUT_MS;

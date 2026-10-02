@@ -56,11 +56,18 @@ export interface ServerOptions {
  * so one client could write a line per attempt without end. Their own
  * handlers write the same line instead: always for one the limits accept,
  * and within the server-wide cap for one they refuse.
+ *
+ * Chosen by the route Fastify matched, never by the request alone: a header
+ * or a query string must not be a way to keep any other request out of the
+ * log. The socket route also needs the upgrade itself, since a plain GET to
+ * it reaches no handler that would write the line.
  */
 function loggedByHandler(request: FastifyRequest): boolean {
+  const route = request.routeOptions.url;
+  if (route === "/api/rooms") return request.method === "POST";
   return (
-    request.headers.upgrade?.toLowerCase() === "websocket" ||
-    (request.method === "POST" && request.url === "/api/rooms")
+    route === "/ws/:roomId" &&
+    request.headers.upgrade?.toLowerCase() === "websocket"
   );
 }
 

@@ -20,6 +20,8 @@ import {
 } from "./room-service.js";
 
 const ROOM = "abcdefghijk";
+/** Every connection here comes from one client address (ADR 0009). */
+const ADDRESS = "203.0.113.1";
 const ALICE = "SESSIONTOKEN_ALICE_0001";
 const BOB = "SESSIONTOKEN_BOB_0000001";
 
@@ -75,7 +77,7 @@ function setup(
   const connect = (id: string, roomId = ROOM) => {
     const conn = new FakeConnection(id);
     conn.onClose = () => service.close(conn);
-    service.open(conn, roomId);
+    service.open(conn, roomId, ADDRESS);
     return conn;
   };
   const join = (conn: FakeConnection, token: string, name: string) => {

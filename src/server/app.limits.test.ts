@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
+import type { InjectOptions } from "fastify";
 import WebSocket from "ws";
 import { CloseCode } from "../shared/close-codes.js";
 import type { ClientMessage, ServerMessage } from "../shared/protocol.js";
@@ -382,5 +383,40 @@ describe("room ids from the API, per address", () => {
       payload: JSON.stringify({ padding: "x".repeat(2_000) }),
     });
     expect(response.statusCode).toBe(413);
+  });
+});
+
+describe("which requests write their own line (ADR 0009)", () => {
+  /** The request lines one request wrote. */
+  async function linesFor(request: InjectOptions) {
+    const { lines, logger } = capture();
+    const server = await start({ logger });
+    await server.inject(request);
+    return lines.filter((line) => line.msg === "incoming request");
+  }
+
+  it("still logs any other request that carries the upgrade header", async () => {
+    // A header must not be a way to keep a request out of the log.
+    expect(
+      await linesFor({
+        method: "GET",
+        url: "/",
+        headers: { upgrade: "websocket", connection: "upgrade" },
+      }),
+    ).toHaveLength(1);
+  });
+
+  it("logs a plain GET to the socket route, which never reaches its handler", async () => {
+    expect(
+      await linesFor({ method: "GET", url: `/ws/${ROOM}?v=3` }),
+    ).toHaveLength(1);
+  });
+
+  it("logs a room id request once, whatever its query string", async () => {
+    for (const url of ["/api/rooms", "/api/rooms?x", "/api/rooms?x=1&y"]) {
+      expect(await linesFor({ method: "POST", url })).toHaveLength(1);
+      await app?.close();
+      app = null;
+    }
   });
 });

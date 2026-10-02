@@ -53,6 +53,8 @@ The server limits what each client address can do, as token buckets: a capacity,
 ## Consequences
 
 - One client can no longer fill the room table, the unjoined-socket table or the logs on its own, or slow a room by flooding it.
+- **Nothing else stands in front of the server.** Since 2024, Fly's proxy sets no hard connection limit unless the app sets one ([Fly's announcement](https://community.fly.io/t/new-concurrency-hard-limit-default/20107)), and `fly.toml` sets none: these limits are the only bound on what one client can open.
+- **A known limit on memory.** A local flood from one address, with every limit doing its job, raised the server's memory by about 60 MiB, from about 100 to 156–161 MiB, where it stayed. The process measured 169 MiB at the full load of 200 rooms of 30 plus 1,000 sockets not yet joined. The two together would pass the machine's 207 MiB. That is far beyond a team tool's use, and the restart policy is the backstop, but it is not a guarantee.
 - **This is not a defence against a distributed attack.** One shared-cpu machine can't absorb one, and Fly's proxy is the only layer in front of it. Many addresses together can still fill the server's caps.
 - A team behind one address shares one allowance. The numbers are sized for that, and the release gate is the 30-minute simulation of 12 people from one address, restart included, which must log no `rate-limited` line.
 - A refused join retries quietly with the long backoff, showing "Connection lost. Reconnecting…", and its notice is cleared once the join works.

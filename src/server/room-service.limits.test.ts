@@ -14,6 +14,8 @@ import {
  */
 
 const ROOM = "abcdefghijk";
+/** Every connection here comes from one client address (ADR 0009). */
+const ADDRESS = "203.0.113.1";
 
 class FakeConnection implements Connection {
   readonly sent: ServerMessage[] = [];
@@ -46,7 +48,7 @@ function setup() {
   const connect = (id: string, token: string) => {
     const conn = new FakeConnection(id);
     conn.onClose = () => service.close(conn);
-    service.open(conn, ROOM);
+    service.open(conn, ROOM, ADDRESS);
     service.message(
       conn,
       JSON.stringify({ type: "join", sessionToken: token, name: id }),
@@ -142,7 +144,7 @@ describe("one connection's messages (#16)", () => {
   it("counts a join: it's a message like any other", () => {
     const { service, send } = setup();
     const conn = new FakeConnection("anon");
-    service.open(conn, ROOM);
+    service.open(conn, ROOM, ADDRESS);
     const join = {
       type: "join",
       sessionToken: "SESSIONTOKEN_ANON_000001",
