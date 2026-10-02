@@ -338,7 +338,12 @@ test("the timer block sits on the page: no fill, no outline, an underline for wh
   };
   expect(await look(ada.page)).toMatchObject({ ...plain, track: null });
   await ada.page.getByRole("button", { name: "Start the timer" }).click();
+  // Both have the running timer: Ben's block, and Ada's Pause, which comes
+  // with her own snapshot, a moment after or before Ben's.
   await expect(ben.page.locator(".timer--readout")).toBeVisible();
+  await expect(
+    ada.page.getByRole("button", { name: "Pause the timer" }),
+  ).toBeVisible();
   for (const page of [ada.page, ben.page]) {
     const seen = await look(page);
     expect(seen).toMatchObject({ ...plain, track: "2px" });
