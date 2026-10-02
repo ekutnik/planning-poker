@@ -1,5 +1,6 @@
 import websocket from "@fastify/websocket";
 import Fastify, {
+  LogController,
   type FastifyBaseLogger,
   type FastifyLoggerOptions,
   type FastifyRequest,
@@ -46,6 +47,21 @@ export interface ServerOptions {
   readonly proxy?: Proxy;
   /** For tests that read the per-address counts; built from `limits` otherwise. */
   readonly addressLimits?: AddressLimits;
+}
+
+/**
+ * Requests a client can make as fast as it likes, each refused in a moment
+ * once over its limit (ADR 0009): WebSocket upgrades, and room ids from the
+ * API. Fastify would log each one as it arrives, whatever the limit says,
+ * so one client could write a line per attempt without end. Their own
+ * handlers write the same line instead: always for one the limits accept,
+ * and within the server-wide cap for one they refuse.
+ */
+function loggedByHandler(request: FastifyRequest): boolean {
+  return (
+    request.headers.upgrade?.toLowerCase() === "websocket" ||
+    (request.method === "POST" && request.url === "/api/rooms")
+  );
 }
 
 const roomParams = {
@@ -141,6 +157,9 @@ export function buildServer(options: ServerOptions = {}) {
     // counts that as neither, so close() would wait for it until the
     // shutdown timeout. Chrome preconnects, so a real deploy would too.
     forceCloseConnections: true,
+    logController: new LogController({
+      disableRequestLogging: loggedByHandler,
+    }),
   });
   securityHeaders(app, { production: options.production ?? false });
   if (options.webRoot !== undefined) serveClient(app, options.webRoot);
@@ -240,19 +259,29 @@ export function buildServer(options: ServerOptions = {}) {
   });
 
   app.get("/health", () => ({ status: "ok" }));
-  /** One capped line for a per-address refusal; a key is never logged. */
+  /** The request's own line, as Fastify would have written it. */
+  const requestLine = (request: FastifyRequest) => {
+    request.log.info({ req: request }, "incoming request");
+  };
+
+  /**
+   * One capped line for a per-address refusal, with the request's own line
+   * before it, which carries the address; the limit's line never does.
+   */
   const limitedLine = (
     take: "limited" | "full",
     limit: string,
-    conn: string,
+    request: FastifyRequest,
   ) => {
     const now = clock();
     if (take === "full") {
       if (logCaps.allow("limiter full", now)) {
+        requestLine(request);
         app.log.warn({ type: "limiter-full", limit });
       }
     } else if (logCaps.allow("rate-limited", now)) {
-      app.log.info({ type: "rate-limited", limit, conn });
+      requestLine(request);
+      app.log.info({ type: "rate-limited", limit, conn: request.id });
     }
   };
 
@@ -263,7 +292,7 @@ export function buildServer(options: ServerOptions = {}) {
     const key = limitKey(clientIp(request, options.proxy));
     const { take, retryAfterMs } = address.roomId(key, clock());
     if (take !== "ok") {
-      limitedLine(take, "room-ids", request.id);
+      limitedLine(take, "room-ids", request);
       return reply
         .code(429)
         .header(
@@ -272,6 +301,7 @@ export function buildServer(options: ServerOptions = {}) {
         )
         .send({ error: "RATE_LIMITED" });
     }
+    requestLine(request);
     return { roomId: generateRoomId() };
   });
 
@@ -293,10 +323,11 @@ export function buildServer(options: ServerOptions = {}) {
         // upgrade rate first, for every attempt, outdated clients too.
         const upgrade = address.upgrade(key, clock());
         if (upgrade !== "ok") {
-          limitedLine(upgrade, "upgrades", request.id);
+          limitedLine(upgrade, "upgrades", request);
           conn.close(1013, "try again later"); // standard: Try Again Later
           return;
         }
+        requestLine(request);
         // Checked after upgrade, not in the schema: a browser cannot read the
         // HTTP status of a failed upgrade, only a close code (#17). An outdated
         // client never reaches the service, so no room state is touched.
@@ -316,7 +347,7 @@ export function buildServer(options: ServerOptions = {}) {
         }
         const room = address.roomForSocket(key);
         if (room !== "ok") {
-          limitedLine(room, "sockets", request.id);
+          limitedLine(room, "sockets", request);
           conn.close(1013, "try again later");
           return;
         }

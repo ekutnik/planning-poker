@@ -136,6 +136,30 @@ describe("upgrades per address", () => {
     for (const client of first) client.socket.terminate();
   });
 
+  it("logs a refused upgrade's request line only within the cap, never one per attempt", async () => {
+    const { lines, logger } = capture();
+    await start({ logger });
+    const clients = await Promise.all(
+      Array.from({ length: 300 }, () => from("203.0.113.7")),
+    );
+    await Promise.all(
+      clients.slice(60).map(async (client) => {
+        expect((await client.closed).code).toBe(1013);
+      }),
+    );
+    const requests = lines.filter((line) => line.msg === "incoming request");
+    const limited = lines.filter((line) => line.type === "rate-limited");
+    // 60 accepted, each with its line; of 240 refused, only the 10 the cap
+    // lets out, each with its request line, which carries the address.
+    expect(requests).toHaveLength(70);
+    expect(limited).toHaveLength(10);
+    for (const line of limited) {
+      const request = requests.find((r) => r.reqId === line.conn);
+      expect(request?.req).toMatchObject({ remoteAddress: "203.0.113.7" });
+    }
+    for (const client of clients) client.socket.terminate();
+  });
+
   it("lets the same burst through when it comes from two addresses", async () => {
     await start();
     const clients = await Promise.all(
