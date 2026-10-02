@@ -1,5 +1,3 @@
-import { TokenBucket } from "./token-bucket.js";
-
 /** Each capped line goes out at most this often across the whole server. */
 export const LOG_LINES_PER_MINUTE = 10;
 const MINUTE = 60_000;
@@ -8,38 +6,53 @@ const MINUTE = 60_000;
  * A cap on one kind of log line, for the whole server, not per connection
  * (#16): a per-connection cap bounds nothing when every bad frame comes on a
  * fresh connection, as an oversized frame does, since it closes its own.
- * Up to LOG_LINES_PER_MINUTE lines a minute go out; past that, lines are
- * counted, not written, and once a minute has passed since the first one
- * dropped, the count is reported once, as a single line. Pure: the caller
- * passes the time.
+ *
+ * A fixed window, not a token bucket: up to `perMinute` lines go out in the
+ * minute from the first one, then none until that minute ends, when the
+ * ones held back are reported once, as a single line. A bucket would let
+ * twice as many through in a minute (its burst, then its refill), and "at
+ * most 10 a minute" should mean that. Pure: the caller passes the time.
  */
 export class LogCap {
-  private readonly bucket: TokenBucket;
+  private windowStart: number | null = null;
+  private written = 0;
   private dropped = 0;
-  private firstDroppedAt = 0;
 
-  constructor(perMinute = LOG_LINES_PER_MINUTE) {
-    // It starts full, so the time it was made doesn't matter: no clock is
-    // read before the first line.
-    this.bucket = new TokenBucket(perMinute, MINUTE, 0);
-  }
+  constructor(private readonly perMinute = LOG_LINES_PER_MINUTE) {}
 
   /** Whether a line may go out now; if not, it is counted as suppressed. */
   allow(now: number): boolean {
-    if (this.bucket.take(now)) return true;
-    if (this.dropped === 0) this.firstDroppedAt = now;
+    if (this.windowStart === null || now - this.windowStart >= MINUTE) {
+      // A new minute; whatever the last one held back stays until reported.
+      if (this.dropped === 0) {
+        this.windowStart = now;
+        this.written = 0;
+      }
+    }
+    if (this.written < this.perMinute) {
+      this.written += 1;
+      return true;
+    }
     this.dropped += 1;
     return false;
   }
 
   /**
-   * How many lines were suppressed, once a minute has passed since the first
-   * of them; null until then, or if there were none. Reporting resets it.
+   * How many lines were held back, once their minute has ended; null until
+   * then, or if there were none. Reporting starts the next minute.
    */
   suppressed(now: number): number | null {
-    if (this.dropped === 0 || now - this.firstDroppedAt < MINUTE) return null;
+    if (
+      this.dropped === 0 ||
+      this.windowStart === null ||
+      now - this.windowStart < MINUTE
+    ) {
+      return null;
+    }
     const count = this.dropped;
     this.dropped = 0;
+    this.windowStart = now;
+    this.written = 0;
     return count;
   }
 }

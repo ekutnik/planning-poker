@@ -19,6 +19,16 @@ describe("a log cap", () => {
     expect(cap.suppressed(200_000)).toBeNull();
   });
 
+  it("means at most 10 in the minute, not 10 and then a refill (found by the flood check)", () => {
+    const cap = new LogCap();
+    for (let i = 0; i < 10; i += 1) expect(cap.allow(i * 1_000)).toBe(true);
+    // Half a minute on, a bucket would have refilled 5; the window has not.
+    for (let i = 0; i < 10; i += 1) expect(cap.allow(30_000)).toBe(false);
+    expect(cap.allow(59_999)).toBe(false);
+    expect(cap.suppressed(60_000)).toBe(11);
+    expect(cap.allow(60_000)).toBe(true);
+  });
+
   it("reports nothing when nothing was dropped", () => {
     const cap = new LogCap();
     cap.allow(0);
