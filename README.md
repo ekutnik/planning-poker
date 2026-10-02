@@ -144,7 +144,7 @@ The server reads its settings from environment variables. Unset means the defaul
 | `PORT`                | `3000`      | HTTP and WebSocket port                                                                                                                                       |
 | `HOST`                | `127.0.0.1` | The IP address to listen on. The default keeps a dev server off the network; the Docker image sets `0.0.0.0`                                                  |
 | `LOG_LEVEL`           | `info`      | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`                                                                                                |
-| `MAX_ROOMS`           | `10000`     | Rooms held in memory; a join that would create one more is refused                                                                                            |
+| `MAX_ROOMS`           | `200`       | Rooms held in memory; a join that would create one more is refused. The default fits the production machine (see Deploy)                                      |
 | `MAX_PENDING`         | `1000`      | Sockets that have not joined yet; more are refused with `1013`                                                                                                |
 | `SWEEP_INTERVAL_MS`   | `5000`      | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls)                                                          |
 | `ROOM_TTL_MS`         | `600000`    | How long a room may stay empty before it is evicted                                                                                                           |
@@ -217,7 +217,7 @@ The app runs on [Fly.io](https://fly.io) (`fly.toml`): one machine in Frankfurt,
 
 **Don't deploy during your team's planning sessions.** There is one machine, and rooms live in its memory (ADR 0001), so every deploy restarts it and every room loses its round in progress. Each page says "The server is restarting. Reconnecting…" and rejoins on its own within seconds, but the votes cast so far are gone and the round starts again. A second machine wouldn't help: the rooms would be split between them.
 
-On Fly the server sends `Strict-Transport-Security: max-age=31536000` (production only; nothing for subdomains or preloading, since `fly.dev` isn't ours), Fly waits 15 s after SIGTERM (`kill_timeout`, above the 10 s shutdown backstop), checks `/health`, restarts the process if it ever exits with an error (`[[restart]]`, `on-failure`), and `PROXY=fly` takes the client's address from `Fly-Client-IP`. Memory is bounded by `MAX_ROOMS=200` and `NODE_OPTIONS=--max-old-space-size=128`: 200 full rooms (6,000 people) plus 1,000 sockets not yet joined measured 86.9 MiB of heap in a container limited to the machine's 207 MiB, where the default 10,000 rooms ran out of heap at 400 full rooms. A team needs a room or two.
+On Fly the server sends `Strict-Transport-Security: max-age=31536000` (production only; nothing for subdomains or preloading, since `fly.dev` isn't ours), Fly waits 15 s after SIGTERM (`kill_timeout`, above the 10 s shutdown backstop), checks `/health`, restarts the process if it ever exits with an error (`[[restart]]`, `on-failure`), and `PROXY=fly` takes the client's address from `Fly-Client-IP`. Memory is bounded by `MAX_ROOMS=200` and `NODE_OPTIONS=--max-old-space-size=128`: 200 full rooms (6,000 people) plus 1,000 sockets not yet joined measured 86.9 MiB of heap in a container limited to the machine's 207 MiB, where 10,000 rooms, the default until v0.5.0, ran out of heap at 400 full rooms. The code's default is 200 too, so a deploy without the setting is just as safe. A team needs a room or two.
 
 ### Shutdown
 
@@ -246,7 +246,6 @@ The visual and interaction design, and the reasoning behind it, is in [docs/desi
 - **Now (v0.x): Team trial.** One team uses it for its planning sessions, and what they find shapes what comes next.
 - **v1 launch.** Before the repository and the link go public:
   - rate limits ([#16](https://github.com/ekutnik/planning-poker/issues/16)), keyed on the real client address ([#66](https://github.com/ekutnik/planning-poker/issues/66));
-  - a safe default `MAX_ROOMS` ([#63](https://github.com/ekutnik/planning-poker/issues/63));
   - a privacy note, and quieter logs ([#65](https://github.com/ekutnik/planning-poker/issues/65));
   - the scheduled budget check kept alive ([#64](https://github.com/ekutnik/planning-poker/issues/64));
   - the remaining accessibility checks ([#44](https://github.com/ekutnik/planning-poker/issues/44)), and the Safari console error ([#71](https://github.com/ekutnik/planning-poker/issues/71)).
