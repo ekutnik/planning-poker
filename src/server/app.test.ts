@@ -337,6 +337,84 @@ describe("websocket route", () => {
 
     expect((await client.closed).code).toBe(1009);
   });
+
+  it("lets the largest messages a client can legitimately send through the 4 KiB cap", async () => {
+    // The protocol's own caps: a 200-character name and a 200-character
+    // ticket, each made of characters JSON escapes to 6 bytes, the most any
+    // character costs on the wire, and the longest session token.
+    const worst = "\u0001".repeat(200);
+    const join = {
+      type: "join",
+      sessionToken: "T".repeat(64),
+      name: worst,
+    } as const;
+    // Ending in one visible character, so the room has a ticket to show.
+    const ticket = {
+      type: "setTicket",
+      text: `${worst.slice(1)}A`,
+    } as const;
+    for (const message of [join, ticket]) {
+      expect(Buffer.byteLength(JSON.stringify(message))).toBeLessThan(4096);
+    }
+    const client = await connect(await createRoom());
+    client.send(join);
+    expect(await client.next()).toEqual({
+      type: "error",
+      code: "INVALID_NAME",
+    });
+    client.send({ type: "join", sessionToken: randomUUID(), name: "Ada" });
+    await client.snapshot();
+    client.send(ticket);
+    // The control characters go, and what is left is the ticket: an
+    // answer, not a 1009.
+    expect((await client.snapshot()).ticket).toBe("A");
+  });
+
+  it("caps the oversized-frame warning for the whole server, not per connection (#16)", async () => {
+    const FRAMES = 10_000;
+    const lines: Record<string, unknown>[] = [];
+    let now = 0;
+    await restart({
+      clock: () => now,
+      sweepIntervalMs: 5,
+      // Not what this test is about: the server notices each socket's close
+      // a moment after the client does, so a batch can briefly hold more
+      // than the 1,000 unjoined sockets allowed.
+      limits: { maxPending: FRAMES },
+      logger: {
+        level: "warn",
+        stream: {
+          write: (line: string) =>
+            lines.push(JSON.parse(line) as Record<string, unknown>),
+        },
+      },
+    });
+    const roomId = await createRoom();
+    // Each on a fresh connection, since each closes its own: 10,000 in a
+    // minute, in batches.
+    for (let sent = 0; sent < FRAMES; sent += 250) {
+      await Promise.all(
+        Array.from({ length: 250 }, async () => {
+          const client = new TestClient(await app.injectWS(socketPath(roomId)));
+          client.socket.send("x".repeat(4097));
+          expect((await client.closed).code).toBe(1009);
+        }),
+      );
+    }
+    const warnings = () => lines.filter((l) => l.msg === "websocket error");
+    expect(warnings()).toHaveLength(10);
+    // A minute after the first was held back, the count goes out, once.
+    now += 60_000;
+    await sleep(30);
+    expect(lines.filter((l) => l.type === "suppressed")).toEqual([
+      expect.objectContaining({
+        type: "suppressed",
+        line: "websocket error",
+        count: FRAMES - 10,
+      }),
+    ]);
+    expect(warnings()).toHaveLength(10);
+  }, 60_000);
 });
 
 describe("logging", () => {
