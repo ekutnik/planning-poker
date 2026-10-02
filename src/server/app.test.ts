@@ -77,6 +77,17 @@ async function connect(roomId: string): Promise<TestClient> {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Waits until `done` holds, up to 2 s, however busy the machine is: a fixed
+ * sleep for the sweep timer to run was not always enough with other test
+ * files running alongside.
+ */
+async function until(done: () => boolean): Promise<void> {
+  for (let waited = 0; !done() && waited < 2_000; waited += 10) {
+    await sleep(10);
+  }
+}
+
 /** Replaces the default app for a test that needs its own options. */
 async function restart(options: ServerOptions): Promise<void> {
   await app.close();
@@ -207,7 +218,14 @@ describe("websocket route", () => {
 
   it("forwards pongs, so a client that answers pings outlives the pong deadline", async () => {
     let now = 0;
-    await restart({ clock: () => now, sweepIntervalMs: 5 });
+    let reads = 0;
+    await restart({
+      clock: () => {
+        reads += 1;
+        return now;
+      },
+      sweepIntervalMs: 5,
+    });
     const alice = await connect(await createRoom());
     alice.send({ type: "join", sessionToken: randomUUID(), name: "Alice" });
     await alice.snapshot();
@@ -221,7 +239,11 @@ describe("websocket route", () => {
     await pinged;
     await sleep(20); // let the pong reach the server
     now = PONG_TIMEOUT_MS; // past the deadline measured from join
-    await sleep(30);
+    // Until the sweep has run on the new time, twice: without that, the
+    // socket being open would prove nothing.
+    const before = reads;
+    await until(() => reads >= before + 2);
+    expect(reads).toBeGreaterThanOrEqual(before + 2);
 
     expect(alice.socket.readyState).toBe(alice.socket.OPEN);
   });
@@ -405,7 +427,7 @@ describe("websocket route", () => {
     expect(warnings()).toHaveLength(10);
     // A minute after the first was held back, the count goes out, once.
     now += 60_000;
-    await sleep(30);
+    await until(() => lines.some((l) => l.type === "suppressed"));
     expect(lines.filter((l) => l.type === "suppressed")).toEqual([
       expect.objectContaining({
         type: "suppressed",
@@ -582,7 +604,8 @@ describe("failure containment", () => {
         },
       },
     });
-    await sleep(30);
+    // Until a later tick has run.
+    await until(() => reads >= 3);
 
     expect(lines.filter((line) => line.msg === "sweep failed")).toEqual([
       expect.objectContaining({ level: 50 }),
