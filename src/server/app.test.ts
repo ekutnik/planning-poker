@@ -8,7 +8,12 @@ import {
   type ServerMessage,
 } from "../shared/protocol.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
-import { buildServer, toConnection, type ServerOptions } from "./app.js";
+import {
+  buildServer,
+  MAX_BUFFERED_BYTES,
+  toConnection,
+  type ServerOptions,
+} from "./app.js";
 import { CloseCode } from "../shared/close-codes.js";
 import { ROOM_ID_PATTERN } from "../shared/rules.js";
 import { roomLogId } from "./identity.js";
@@ -543,7 +548,13 @@ describe("failure containment", () => {
 
   it("toConnection never throws, and logs each failed socket call at warn", () => {
     const warnings: { op?: string }[] = [];
-    const socket = { send: boom, close: boom, ping: boom, terminate: boom };
+    const socket = {
+      send: boom,
+      close: boom,
+      ping: boom,
+      terminate: boom,
+      bufferedAmount: 0,
+    };
     const conn = toConnection(socket, "req-1", {
       warn: (fields: { op?: string }) => warnings.push(fields),
     });
@@ -562,6 +573,93 @@ describe("failure containment", () => {
     ]);
   });
 
+  it("drops a socket that has stopped reading, once, instead of queueing more for it", () => {
+    const sent: string[] = [];
+    let terminated = 0;
+    let slow = 0;
+    const socket = {
+      bufferedAmount: 0,
+      send: (data: string) => sent.push(data),
+      close: () => {},
+      ping: () => {},
+      terminate: () => {
+        terminated += 1;
+      },
+    };
+    const conn = toConnection(socket, "req-1", { warn: () => {} }, () => {
+      slow += 1;
+    });
+    const message = { type: "error", code: "NOT_JOINED" } as const;
+    // A slow phone with a few snapshots waiting is sent to as usual.
+    socket.bufferedAmount = MAX_BUFFERED_BYTES;
+    conn.send(message);
+    expect(sent).toHaveLength(1);
+    // Past 1 MiB unread: dropped, not sent to, and said once.
+    socket.bufferedAmount = MAX_BUFFERED_BYTES + 1;
+    conn.send(message);
+    conn.send(message);
+    expect(sent).toHaveLength(1);
+    expect([terminated, slow]).toEqual([1, 1]);
+  });
+
+  it("forgets a dropped slow socket everywhere, through the room service's close", () => {
+    const service = new RoomService(() => 0, {
+      maxRooms: 10,
+      maxPending: 10,
+    });
+    const make = (id: string) => {
+      const socket = {
+        bufferedAmount: 0,
+        send: () => {},
+        close: () => {},
+        ping: () => {},
+        // ws fires close after terminate, and the route passes it on.
+        terminate: () => service.close(conn),
+      };
+      const conn = toConnection(socket, id, { warn: () => {} });
+      return { socket, conn };
+    };
+    const reader = make("reader");
+    const stalled = make("stalled");
+    for (const { conn } of [reader, stalled]) {
+      service.open(conn, "abcdefghijk");
+      service.message(
+        conn,
+        JSON.stringify({
+          type: "join",
+          sessionToken: randomUUID(),
+          name: conn.id,
+        }),
+      );
+    }
+    stalled.socket.bufferedAmount = MAX_BUFFERED_BYTES + 1;
+    // The reader's next move sends the stalled socket a snapshot: dropped.
+    service.message(
+      reader.conn,
+      JSON.stringify({ type: "castVote", card: "5" }),
+    );
+    service.message(reader.conn, JSON.stringify({ type: "leave" }));
+    service.close(reader.conn);
+    const counts = service.bookkeeping();
+    expect({
+      pending: counts.pending,
+      bindings: counts.bindings,
+      sockets: counts.sockets,
+      socketRooms: counts.socketRooms,
+      lastSent: counts.lastSent,
+      liveness: counts.liveness,
+      throttles: counts.throttles,
+    }).toEqual({
+      pending: 0,
+      bindings: 0,
+      sockets: 0,
+      socketRooms: 0,
+      lastSent: 0,
+      liveness: 0,
+      throttles: 0,
+    });
+  });
+
   it("a socket whose close throws does not stop the sweep closing the rest", () => {
     let now = 0;
     const service = new RoomService(() => now, {
@@ -572,6 +670,7 @@ describe("failure containment", () => {
     const quiet = { warn: () => {} };
     const sockets = ["broken", "second", "third"].map((id) => ({
       id,
+      bufferedAmount: 0,
       send: () => {},
       ping: () => {},
       terminate: () => {},

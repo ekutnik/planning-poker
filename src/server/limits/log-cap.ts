@@ -57,11 +57,15 @@ export class LogCap {
   }
 }
 
-/** The capped lines: the oversized-frame warning, and the limits' own. */
+/**
+ * The capped lines: the oversized-frame warning, the limits' own, and a
+ * socket dropped for not reading.
+ */
 export const CAPPED_LINES = [
   "websocket error",
   "rate-limited",
   "strikes",
+  "slow consumer",
 ] as const;
 export type CappedLine = (typeof CAPPED_LINES)[number];
 

@@ -63,18 +63,36 @@ function requestSerializer(proxy: Proxy | undefined) {
   });
 }
 
-type Socket = Pick<WebSocket, "send" | "close" | "ping" | "terminate">;
+type Socket = Pick<
+  WebSocket,
+  "send" | "close" | "ping" | "terminate" | "bufferedAmount"
+>;
+
+/**
+ * What one socket may hold unsent before it is dropped: a client that has
+ * stopped reading. Send buffers live outside the JavaScript heap, so the
+ * heap cap does not bound them, and a socket that never reads would grow
+ * without limit, at however many snapshots its room sends. A snapshot is a
+ * few KB, so 1 MiB is hundreds of them unread: a dead or hostile client,
+ * never a slow phone.
+ */
+export const MAX_BUFFERED_BYTES = 1024 * 1024;
 
 /**
  * Wraps a socket as a Connection that never throws, as the interface requires.
  * RoomService calls out to connections mid-loop (sweep, broadcast, supersede);
  * a throw there would skip the rest of the loop or, from the sweep interval,
  * crash the process and every room in it. A failed call is logged at warn.
+ *
+ * A socket holding more than MAX_BUFFERED_BYTES unsent is terminated
+ * instead of sent to, once, and `onSlowConsumer` says so. Its close then
+ * goes through the room service like any other dropped socket.
  */
 export function toConnection(
   socket: Socket,
   id: string,
   log: Pick<FastifyBaseLogger, "warn">,
+  onSlowConsumer: () => void = () => {},
 ): Connection {
   const guard = (op: string, call: () => void) => {
     try {
@@ -83,10 +101,19 @@ export function toConnection(
       log.warn({ err, conn: id, op }, "socket call failed");
     }
   };
+  let dropped = false;
   return {
     id,
-    send: (message) =>
-      guard("send", () => socket.send(JSON.stringify(message))),
+    send: (message) => {
+      if (dropped) return;
+      if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+        dropped = true;
+        onSlowConsumer();
+        guard("terminate", () => socket.terminate());
+        return;
+      }
+      guard("send", () => socket.send(JSON.stringify(message)));
+    },
     close: (code, reason) => guard("close", () => socket.close(code, reason)),
     ping: () => guard("ping", () => socket.ping()),
     terminate: () => guard("terminate", () => socket.terminate()),
@@ -219,7 +246,11 @@ export function buildServer(options: ServerOptions = {}) {
       "/ws/:roomId",
       { websocket: true, schema: { params: roomParams } },
       (socket, request) => {
-        const conn = toConnection(socket, request.id, request.log);
+        const conn = toConnection(socket, request.id, request.log, () => {
+          if (logCaps.allow("slow consumer", clock())) {
+            request.log.warn({ type: "slow-consumer", conn: request.id });
+          }
+        });
         // Checked after upgrade, not in the schema: a browser cannot read the
         // HTTP status of a failed upgrade, only a close code (#17). An outdated
         // client never reaches the service, so no room state is touched.
