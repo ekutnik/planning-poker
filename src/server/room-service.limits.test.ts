@@ -187,16 +187,16 @@ describe("the client's liveness ping (#16, #20)", () => {
     let commands = 0;
     // 10 commands a second, a ping every 20 s, until the strikes run out.
     for (let ms = 0; ada.closedWith === null && ms < 120_000; ms += 100) {
-      if (ms % 20_000 === 0) {
+      send(ada, vote(commands));
+      commands += 1;
+      // Right after a command, when the flood has just emptied the message
+      // bucket: a ping sharing it would be refused here.
+      if (ms % 20_000 === 0 && ada.closedWith === null) {
         const before = of(ada, "pong").length;
         send(ada, { type: "ping" });
         pings += 1;
-        if (ada.closedWith === null) {
-          expect(of(ada, "pong")).toHaveLength(before + 1);
-        }
+        expect(of(ada, "pong")).toHaveLength(before + 1);
       }
-      send(ada, vote(commands));
-      commands += 1;
       advance(100);
     }
     // Closed at last, as the flood deserved, but every ping before it got
