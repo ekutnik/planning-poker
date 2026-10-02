@@ -18,6 +18,7 @@ import { CloseCode } from "../shared/close-codes.js";
 import { ROOM_ID_PATTERN } from "../shared/rules.js";
 import { roomLogId } from "./identity.js";
 import {
+  DEFAULT_LIMITS,
   JOIN_TIMEOUT_MS,
   PING_INTERVAL_MS,
   PONG_TIMEOUT_MS,
@@ -406,8 +407,13 @@ describe("websocket route", () => {
       sweepIntervalMs: 5,
       // Not what this test is about: the server notices each socket's close
       // a moment after the client does, so a batch can briefly hold more
-      // than the 1,000 unjoined sockets allowed.
-      limits: { maxPending: FRAMES },
+      // than the 1,000 unjoined sockets allowed; and every connection here
+      // comes from one address.
+      limits: {
+        maxPending: FRAMES,
+        connectsPerMinute: FRAMES,
+        socketsPerAddress: FRAMES,
+      },
       logger: {
         level: "warn",
         stream: {
@@ -663,6 +669,7 @@ describe("failure containment", () => {
   it("a socket whose close throws does not stop the sweep closing the rest", () => {
     let now = 0;
     const service = new RoomService(() => now, {
+      ...DEFAULT_LIMITS,
       maxRooms: 10,
       maxPending: 10,
     });

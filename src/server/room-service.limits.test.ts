@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { ServerMessage } from "../shared/protocol.js";
 import { LogCaps } from "./limits/log-cap.js";
 import type { Connection, RoomLog } from "./room-service.js";
-import { RATE_LIMITED_LOG_MS, RoomService } from "./room-service.js";
+import {
+  DEFAULT_LIMITS,
+  RATE_LIMITED_LOG_MS,
+  RoomService,
+} from "./room-service.js";
 
 /**
  * One connection's message limits (#16): what a flood gets, what it doesn't
@@ -36,7 +40,7 @@ function setup() {
   const logCaps = new LogCaps();
   const service = new RoomService(
     () => now,
-    { maxRooms: 10, maxPending: 10 },
+    { ...DEFAULT_LIMITS, maxRooms: 10, maxPending: 10 },
     { log, logCaps },
   );
   const connect = (id: string, token: string) => {
@@ -244,5 +248,109 @@ describe("the limits' log lines, for the whole server (#16)", () => {
     expect(logCaps.due(now() + 60_000)).toEqual([
       { line: "rate-limited", count: 20 },
     ]);
+  });
+});
+
+describe("rooms created per address (ADR 0009)", () => {
+  const HOUR = 60 * 60_000;
+  /** A room id for room n: 11 characters of the room-id alphabet. */
+  const roomId = (n: number) => `room${String(n).padStart(7, "0")}`;
+
+  function creator() {
+    let now = 1_000;
+    const logs: Parameters<RoomLog["info"]>[0][] = [];
+    const log: RoomLog = {
+      info: (f) => logs.push(f),
+      warn: (f) => logs.push(f),
+    };
+    const service = new RoomService(
+      () => now,
+      { ...DEFAULT_LIMITS, maxRooms: 100 },
+      { log },
+    );
+    let n = 0;
+    const join = (room: string, key: string) => {
+      n += 1;
+      const conn = new FakeConnection(`c${String(n)}`);
+      conn.onClose = () => service.close(conn);
+      service.open(conn, room, key);
+      service.message(
+        conn,
+        JSON.stringify({
+          type: "join",
+          sessionToken: `SESSIONTOKEN_${String(n).padStart(12, "0")}`,
+          name: "Ada",
+        }),
+      );
+      return conn;
+    };
+    const advance = (ms: number) => {
+      now += ms;
+    };
+    return { service, join, advance, logs };
+  }
+
+  it("refuses the 11th room in an hour from one address: RATE_LIMITED, then 1013, and no room", () => {
+    const { service, join, logs } = creator();
+    for (let i = 0; i < 10; i += 1) {
+      expect(of(join(roomId(i), "203.0.113.7"), "snapshot")).toHaveLength(1);
+    }
+    const refused = join(roomId(10), "203.0.113.7");
+    expect(refused.sent).toEqual([{ type: "error", code: "RATE_LIMITED" }]);
+    expect(refused.closedWith).toEqual({
+      code: 1013,
+      reason: "try again later",
+    });
+    expect(service.bookkeeping().rooms).toBe(10);
+    expect(logs).toContainEqual({
+      type: "rate-limited",
+      limit: "rooms",
+      conn: refused.id,
+    });
+  });
+
+  it("never charges for joining a room that exists, so teammates aren't blocked", () => {
+    const { join } = creator();
+    for (let i = 0; i < 10; i += 1) join(roomId(i), "203.0.113.7");
+    // The same office address, ten rooms made: joining one still works.
+    for (let i = 0; i < 25; i += 1) {
+      expect(of(join(roomId(0), "203.0.113.7"), "snapshot")).toHaveLength(1);
+    }
+  });
+
+  it("keeps each address to its own rooms", () => {
+    const { join } = creator();
+    for (let i = 0; i < 10; i += 1) join(roomId(i), "203.0.113.7");
+    expect(of(join(roomId(10), "198.51.100.2"), "snapshot")).toHaveLength(1);
+  });
+
+  it("gives the address a room back as its hour refills", () => {
+    const { join, advance } = creator();
+    for (let i = 0; i < 10; i += 1) join(roomId(i), "203.0.113.7");
+    expect(join(roomId(10), "203.0.113.7").closedWith?.code).toBe(1013);
+    advance(HOUR / 10); // one room's worth
+    expect(of(join(roomId(11), "203.0.113.7"), "snapshot")).toHaveLength(1);
+    expect(join(roomId(12), "203.0.113.7").closedWith?.code).toBe(1013);
+    advance(HOUR);
+    for (let i = 13; i < 23; i += 1) {
+      expect(of(join(roomId(i), "203.0.113.7"), "snapshot")).toHaveLength(1);
+    }
+  });
+
+  it("charges nothing for a join the room refuses", () => {
+    const { service, join } = creator();
+    for (let i = 0; i < 20; i += 1) {
+      const conn = new FakeConnection(`bad${String(i)}`);
+      service.open(conn, roomId(i), "203.0.113.7");
+      service.message(
+        conn,
+        JSON.stringify({
+          type: "join",
+          sessionToken: `SESSIONTOKEN_BAD_${String(i).padStart(8, "0")}`,
+          name: " ",
+        }),
+      );
+    }
+    expect(of(join(roomId(50), "203.0.113.7"), "snapshot")).toHaveLength(1);
   });
 });

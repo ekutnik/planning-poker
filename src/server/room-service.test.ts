@@ -6,6 +6,7 @@ import { derivePublicId, roomLogId } from "./identity.js";
 import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
 import type { Connection, Limits, RoomLog } from "./room-service.js";
 import {
+  DEFAULT_LIMITS,
   JOIN_TIMEOUT_MS,
   MAX_SWEEP_INTERVAL_MS,
   PING_INTERVAL_MS,
@@ -58,7 +59,7 @@ function setup(
   };
   const service = new RoomService(
     () => now,
-    { maxRooms: 10, maxPending: 10, ...limits },
+    { ...DEFAULT_LIMITS, maxRooms: 10, maxPending: 10, ...limits },
     { log, sweepIntervalMs },
   );
   const advance = (ms: number) => {
@@ -351,6 +352,9 @@ describe("RoomService", () => {
     service.sweep();
     tick(PONG_TIMEOUT_MS); // the heartbeat terminates dave
     tick(DISCONNECT_GRACE_MS + ROOM_TTL_MS); // grace removal, then the room TTL
+    // The rooms created count against their address for an hour at most:
+    // once refilled, the bucket goes too (ADR 0009).
+    tick(60 * 60_000);
 
     expect(alice.closedWith?.code).toBe(CloseCode.SUPERSEDED);
     expect(bob.closedWith?.code).toBe(1000);
@@ -368,6 +372,7 @@ describe("RoomService", () => {
       nudges: 0,
       timers: 0,
       throttles: 0,
+      roomKeys: 0,
     });
   });
 

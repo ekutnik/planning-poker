@@ -58,23 +58,28 @@ export class LogCap {
 }
 
 /**
- * The capped lines: the oversized-frame warning, the limits' own, and a
- * socket dropped for not reading.
+ * The capped lines and how many of each a minute: the oversized-frame
+ * warning, the limits' own and a socket dropped for not reading, 10 each,
+ * and a full table of keys, once (ADR 0009).
  */
-export const CAPPED_LINES = [
-  "websocket error",
-  "rate-limited",
-  "strikes",
-  "slow consumer",
-] as const;
-export type CappedLine = (typeof CAPPED_LINES)[number];
+const LINES_PER_MINUTE = {
+  "websocket error": LOG_LINES_PER_MINUTE,
+  "rate-limited": LOG_LINES_PER_MINUTE,
+  strikes: LOG_LINES_PER_MINUTE,
+  "slow consumer": LOG_LINES_PER_MINUTE,
+  "limiter full": 1,
+} as const;
+export type CappedLine = keyof typeof LINES_PER_MINUTE;
+export const CAPPED_LINES = Object.keys(LINES_PER_MINUTE) as CappedLine[];
 
 /** One LogCap per capped line, shared by the app and the room service. */
 export class LogCaps {
   private readonly caps: ReadonlyMap<CappedLine, LogCap>;
 
   constructor() {
-    this.caps = new Map(CAPPED_LINES.map((line) => [line, new LogCap()]));
+    this.caps = new Map(
+      CAPPED_LINES.map((line) => [line, new LogCap(LINES_PER_MINUTE[line])]),
+    );
   }
 
   allow(line: CappedLine, now: number): boolean {

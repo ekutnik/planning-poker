@@ -19,6 +19,8 @@ import {
   type Connection,
   type Limits,
 } from "./room-service.js";
+import { AddressLimits } from "./limits/address.js";
+import { limitKey } from "./limits/limit-key.js";
 import { LogCaps } from "./limits/log-cap.js";
 import { CLOSE_GRACE_MS } from "./shutdown.js";
 import { notFound, serveClient } from "./web.js";
@@ -42,6 +44,8 @@ export interface ServerOptions {
   readonly production?: boolean;
   /** The proxy in front, whose header names the client (client-ip.ts). */
   readonly proxy?: Proxy;
+  /** For tests that read the per-address counts; built from `limits` otherwise. */
+  readonly addressLimits?: AddressLimits;
 }
 
 const roomParams = {
@@ -148,19 +152,17 @@ export function buildServer(options: ServerOptions = {}) {
   // whole server (#16): the oversized-frame warning here, and the limits'
   // own lines in the service.
   const logCaps = new LogCaps();
-  const rooms = new RoomService(
-    clock,
-    { ...DEFAULT_LIMITS, ...options.limits },
-    {
-      log: {
-        info: (fields) => app.log.info(fields),
-        warn: (fields) => app.log.warn(fields),
-      },
-      sweepIntervalMs,
-      roomTtlMs: options.roomTtlMs,
-      logCaps,
+  const limits = { ...DEFAULT_LIMITS, ...options.limits };
+  const address = options.addressLimits ?? new AddressLimits(limits);
+  const rooms = new RoomService(clock, limits, {
+    log: {
+      info: (fields) => app.log.info(fields),
+      warn: (fields) => app.log.warn(fields),
     },
-  );
+    sweepIntervalMs,
+    roomTtlMs: options.roomTtlMs,
+    logCaps,
+  });
 
   // One interval drives every timeout; there are no per-connection timers.
   let sweeper: NodeJS.Timeout | undefined;
@@ -170,6 +172,7 @@ export function buildServer(options: ServerOptions = {}) {
       // bug crash the process and drop every room with it.
       try {
         rooms.sweep();
+        address.sweep(clock());
         // Whatever the caps held back, once a minute after it started.
         for (const { line, count } of logCaps.due(clock())) {
           app.log.warn({ type: "suppressed", line, count });
@@ -237,7 +240,40 @@ export function buildServer(options: ServerOptions = {}) {
   });
 
   app.get("/health", () => ({ status: "ok" }));
-  app.post("/api/rooms", () => ({ roomId: generateRoomId() }));
+  /** One capped line for a per-address refusal; a key is never logged. */
+  const limitedLine = (
+    take: "limited" | "full",
+    limit: string,
+    conn: string,
+  ) => {
+    const now = clock();
+    if (take === "full") {
+      if (logCaps.allow("limiter full", now)) {
+        app.log.warn({ type: "limiter-full", limit });
+      }
+    } else if (logCaps.allow("rate-limited", now)) {
+      app.log.info({ type: "rate-limited", limit, conn });
+    }
+  };
+
+  // Only makes up an id: a room exists once someone joins it, and that is
+  // where creating one is counted (ADR 0009). The id itself is limited per
+  // address like an upgrade, and the request has no body to speak of.
+  app.post("/api/rooms", { bodyLimit: 1024 }, (request, reply) => {
+    const key = limitKey(clientIp(request, options.proxy));
+    const { take, retryAfterMs } = address.roomId(key, clock());
+    if (take !== "ok") {
+      limitedLine(take, "room-ids", request.id);
+      return reply
+        .code(429)
+        .header(
+          "Retry-After",
+          String(Math.max(1, Math.ceil(retryAfterMs / 1000))),
+        )
+        .send({ error: "RATE_LIMITED" });
+    }
+    return { roomId: generateRoomId() };
+  });
 
   // A child plugin loads after the websocket plugin, so its onRoute hook sees
   // this route. The params schema rejects a malformed room id with 400 before upgrade.
@@ -251,6 +287,16 @@ export function buildServer(options: ServerOptions = {}) {
             request.log.warn({ type: "slow-consumer", conn: request.id });
           }
         });
+        const key = limitKey(clientIp(request, options.proxy));
+        // Per address (ADR 0009), checked after the upgrade for the reason
+        // below: 1013, which the client retries with its long backoff. The
+        // upgrade rate first, for every attempt, outdated clients too.
+        const upgrade = address.upgrade(key, clock());
+        if (upgrade !== "ok") {
+          limitedLine(upgrade, "upgrades", request.id);
+          conn.close(1013, "try again later"); // standard: Try Again Later
+          return;
+        }
         // Checked after upgrade, not in the schema: a browser cannot read the
         // HTTP status of a failed upgrade, only a close code (#17). An outdated
         // client never reaches the service, so no room state is touched.
@@ -268,7 +314,18 @@ export function buildServer(options: ServerOptions = {}) {
           conn.close(CloseCode.OUTDATED_CLIENT, "outdated client");
           return;
         }
-        rooms.open(conn, request.params.roomId);
+        const room = address.roomForSocket(key);
+        if (room !== "ok") {
+          limitedLine(room, "sockets", request.id);
+          conn.close(1013, "try again later");
+          return;
+        }
+        // The count's only two writers, so it cannot leak: one more now, and
+        // one fewer from this socket's own close, which ws fires exactly
+        // once, whatever closes it.
+        address.open(key);
+        socket.once("close", () => address.close(key));
+        rooms.open(conn, request.params.roomId, key);
         // Never log `data`: a join frame carries the session token.
         socket.on("message", (data: Buffer) =>
           rooms.message(conn, data.toString("utf8")),

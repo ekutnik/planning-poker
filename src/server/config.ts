@@ -68,6 +68,14 @@ const Env = z.object({
   LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
   MAX_ROOMS: whole(1).default(DEFAULT_LIMITS.maxRooms),
   MAX_PENDING: whole(1).default(DEFAULT_LIMITS.maxPending),
+  // Per client address (ADR 0009). The defaults are production's values,
+  // so fly.toml sets none of them; the e2e suite raises them, since it
+  // makes hundreds of rooms from one address.
+  CONNECTS_PER_IP_PER_MINUTE: whole(1).default(
+    DEFAULT_LIMITS.connectsPerMinute,
+  ),
+  SOCKETS_PER_IP: whole(1).default(DEFAULT_LIMITS.socketsPerAddress),
+  ROOMS_PER_IP_PER_HOUR: whole(1).default(DEFAULT_LIMITS.roomsPerHour),
   // Two ceilings, whichever is lower: MAX_SWEEP_INTERVAL_MS keeps a healthy
   // connection inside the pong deadline through an undetected stall, and the
   // join timeout would be meaningless if it could fire a whole interval late
@@ -131,7 +139,13 @@ export function parseConfig(
       port: vars.PORT,
       host: vars.HOST,
       logLevel: vars.LOG_LEVEL,
-      limits: { maxRooms: vars.MAX_ROOMS, maxPending: vars.MAX_PENDING },
+      limits: {
+        maxRooms: vars.MAX_ROOMS,
+        maxPending: vars.MAX_PENDING,
+        connectsPerMinute: vars.CONNECTS_PER_IP_PER_MINUTE,
+        socketsPerAddress: vars.SOCKETS_PER_IP,
+        roomsPerHour: vars.ROOMS_PER_IP_PER_HOUR,
+      },
       sweepIntervalMs: vars.SWEEP_INTERVAL_MS,
       roomTtlMs: vars.ROOM_TTL_MS,
       shutdownTimeoutMs: vars.SHUTDOWN_TIMEOUT_MS,

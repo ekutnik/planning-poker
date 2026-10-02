@@ -71,6 +71,9 @@ export class RoomSession {
   private connection: SessionConnection | null = null;
   private listener: (() => void) | null = null;
   private view: SessionView = BEFORE_CONNECT;
+  // The notice on screen was raised before the join finished: a refused
+  // join that the client is retrying, such as RATE_LIMITED then 1013.
+  private noticeFromJoin = false;
 
   constructor(private readonly deps: SessionDeps) {}
 
@@ -100,13 +103,29 @@ export class RoomSession {
       this.view = { state, notice, nudged };
       listener();
     };
-    const stopState = connection.subscribe(() => update(this.view.notice));
+    const stopState = connection.subscribe(() => {
+      // The first snapshot of each connection: the join worked, so a notice
+      // raised while joining is out of date. Only then: snapshots arrive
+      // whenever anyone in the room acts, and a notice raised after the
+      // join (your own refused vote) must stay until your next action.
+      const joined =
+        connection.getState().status === "open" &&
+        this.view.state.status !== "open";
+      if (joined && this.noticeFromJoin) {
+        this.noticeFromJoin = false;
+        update(null);
+        return;
+      }
+      update(this.view.notice);
+    });
     const stopNudges = connection.onNudged(() =>
       update(this.view.notice, true),
     );
     const stopErrors = connection.onServerError((code) => {
       const copy = ERROR_COPY[code];
-      if (copy !== null) update(copy);
+      if (copy === null) return;
+      this.noticeFromJoin = connection.getState().status !== "open";
+      update(copy);
     });
     const stopWatching = this.deps.watchReturn(connection);
     connection.start();
@@ -140,6 +159,7 @@ export class RoomSession {
   }
 
   private clearNotice(): void {
+    this.noticeFromJoin = false;
     if (this.view.notice === null) return;
     this.view = { ...this.view, notice: null };
     this.listener?.();

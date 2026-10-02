@@ -15,6 +15,8 @@ import {
 import { project } from "./domain/projection.js";
 import { derivePublicId, roomLogId } from "./identity.js";
 import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
+import { KeyedLimiter } from "./limits/keyed.js";
+import { INVALID_KEY } from "./limits/limit-key.js";
 import { LogCaps } from "./limits/log-cap.js";
 import { TokenBucket } from "./limits/token-bucket.js";
 import { nudgeRefusal } from "./nudge.js";
@@ -94,6 +96,17 @@ export interface Limits {
    * answers. A per-IP connection cap (#16) bounds those.
    */
   readonly maxPending: number;
+  /**
+   * Per client address (ADR 0009), sized for a whole team behind one office
+   * address, who all join at once and reconnect together after a restart.
+   * WebSocket upgrades a minute, and room ids from the API too: two full
+   * rooms reconnecting at once.
+   */
+  readonly connectsPerMinute: number;
+  /** Sockets open at once: several teams behind one address. */
+  readonly socketsPerAddress: number;
+  /** Rooms created an hour: a team needs one or two. */
+  readonly roomsPerHour: number;
 }
 
 /**
@@ -101,9 +114,16 @@ export interface Limits {
  * (#63): 200 full rooms of 30, plus 1,000 sockets not yet joined, measured
  * 86.9 MiB of heap, inside Node's 128 MiB cap there; 10,000 rooms, the
  * default until v0.5.0, ran the heap out at 400 full rooms. fly.toml sets
- * the same 200, and a test keeps the two equal.
+ * the same 200, and a test keeps the two equal. The per-address limits are
+ * production's values too, and fly.toml sets none of them (ADR 0009).
  */
-export const DEFAULT_LIMITS: Limits = { maxRooms: 200, maxPending: 1_000 };
+export const DEFAULT_LIMITS: Limits = {
+  maxRooms: 200,
+  maxPending: 1_000,
+  connectsPerMinute: 60,
+  socketsPerAddress: 100,
+  roomsPerHour: 10,
+};
 
 /**
  * One connection's message limits (#16), as token buckets: a capacity, and
@@ -205,6 +225,8 @@ type RoomMessage = Exclude<ClientMessage, { type: "join" | "ping" | "nudge" }>;
 interface Pending {
   readonly roomId: string;
   readonly openedAt: number;
+  /** The client's limitKey(), for one purpose: counting rooms it creates. */
+  readonly key: string;
 }
 
 interface Liveness {
@@ -264,6 +286,9 @@ export class RoomService {
   // Every connection the service holds, pending or joined, has one (#16).
   // Only open() adds and forget() removes, like `pending`.
   private readonly throttles = new Map<Connection, Throttle>();
+  // Rooms created, per client address (ADR 0009). Charged only when a join
+  // really creates a room, never for joining one that exists.
+  private readonly roomCreations: KeyedLimiter;
   private readonly logCaps: LogCaps;
   // When each room became empty. The domain has no timestamp for that; only
   // store() and evict() write it, together with `rooms` (#18).
@@ -308,12 +333,18 @@ export class RoomService {
   ) {
     this.scheduler = scheduler;
     this.logCaps = logCaps ?? new LogCaps();
+    this.roomCreations = new KeyedLimiter(limits.roomsPerHour, 60 * 60_000);
     this.stallAfterMs = sweepIntervalMs * STALL_INTERVALS;
     this.roomTtlMs = roomTtlMs;
     this.log = redactRoomIds(log);
   }
 
-  open(conn: Connection, roomId: string): void {
+  /**
+   * `key` is the client's limitKey(), never its address: the service only
+   * uses it to count the rooms that client creates. Without one, as in
+   * tests, every connection shares INVALID_KEY.
+   */
+  open(conn: Connection, roomId: string, key = INVALID_KEY): void {
     if (this.stopping) {
       conn.close(1001, "going away");
       return;
@@ -326,13 +357,14 @@ export class RoomService {
       return;
     }
     const now = this.clock();
-    this.pending.set(conn, { roomId, openedAt: now });
+    this.pending.set(conn, { roomId, openedAt: now, key });
     this.throttles.set(conn, newThrottle(now));
     this.log.info({ conn: conn.id, room: roomId, type: "open" });
   }
 
   message(conn: Connection, raw: string): void {
-    const roomId = this.pending.get(conn)?.roomId;
+    const pending = this.pending.get(conn);
+    const roomId = pending?.roomId;
     const binding = this.bindings.get(conn);
     if (roomId === undefined && binding === undefined) return;
 
@@ -360,11 +392,11 @@ export class RoomService {
     });
 
     if (!binding) {
-      if (message.type !== "join" || roomId === undefined) {
+      if (message.type !== "join" || pending === undefined) {
         this.sendError(conn, "NOT_JOINED", roomId);
         return;
       }
-      this.join(conn, roomId, message.sessionToken, message.name);
+      this.join(conn, pending, message.sessionToken, message.name);
       return;
     }
     if (message.type === "join") {
@@ -475,6 +507,23 @@ export class RoomService {
     return false;
   }
 
+  /** Charges `key` for one new room, or refuses it with RATE_LIMITED, then 1013. */
+  private createAllowed(conn: Connection, key: string, now: number): boolean {
+    const take = this.roomCreations.take(key, now);
+    if (take === "ok") return true;
+    const line = take === "full" ? "limiter full" : "rate-limited";
+    if (this.logCaps.allow(line, now)) {
+      this.log.info(
+        take === "full"
+          ? { type: "limiter-full", limit: "rooms" }
+          : { type: "rate-limited", limit: "rooms", conn: conn.id },
+      );
+    }
+    conn.send({ type: "error", code: "RATE_LIMITED" });
+    conn.close(1013, "try again later"); // standard: Try Again Later
+    return false;
+  }
+
   /** Records a pong from a joined connection; others are ignored (#13). */
   pong(conn: Connection): void {
     const beat = this.liveness.get(conn);
@@ -573,6 +622,7 @@ export class RoomService {
     for (const roomId of evicted) this.evict(roomId);
     for (const room of expiredRooms) this.store(room, now);
     for (const key of cooled) this.nudgedAt.delete(key);
+    this.roomCreations.sweep(now);
 
     for (const [conn, { roomId }] of expired) {
       this.log.info({ conn: conn.id, room: roomId, type: "join-timeout" });
@@ -606,6 +656,7 @@ export class RoomService {
     nudges: number;
     timers: number;
     throttles: number;
+    roomKeys: number;
   } {
     let sockets = 0;
     for (const room of this.current.values()) sockets += room.size;
@@ -623,17 +674,19 @@ export class RoomService {
       nudges: this.nudgedAt.size,
       timers: this.timers.size,
       throttles: this.throttles.size,
+      roomKeys: this.roomCreations.size,
     };
   }
 
   private join(
     conn: Connection,
-    roomId: string,
+    { roomId, key }: Pending,
     sessionToken: string,
     name: string,
   ): void {
     const participantId = derivePublicId(roomId, sessionToken);
-    let room = this.rooms.get(roomId);
+    const existing = this.rooms.get(roomId);
+    let room = existing;
     if (!room) {
       if (this.rooms.size >= this.limits.maxRooms) {
         this.sendError(conn, "SERVER_FULL", roomId);
@@ -650,6 +703,13 @@ export class RoomService {
     );
     if (!result.ok) {
       this.sendError(conn, result.error, roomId);
+      return;
+    }
+    // This join creates the room: the one moment it counts against the
+    // client's address (ADR 0009). Over the limit, the room is not created;
+    // RATE_LIMITED, then 1013, which the client retries with its long
+    // backoff until the address has a room to spare.
+    if (existing === undefined && !this.createAllowed(conn, key, now)) {
       return;
     }
 

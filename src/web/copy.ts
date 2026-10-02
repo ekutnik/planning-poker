@@ -71,6 +71,11 @@ export const HOME_COPY = {
   invite: "You'll get a link to share with your team.",
   submit: "Create a room",
   failed: "The room couldn't be created. Check your connection and try again.",
+  /** The server's per-address limit (ADR 0009), with the wait in minutes. */
+  tooMany: (minutes: number) =>
+    `Too many rooms were made from your network just now. Try again in ${
+      minutes === 1 ? "a minute" : `${String(minutes)} minutes`
+    }.`,
 } as const;
 
 /**

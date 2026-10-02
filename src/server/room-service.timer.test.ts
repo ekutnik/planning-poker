@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { ServerMessage } from "../shared/protocol.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import type { Connection, Scheduler } from "./room-service.js";
-import { ROOM_TTL_MS, RoomService, SWEEP_INTERVAL_MS } from "./room-service.js";
+import {
+  DEFAULT_LIMITS,
+  ROOM_TTL_MS,
+  RoomService,
+  SWEEP_INTERVAL_MS,
+} from "./room-service.js";
 
 /**
  * The room timer's scheduling (ADR 0008), with a fake clock and a fake
@@ -59,7 +64,7 @@ function setup() {
   const scheduler = new FakeScheduler(() => now);
   const service = new RoomService(
     () => now,
-    { maxRooms: 10, maxPending: 10 },
+    { ...DEFAULT_LIMITS, maxRooms: 10, maxPending: 10 },
     { scheduler },
   );
   const people = ["Ada", "Ben"].map((name) => {
