@@ -39,7 +39,7 @@ describe("a log cap", () => {
     const cap = new LogCap();
     for (let i = 0; i < 12; i += 1) cap.allow(0); // 2 dropped at 0
     expect(cap.suppressed(60_000)).toBe(2);
-    // By 60 s the bucket has refilled: 10 more go out, then 3 are dropped.
+    // The report started a new minute: 10 more go out, then 3 are dropped.
     for (let i = 0; i < 13; i += 1) cap.allow(60_000);
     expect(cap.suppressed(119_999)).toBeNull();
     expect(cap.suppressed(120_000)).toBe(3);
