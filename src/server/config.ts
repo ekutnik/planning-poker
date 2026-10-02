@@ -76,6 +76,9 @@ const Env = z.object({
   ),
   SOCKETS_PER_IP: whole(1).default(DEFAULT_LIMITS.socketsPerAddress),
   ROOMS_PER_IP_PER_HOUR: whole(1).default(DEFAULT_LIMITS.roomsPerHour),
+  COMMANDS_PER_IP_PER_SECOND: whole(1).default(
+    DEFAULT_LIMITS.commandsPerSecond,
+  ),
   // Two ceilings, whichever is lower: MAX_SWEEP_INTERVAL_MS keeps a healthy
   // connection inside the pong deadline through an undetected stall, and the
   // join timeout would be meaningless if it could fire a whole interval late
@@ -145,6 +148,7 @@ export function parseConfig(
         connectsPerMinute: vars.CONNECTS_PER_IP_PER_MINUTE,
         socketsPerAddress: vars.SOCKETS_PER_IP,
         roomsPerHour: vars.ROOMS_PER_IP_PER_HOUR,
+        commandsPerSecond: vars.COMMANDS_PER_IP_PER_SECOND,
       },
       sweepIntervalMs: vars.SWEEP_INTERVAL_MS,
       roomTtlMs: vars.ROOM_TTL_MS,

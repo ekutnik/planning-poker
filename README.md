@@ -100,14 +100,15 @@ Every timeout runs in one periodic sweep that compares timestamps (no per-connec
 
 One client, buggy or hostile, can't flood a room, fill the server's caps or its logs on its own ([ADR 0009](docs/decisions/0009-limits-per-client-address.md)). Every number is sized for a whole team of up to 30 behind one office address, joining together and reconnecting together after a restart.
 
-| Limit                                        | Default             | Over it                                         |
-| -------------------------------------------- | ------------------- | ----------------------------------------------- |
-| Messages, per connection                     | 20, then 5 a second | `RATE_LIMITED`; past 40 refusals, closed (1008) |
-| Liveness pings, per connection               | 5, then 1 every 5s  | dropped, so a flood never starves them          |
-| WebSocket upgrades, per address              | 60 a minute         | closed with `1013`, retried by the client       |
-| Sockets open at once, per address            | 100                 | closed with `1013`                              |
-| Rooms created, per address                   | 10 an hour          | `RATE_LIMITED`, then `1013`                     |
-| Room ids from `POST /api/rooms`, per address | 60 a minute         | `429` with `Retry-After`                        |
+| Limit                                        | Default               | Over it                                         |
+| -------------------------------------------- | --------------------- | ----------------------------------------------- |
+| Messages, per connection                     | 20, then 5 a second   | `RATE_LIMITED`; past 40 refusals, closed (1008) |
+| Liveness pings, per connection               | 5, then 1 every 5s    | dropped, so a flood never starves them          |
+| WebSocket upgrades, per address              | 60 a minute           | closed with `1013`, retried by the client       |
+| Sockets open at once, per address            | 100                   | closed with `1013`                              |
+| Rooms created, per address                   | 10 an hour            | `RATE_LIMITED`, then `1013`                     |
+| Commands, per address, across its sockets    | 100, then 10 a second | `RATE_LIMITED`; counts toward the 1008          |
+| Room ids from `POST /api/rooms`, per address | 60 a minute           | `429` with `Retry-After`                        |
 
 An address is the client's as `Fly-Client-IP` reports it behind Fly (never a header the client sets), and IPv6 counts by its /64. Each kind of log line a client can cause goes out at most 10 times a minute across the server, then once with a count. **This is not a defence against a distributed attack**: one small machine can't absorb one.
 
@@ -165,6 +166,7 @@ The server reads its settings from environment variables. Unset means the defaul
 | `CONNECTS_PER_IP_PER_MINUTE` | `60`        | WebSocket upgrades, and room ids from the API, per client address a minute (ADR 0009)                                                                         |
 | `SOCKETS_PER_IP`             | `100`       | Sockets open at once per client address                                                                                                                       |
 | `ROOMS_PER_IP_PER_HOUR`      | `10`        | Rooms a client address may create an hour; joining a room that exists never counts                                                                            |
+| `COMMANDS_PER_IP_PER_SECOND` | `10`        | Commands a second per client address, across all its sockets, after a burst of `SOCKETS_PER_IP`; joins and pings don't count                                  |
 | `SWEEP_INTERVAL_MS`          | `5000`      | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls)                                                          |
 | `ROOM_TTL_MS`                | `600000`    | How long a room may stay empty before it is evicted                                                                                                           |
 | `SHUTDOWN_TIMEOUT_MS`        | `10000`     | How long a shutdown may take before the process exits anyway, with 1 (at least 3000: the two-second close grace plus a second)                                |

@@ -45,10 +45,10 @@ function setup() {
     { ...DEFAULT_LIMITS, maxRooms: 10, maxPending: 10 },
     { log, logCaps },
   );
-  const connect = (id: string, token: string) => {
+  const connect = (id: string, token: string, address = ADDRESS) => {
     const conn = new FakeConnection(id);
     conn.onClose = () => service.close(conn);
-    service.open(conn, ROOM, ADDRESS);
+    service.open(conn, ROOM, address);
     service.message(
       conn,
       JSON.stringify({ type: "join", sessionToken: token, name: id }),
@@ -235,12 +235,14 @@ describe("the client's liveness ping (#16, #20)", () => {
 describe("the limits' log lines, for the whole server (#16)", () => {
   it("caps the rate-limited lines across connections, not per connection", () => {
     const { connect, send, logs, logCaps, now } = setup();
-    // 30 connections each refused once: one line each, were it per
+    // 30 connections, each from its own address so only its own limit
+    // refuses it, each refused once: one line each, were it per
     // connection; 10 with the cap, and the rest counted.
     for (let c = 0; c < 30; c += 1) {
       const conn = connect(
         `c${String(c)}`,
         `SESSIONTOKEN_C${String(c).padStart(2, "0")}_000000000`,
+        `198.51.100.${String(c)}`,
       );
       for (let i = 0; i < 20; i += 1) send(conn, vote(i));
     }
@@ -354,5 +356,141 @@ describe("rooms created per address (ADR 0009)", () => {
       );
     }
     expect(of(join(roomId(50), "203.0.113.7"), "snapshot")).toHaveLength(1);
+  });
+});
+
+describe("commands per address, across its sockets (ADR 0009)", () => {
+  /** Six sockets from one address in one room, joined; and the log. */
+  function office(address = "203.0.113.7") {
+    let now = 1_000;
+    const logs: Parameters<RoomLog["info"]>[0][] = [];
+    const log: RoomLog = {
+      info: (f) => logs.push(f),
+      warn: (f) => logs.push(f),
+    };
+    const service = new RoomService(() => now, DEFAULT_LIMITS, { log });
+    let n = 0;
+    const join = (from = address) => {
+      n += 1;
+      const conn = new FakeConnection(`c${String(n)}`);
+      conn.onClose = () => service.close(conn);
+      service.open(conn, ROOM, from);
+      service.message(
+        conn,
+        JSON.stringify({
+          type: "join",
+          sessionToken: `SESSIONTOKEN_${String(n).padStart(12, "0")}`,
+          name: `P${String(n)}`,
+        }),
+      );
+      return conn;
+    };
+    const people = Array.from({ length: 6 }, () => join());
+    const send = (conn: FakeConnection, message: object | string) =>
+      service.message(
+        conn,
+        typeof message === "string" ? message : JSON.stringify(message),
+      );
+    const applied = () => logs.filter((l) => l.type === "castVote").length;
+    const advance = (ms: number) => {
+      now += ms;
+    };
+    return { service, people, join, send, applied, advance, logs };
+  }
+
+  it("lets 100 through at once, one per socket an address may hold, then refuses", () => {
+    const { people, send, applied, join } = office();
+    // 19 each (the join took one of each connection's 20): 114 in all.
+    for (const p of people) for (let i = 0; i < 19; i += 1) send(p, vote(i));
+    expect(applied()).toBe(100);
+    expect(people.flatMap(rateLimited).length).toBeGreaterThan(0);
+    // Another address is untouched.
+    const neighbour = join("198.51.100.2");
+    send(neighbour, vote(1));
+    expect(applied()).toBe(101);
+  });
+
+  it("refills at 10 a second", () => {
+    const { people, send, applied, advance } = office();
+    for (const p of people) for (let i = 0; i < 19; i += 1) send(p, vote(i));
+    advance(1_000);
+    // A second on: each connection has 5 back, 20 across four of them,
+    // but the address only 10.
+    for (const p of people.slice(0, 4)) {
+      for (let i = 0; i < 8; i += 1) send(p, vote(i));
+    }
+    expect(applied()).toBe(110);
+  });
+
+  it("doesn't count joins or pings", () => {
+    const { people, send, applied, join } = office();
+    // 20 more joins and every socket's pings come first.
+    for (let i = 0; i < 20; i += 1) join();
+    for (const p of people)
+      for (let i = 0; i < 5; i += 1) send(p, { type: "ping" });
+    for (const p of people) for (let i = 0; i < 19; i += 1) send(p, vote(i));
+    expect(applied()).toBe(100);
+  });
+
+  it("never charges a command its own connection refused", () => {
+    const { people, send, applied } = office();
+    const [flooder, ...rest] = people;
+    if (flooder === undefined) throw new Error("no one");
+    // 30 from one socket: its own limit lets 19 through and refuses 11.
+    for (let i = 0; i < 30; i += 1) send(flooder, vote(i));
+    expect(applied()).toBe(19);
+    // So the address has 81 left, not 70: the 11 cost it nothing.
+    for (const p of rest) for (let i = 0; i < 19; i += 1) send(p, vote(i));
+    expect(applied()).toBe(100);
+  });
+
+  it("counts a malformed message, as its connection does", () => {
+    const { people, send } = office();
+    for (const p of people) for (let i = 0; i < 19; i += 1) send(p, "not json");
+    const invalid = people.flatMap((p) =>
+      p.sent.filter((m) => m.type === "error" && m.code === "INVALID_MESSAGE"),
+    );
+    expect(invalid).toHaveLength(100);
+  });
+
+  it("logs the refusals as this limit's, and takes a strike for each, as the others do", () => {
+    const now = 1_000;
+    const logs: Parameters<RoomLog["info"]>[0][] = [];
+    const log: RoomLog = { info: (f) => logs.push(f), warn: () => {} };
+    // An address allowed 5 at once and 1 a second, so it refuses what the
+    // connection itself would let through.
+    const service = new RoomService(
+      () => now,
+      { ...DEFAULT_LIMITS, socketsPerAddress: 5, commandsPerSecond: 1 },
+      { log },
+    );
+    const conn = new FakeConnection("ada");
+    service.open(conn, ROOM, "203.0.113.7");
+    const send = (message: object) =>
+      service.message(conn, JSON.stringify(message));
+    send({
+      type: "join",
+      sessionToken: "SESSIONTOKEN_ADA_0000001",
+      name: "Ada",
+    });
+    // 19 the connection accepts: the address takes 5 and refuses 14.
+    for (let i = 0; i < 19; i += 1) send(vote(i));
+    expect(logs.filter((l) => l.type === "castVote")).toHaveLength(5);
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        type: "rate-limited",
+        limit: "address-commands",
+        conn: "ada",
+      }),
+    );
+    expect(conn.sent.filter((m) => m.type === "error")).toEqual([
+      { type: "error", code: "RATE_LIMITED" },
+    ]);
+    // The connection is out of tokens now: 26 more refusals of its own
+    // finish its 40 strikes only if the address's 14 took one each.
+    for (let i = 0; i < 26; i += 1) send(vote(i));
+    expect(conn.closedWith).toBeNull();
+    send(vote(26));
+    expect(conn.closedWith?.code).toBe(1008);
   });
 });

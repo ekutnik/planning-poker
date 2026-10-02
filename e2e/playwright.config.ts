@@ -56,6 +56,7 @@ export default defineConfig({
       CONNECTS_PER_IP_PER_MINUTE: "100000",
       SOCKETS_PER_IP: "100000",
       ROOMS_PER_IP_PER_HOUR: "100000",
+      COMMANDS_PER_IP_PER_SECOND: "100000",
     },
     reuseExistingServer: false,
     timeout: 120_000,

@@ -375,6 +375,7 @@ describe("RoomService", () => {
       timers: 0,
       throttles: 0,
       roomKeys: 0,
+      commandKeys: 0,
     });
   });
 
