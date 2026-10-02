@@ -19,6 +19,7 @@ import {
   type Connection,
   type Limits,
 } from "./room-service.js";
+import { LogCaps } from "./limits/log-cap.js";
 import { CLOSE_GRACE_MS } from "./shutdown.js";
 import { notFound, serveClient } from "./web.js";
 
@@ -115,8 +116,13 @@ export function buildServer(options: ServerOptions = {}) {
   // The default 404 handler logs the raw URL; this one does not.
   app.setNotFoundHandler(notFound(options.webRoot !== undefined));
   const sweepIntervalMs = options.sweepIntervalMs ?? SWEEP_INTERVAL_MS;
+  const clock = options.clock ?? Date.now;
+  // One cap per kind of line a client can make the server write, for the
+  // whole server (#16): the oversized-frame warning here, and the limits'
+  // own lines in the service.
+  const logCaps = new LogCaps();
   const rooms = new RoomService(
-    options.clock ?? Date.now,
+    clock,
     { ...DEFAULT_LIMITS, ...options.limits },
     {
       log: {
@@ -125,6 +131,7 @@ export function buildServer(options: ServerOptions = {}) {
       },
       sweepIntervalMs,
       roomTtlMs: options.roomTtlMs,
+      logCaps,
     },
   );
 
@@ -136,6 +143,10 @@ export function buildServer(options: ServerOptions = {}) {
       // bug crash the process and drop every room with it.
       try {
         rooms.sweep();
+        // Whatever the caps held back, once a minute after it started.
+        for (const { line, count } of logCaps.due(clock())) {
+          app.log.warn({ type: "suppressed", line, count });
+        }
       } catch (err) {
         app.log.error(err, "sweep failed");
       }
@@ -187,9 +198,13 @@ export function buildServer(options: ServerOptions = {}) {
     // ws closes oversized frames with 1009 before they reach the parser.
     options: { maxPayload: 4096 },
     // Socket errors are almost always a misbehaving client, not a server fault.
-    // Log at warn, and let a close ws has already begun (1009) finish cleanly.
+    // Log at warn, within the server-wide cap, since each oversized frame
+    // closes its own connection and the next can come on a fresh one; let a
+    // close ws has already begun (1009) finish cleanly.
     errorHandler: (error, socket, request) => {
-      request.log.warn({ err: error }, "websocket error");
+      if (logCaps.allow("websocket error", clock())) {
+        request.log.warn({ err: error }, "websocket error");
+      }
       if (socket.readyState === socket.OPEN) socket.terminate();
     },
   });

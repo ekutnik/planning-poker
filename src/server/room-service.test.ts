@@ -367,6 +367,7 @@ describe("RoomService", () => {
       liveness: 0,
       nudges: 0,
       timers: 0,
+      throttles: 0,
     });
   });
 
