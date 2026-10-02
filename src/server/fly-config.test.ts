@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
 import { SHUTDOWN_TIMEOUT_MS } from "./config.js";
+import { DEFAULT_LIMITS } from "./room-service.js";
 
 /**
  * fly.toml sets what the app costs, and Fly has no spending cap or billing
@@ -49,10 +50,16 @@ describe("fly.toml stays within the budget", () => {
 
   it("caps Node's heap below the machine's 207 MiB, and holds at most 200 rooms, so full rooms fit in it", () => {
     // Measured: 200 rooms of 30, plus 1,000 sockets not yet joined, use
-    // 86.9 MiB of heap; the default 10,000 rooms would run out of it.
+    // 86.9 MiB of heap; 10,000 rooms, the old default, ran out of it.
     expect(config.env).toMatchObject({
       NODE_OPTIONS: "--max-old-space-size=128",
       MAX_ROOMS: "200",
+    });
+  });
+
+  it("sets the same MAX_ROOMS as the code's default, so a deploy without it is as safe (#63)", () => {
+    expect(config.env).toMatchObject({
+      MAX_ROOMS: String(DEFAULT_LIMITS.maxRooms),
     });
   });
 });

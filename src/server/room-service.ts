@@ -94,7 +94,14 @@ export interface Limits {
   readonly maxPending: number;
 }
 
-export const DEFAULT_LIMITS: Limits = { maxRooms: 10_000, maxPending: 1_000 };
+/**
+ * The defaults are safe on the production machine without any setting
+ * (#63): 200 full rooms of 30, plus 1,000 sockets not yet joined, measured
+ * 86.9 MiB of heap, inside Node's 128 MiB cap there; 10,000 rooms, the
+ * default until v0.5.0, ran the heap out at 400 full rooms. fly.toml sets
+ * the same 200, and a test keeps the two equal.
+ */
+export const DEFAULT_LIMITS: Limits = { maxRooms: 200, maxPending: 1_000 };
 
 interface LogFields {
   conn?: string;
