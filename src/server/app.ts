@@ -99,9 +99,12 @@ type Socket = Pick<
  * What one socket may hold unsent before it is dropped: a client that has
  * stopped reading. Send buffers live outside the JavaScript heap, so the
  * heap cap does not bound them, and a socket that never reads would grow
- * without limit, at however many snapshots its room sends. A snapshot is a
- * few KB, so 1 MiB is hundreds of them unread: a dead or hostile client,
- * never a slow phone.
+ * without limit, at however many snapshots its room sends. A snapshot is
+ * a few KB; the largest a room can make measured 8,100 bytes (30 people
+ * with 32-character names that JSON escapes to 6 bytes a character, a
+ * 120-character ticket of the same, scores on, every vote revealed). So
+ * 1 MiB is at least 129 snapshots unread: a dead or hostile client, never
+ * a slow phone.
  */
 export const MAX_BUFFERED_BYTES = 1024 * 1024;
 
