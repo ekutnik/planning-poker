@@ -610,6 +610,7 @@ describe("failure containment", () => {
 
   it("forgets a dropped slow socket everywhere, through the room service's close", () => {
     const service = new RoomService(() => 0, {
+      ...DEFAULT_LIMITS,
       maxRooms: 10,
       maxPending: 10,
     });
@@ -628,7 +629,7 @@ describe("failure containment", () => {
     const reader = make("reader");
     const stalled = make("stalled");
     for (const { conn } of [reader, stalled]) {
-      service.open(conn, "abcdefghijk");
+      service.open(conn, "abcdefghijk", "203.0.113.1");
       service.message(
         conn,
         JSON.stringify({
