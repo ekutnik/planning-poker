@@ -1,5 +1,6 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -11,30 +12,24 @@ import { describe, expect, it } from "vitest";
  */
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
-// Built, installed or generated: not the repository's own text.
-const SKIPPED = new Set([
-  ".git",
-  "node_modules",
-  "dist",
-  "test-results",
-  "playwright-report",
-]);
 const HIDDEN = /[\p{Default_Ignorable_Code_Point}\p{Bidi_Control}]/gu;
 
-function files(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    if (SKIPPED.has(name)) return [];
-    const path = join(dir, name);
-    return statSync(path).isDirectory() ? files(path) : [path];
-  });
-}
+/**
+ * The repository's own files, as git tracks them: never a local file that
+ * isn't committed (a report, a cache, an editor's scratch file). A file
+ * deleted but not yet committed is gone already, so it is left out.
+ */
+const tracked = execFileSync("git", ["ls-files", "-z"], {
+  cwd: ROOT,
+  encoding: "utf8",
+})
+  .split("\0")
+  .filter((path) => path !== "" && existsSync(join(ROOT, path)));
 
 /** Every text file: a file with a NUL byte is binary (the PNGs, the fonts). */
-const texts = files(ROOT).flatMap((path) => {
-  const bytes = readFileSync(path);
-  return bytes.includes(0)
-    ? []
-    : [{ path: relative(ROOT, path), text: bytes.toString("utf8") }];
+const texts = tracked.flatMap((path) => {
+  const bytes = readFileSync(join(ROOT, path));
+  return bytes.includes(0) ? [] : [{ path, text: bytes.toString("utf8") }];
 });
 
 describe("the repository's text (#80)", () => {
