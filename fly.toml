@@ -42,7 +42,10 @@ kill_timeout = 15
     path = "/health"
     interval = "15s"
     timeout = "2s"
-    grace_period = "10s"
+    # Long enough for a start at the CPU baseline: with its burst balance
+    # spent, a shared-cpu-1x took 22 s from start to listening (measured in
+    # Docker at 1/16 of a CPU), against about 4 s with burst to spare.
+    grace_period = "30s"
 
 # One machine, so a crashed process is the whole app down: restart it.
 # on-failure restarts after any non-zero exit (a crash, or running out of

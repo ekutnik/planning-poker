@@ -62,4 +62,14 @@ describe("fly.toml stays within the budget", () => {
       MAX_ROOMS: String(DEFAULT_LIMITS.maxRooms),
     });
   });
+
+  it("gives a start at the CPU baseline time before health checks count", () => {
+    // 22 s from start to listening at 1/16 of a CPU, the shared-cpu-1x
+    // baseline once its burst balance is spent.
+    expect(config.http_service).toMatchObject({
+      checks: [
+        expect.objectContaining({ path: "/health", grace_period: "30s" }),
+      ],
+    });
+  });
 });
