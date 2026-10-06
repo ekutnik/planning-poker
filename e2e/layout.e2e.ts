@@ -16,6 +16,13 @@ import {
  */
 
 const WIDE = { width: 1280, height: 800 };
+/**
+ * An iPad in landscape: the wide layout, with touch, so every field's text
+ * is 16 px (#86). Each layout check runs there too.
+ */
+const IPAD = { width: 1180, height: 820 };
+const sizeFor = (touch: boolean) => (touch ? IPAD : WIDE);
+const withTouch = (touch: boolean) => (touch ? ", with touch at 1180 px" : "");
 
 /** Where the parts that must stay still are, to the pixel. */
 async function positions(page: Page) {
@@ -83,15 +90,26 @@ async function join(
 }
 
 // 880px: the narrowest wide window, where the ticket has a row of its own.
-for (const width of [1280, 880]) {
-  test(`nothing moves in the facilitator view as each tool comes and is used, ${String(width)} px`, async ({
+// 1180px with touch: an iPad in landscape, its fields at 16 px (#86).
+for (const { width, touch } of [
+  { width: 1280, touch: false },
+  { width: 880, touch: false },
+  { width: 1180, touch: true },
+]) {
+  test(`nothing moves in the facilitator view as each tool comes and is used, ${String(width)} px${touch ? ", with touch" : ""}`, async ({
     people,
     baseURL,
   }) => {
     const roomId = await newRoom(baseURL ?? "");
     const size = { width, height: 800 };
-    const ada = await join(people, roomId, "Ada", { facilitate: true }, size);
-    await join(people, roomId, "Ben");
+    const ada = await join(
+      people,
+      roomId,
+      "Ada",
+      { facilitate: true, touch },
+      size,
+    );
+    await join(people, roomId, "Ben", { touch }, size);
     const page = ada.page;
     const still = await positions(page);
     const check = async (step: string) => {
@@ -147,53 +165,63 @@ for (const width of [1280, 880]) {
   });
 }
 
-test("nothing moves for a participant as a ticket and a timer arrive", async ({
-  people,
-  baseURL,
-}) => {
-  const roomId = await newRoom(baseURL ?? "");
-  const ada = await join(people, roomId, "Ada", {
-    facilitate: true,
-    tools: { ticket: true, timer: true },
+for (const touch of [false, true]) {
+  test(`nothing moves for a participant as a ticket and a timer arrive${withTouch(touch)}`, async ({
+    people,
+    baseURL,
+  }) => {
+    const roomId = await newRoom(baseURL ?? "");
+    const ada = await join(
+      people,
+      roomId,
+      "Ada",
+      { facilitate: true, tools: { ticket: true, timer: true }, touch },
+      sizeFor(touch),
+    );
+    const ben = await join(people, roomId, "Ben", { touch }, sizeFor(touch));
+    const still = await positions(ben.page);
+
+    await ada.page.getByRole("button", { name: "Add a ticket" }).click();
+    await ada.page.getByLabel("Now estimating").fill("PROJ-482");
+    await ada.page.getByLabel("Now estimating").press("Enter");
+    await expect(ben.page.locator(".ticket-text")).toHaveText("PROJ-482");
+    expect(await positions(ben.page), "a ticket").toEqual(still);
+
+    await ada.page.getByRole("button", { name: "Start the timer" }).click();
+    await expect(ben.page.locator(".timer--readout")).toBeVisible();
+    expect(await positions(ben.page), "a running timer").toEqual(still);
   });
-  const ben = await join(people, roomId, "Ben");
-  const still = await positions(ben.page);
+}
 
-  await ada.page.getByRole("button", { name: "Add a ticket" }).click();
-  await ada.page.getByLabel("Now estimating").fill("PROJ-482");
-  await ada.page.getByLabel("Now estimating").press("Enter");
-  await expect(ben.page.locator(".ticket-text")).toHaveText("PROJ-482");
-  expect(await positions(ben.page), "a ticket").toEqual(still);
-
-  await ada.page.getByRole("button", { name: "Start the timer" }).click();
-  await expect(ben.page.locator(".timer--readout")).toBeVisible();
-  expect(await positions(ben.page), "a running timer").toEqual(still);
-});
-
-test("lines the status line up with the action row", async ({
-  people,
-  baseURL,
-}) => {
-  const roomId = await newRoom(baseURL ?? "");
-  const ada = await join(people, roomId, "Ada", {
-    facilitate: true,
-    tools: { ticket: true, timer: true },
+for (const touch of [false, true]) {
+  test(`lines the status line up with the action row${withTouch(touch)}`, async ({
+    people,
+    baseURL,
+  }) => {
+    const roomId = await newRoom(baseURL ?? "");
+    const ada = await join(
+      people,
+      roomId,
+      "Ada",
+      { facilitate: true, tools: { ticket: true, timer: true }, touch },
+      sizeFor(touch),
+    );
+    const ben = await join(people, roomId, "Ben", { touch }, sizeFor(touch));
+    const centre = async (locator: Locator) => {
+      const box = await locator.boundingBox();
+      return (box?.y ?? Number.NaN) + (box?.height ?? Number.NaN) / 2;
+    };
+    for (const page of [ada.page, ben.page]) {
+      const status = page.getByRole("heading", { level: 1 });
+      const row = await centre(page.locator(".ticket"));
+      expect(Math.abs((await centre(status)) - row)).toBeLessThanOrEqual(1);
+      expect(
+        Math.abs((await centre(page.locator(".controls button"))) - row),
+      ).toBeLessThanOrEqual(1);
+      expect((await page.locator(".ticket").boundingBox())?.height).toBe(56);
+    }
   });
-  const ben = await join(people, roomId, "Ben");
-  const centre = async (locator: Locator) => {
-    const box = await locator.boundingBox();
-    return (box?.y ?? Number.NaN) + (box?.height ?? Number.NaN) / 2;
-  };
-  for (const page of [ada.page, ben.page]) {
-    const status = page.getByRole("heading", { level: 1 });
-    const row = await centre(page.locator(".ticket"));
-    expect(Math.abs((await centre(status)) - row)).toBeLessThanOrEqual(1);
-    expect(
-      Math.abs((await centre(page.locator(".controls button"))) - row),
-    ).toBeLessThanOrEqual(1);
-    expect((await page.locator(".ticket").boundingBox())?.height).toBe(56);
-  }
-});
+}
 
 /**
  * Three heights and no others: 44 for the round's one action and the
@@ -245,64 +273,69 @@ async function controlHeights(page: Page) {
   );
 }
 
-test("every control in the room is 44, 40 or 28 px tall, as its kind says", async ({
-  people,
-  baseURL,
-}) => {
-  const roomId = await newRoom(baseURL ?? "");
-  const ada = await join(people, roomId, "Ada", {
-    facilitate: true,
-    tools: { ticket: true, timer: true },
-  });
-  await join(people, roomId, "Ben");
-  const page = ada.page;
-  const seen = new Map<string, number>();
-  const measure = async () => {
-    for (const { name, height } of await controlHeights(page)) {
-      expect([28, 40, 44], `${name}: ${String(height)} px`).toContain(height);
-      seen.set(name, height);
+for (const touch of [false, true]) {
+  test(`every control in the room is 44, 40 or 28 px tall, as its kind says${withTouch(touch)}`, async ({
+    people,
+    baseURL,
+  }) => {
+    const roomId = await newRoom(baseURL ?? "");
+    const ada = await join(
+      people,
+      roomId,
+      "Ada",
+      { facilitate: true, tools: { ticket: true, timer: true }, touch },
+      sizeFor(touch),
+    );
+    await join(people, roomId, "Ben", { touch }, sizeFor(touch));
+    const page = ada.page;
+    const seen = new Map<string, number>();
+    const measure = async () => {
+      for (const { name, height } of await controlHeights(page)) {
+        expect([28, 40, 44], `${name}: ${String(height)} px`).toContain(height);
+        seen.set(name, height);
+      }
+    };
+
+    await measure(); // Add a ticket, the idle timer, Nudge, Reveal votes
+    await page.getByRole("button", { name: "Add a ticket" }).click();
+    await expect(page.getByLabel("Now estimating")).toBeFocused();
+    await measure(); // the field, Save and Cancel
+    await page.getByLabel("Now estimating").fill("PROJ-482");
+    await page.getByLabel("Now estimating").press("Enter");
+    await ada.card("5").click();
+    await expect(
+      page.getByRole("button", { name: "Show my vote" }),
+    ).toBeVisible();
+    await measure(); // your own vote's buttons
+    await page.getByRole("button", { name: "Show my vote" }).click();
+    await page.getByRole("button", { name: "Start the timer" }).click();
+    await expect(
+      page.getByRole("button", { name: "Hide my vote" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Pause the timer" }),
+    ).toBeVisible();
+    await measure(); // Edit, Pause, +30 s, Hide my vote
+    await page.getByRole("button", { name: "Pause the timer" }).click();
+    await expect(
+      page.getByRole("button", { name: "Resume the timer" }),
+    ).toBeVisible();
+    await measure(); // Resume
+    await page.getByRole("button", { name: "Reveal votes" }).click();
+    await expect(
+      page.getByRole("button", { name: "Start next round" }),
+    ).toBeVisible();
+    await measure(); // the revealed round
+
+    for (const [name, height] of HEIGHTS) {
+      const found = [...seen].find(([seenName]) => seenName.startsWith(name));
+      expect(found, `${name} was measured`).toBeDefined();
+      expect(found?.[1], name).toBe(height);
     }
-  };
-
-  await measure(); // Add a ticket, the idle timer, Nudge, Reveal votes
-  await page.getByRole("button", { name: "Add a ticket" }).click();
-  await expect(page.getByLabel("Now estimating")).toBeFocused();
-  await measure(); // the field, Save and Cancel
-  await page.getByLabel("Now estimating").fill("PROJ-482");
-  await page.getByLabel("Now estimating").press("Enter");
-  await ada.card("5").click();
-  await expect(
-    page.getByRole("button", { name: "Show my vote" }),
-  ).toBeVisible();
-  await measure(); // your own vote's buttons
-  await page.getByRole("button", { name: "Show my vote" }).click();
-  await page.getByRole("button", { name: "Start the timer" }).click();
-  await expect(
-    page.getByRole("button", { name: "Hide my vote" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Pause the timer" }),
-  ).toBeVisible();
-  await measure(); // Edit, Pause, +30 s, Hide my vote
-  await page.getByRole("button", { name: "Pause the timer" }).click();
-  await expect(
-    page.getByRole("button", { name: "Resume the timer" }),
-  ).toBeVisible();
-  await measure(); // Resume
-  await page.getByRole("button", { name: "Reveal votes" }).click();
-  await expect(
-    page.getByRole("button", { name: "Start next round" }),
-  ).toBeVisible();
-  await measure(); // the revealed round
-
-  for (const [name, height] of HEIGHTS) {
-    const found = [...seen].find(([seenName]) => seenName.startsWith(name));
-    expect(found, `${name} was measured`).toBeDefined();
-    expect(found?.[1], name).toBe(height);
-  }
-  expect(seen.get("Now estimating"), "the ticket field").toBe(40);
-  expect(seen.get("the timer block")).toBe(40);
-});
+    expect(seen.get("Now estimating"), "the ticket field").toBe(40);
+    expect(seen.get("the timer block")).toBe(40);
+  });
+}
 
 test("the timer block sits on the page: no fill, no outline, an underline for what is left", async ({
   people,
@@ -436,36 +469,64 @@ test("Ticket name and Timer are this browser's, kept under planning-poker:tools:
   );
 });
 
-test("the phone room: tools in a block at the top, only while there is something in it", async ({
-  people,
-  baseURL,
-}) => {
-  const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", {
-    facilitate: true,
-    tools: { ticket: true, timer: true },
-  });
-  const ben = await people.join(roomId, "Ben");
-  for (const person of [ada, ben]) {
-    await person.page.setViewportSize({ width: 390, height: 844 });
-  }
-  const tools = (page: Page) => page.locator(".round-tools");
-  await expect(tools(ben.page)).toBeHidden();
-  await expect(tools(ada.page)).toBeVisible();
-  await expectAccessible(ada.page, "phone, facilitator with the tools");
+for (const touch of [false, true]) {
+  test(`the phone room: tools in a block at the top, only while there is something in it${touch ? ", with touch" : ""}`, async ({
+    people,
+    baseURL,
+  }) => {
+    const roomId = await newRoom(baseURL ?? "");
+    const ada = await people.join(roomId, "Ada", {
+      facilitate: true,
+      tools: { ticket: true, timer: true },
+      touch,
+    });
+    const ben = await people.join(roomId, "Ben", { touch });
+    for (const person of [ada, ben]) {
+      await person.page.setViewportSize({ width: 390, height: 844 });
+    }
+    const tools = (page: Page) => page.locator(".round-tools");
+    await expect(tools(ben.page)).toBeHidden();
+    await expect(tools(ada.page)).toBeVisible();
+    await expectAccessible(ada.page, "phone, facilitator with the tools");
 
-  await ada.page.getByRole("button", { name: "Add a ticket" }).click();
-  await ada.page.getByLabel("Now estimating").fill("PROJ-482");
-  await ada.page.getByLabel("Now estimating").press("Enter");
-  await ada.page.getByRole("button", { name: "Start the timer" }).click();
-  await expect(ben.page.locator(".timer--readout")).toBeVisible();
-  await expect(tools(ben.page)).toBeVisible();
-  // First, above the status line.
-  const block = await tools(ben.page).boundingBox();
-  const status = await ben.heading.boundingBox();
-  expect((block?.y ?? 0) + (block?.height ?? 0)).toBeLessThan(status?.y ?? 0);
-  await expectAccessible(
-    ben.page,
-    "phone, participant with a ticket and a timer",
-  );
-});
+    await ada.page.getByRole("button", { name: "Add a ticket" }).click();
+    await ada.page.getByLabel("Now estimating").fill("PROJ-482");
+    await ada.page.getByLabel("Now estimating").press("Enter");
+    await ada.page.getByRole("button", { name: "Start the timer" }).click();
+    await expect(ben.page.locator(".timer--readout")).toBeVisible();
+    await expect(tools(ben.page)).toBeVisible();
+    // First, above the status line.
+    const block = await tools(ben.page).boundingBox();
+    const status = await ben.heading.boundingBox();
+    expect((block?.y ?? 0) + (block?.height ?? 0)).toBeLessThan(status?.y ?? 0);
+    await expectAccessible(
+      ben.page,
+      "phone, participant with a ticket and a timer",
+    );
+
+    // Nothing overlaps or runs off the side, with every field showing: the
+    // ticket being edited, then the custom time (16 px with touch, #86).
+    const fits = async (step: string) => {
+      expect(await overlaps(ada.page), step).toEqual([]);
+      expect(
+        await ada.page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+        step,
+      ).toBe(true);
+    };
+    await ada.page.getByRole("button", { name: "Edit the ticket" }).click();
+    await expect(ada.page.getByLabel("Now estimating")).toBeFocused();
+    await fits("editing the ticket");
+    await ada.page.keyboard.press("Escape");
+    await ada.page.getByRole("button", { name: "Pause the timer" }).click();
+    await ada.card("5").click();
+    await ada.page.getByRole("button", { name: "Reveal votes" }).click();
+    await ada.page.getByRole("button", { name: "Start next round" }).click();
+    await ada.page
+      .getByRole("combobox", { name: "Timer" })
+      .selectOption("custom");
+    await expect(ada.page.getByLabel("Custom time")).toBeFocused();
+    await fits("a custom time");
+  });
+}
