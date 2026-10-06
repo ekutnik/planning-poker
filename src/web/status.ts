@@ -1,4 +1,5 @@
 import type { RoomSnapshot } from "../shared/snapshot.js";
+import { isolate } from "./isolate.js";
 
 type Voting = Extract<RoomSnapshot, { phase: "voting" }>;
 
@@ -12,7 +13,7 @@ export interface RoundStatus {
   readonly away: readonly string[];
   /** "4 of 5 have voted", or "Everyone has voted". */
   readonly participantLine: string;
-  /** "Waiting for Cy. Fay is away.", or "Everyone has voted". */
+  /** "Waiting for Cy. Fay is away.", or "Everyone has voted"; each name isolated. */
   readonly facilitatorLine: string;
 }
 
@@ -37,7 +38,7 @@ export function roundStatus(snapshot: Voting): RoundStatus {
   const awaySentence =
     away.length === 0
       ? ""
-      : `. ${listNames(away)} ${away.length === 1 ? "is" : "are"} away.`;
+      : `. ${listNames(away.map(isolate))} ${away.length === 1 ? "is" : "are"} away.`;
 
   return {
     counted: counted.length,
@@ -50,7 +51,7 @@ export function roundStatus(snapshot: Voting): RoundStatus {
     facilitatorLine:
       (everyone
         ? "Everyone has voted"
-        : `Waiting for ${listNames(waitingFor)}`) + awaySentence,
+        : `Waiting for ${listNames(waitingFor.map(isolate))}`) + awaySentence,
   };
 }
 

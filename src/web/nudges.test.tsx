@@ -84,14 +84,14 @@ describe("the Nudge button", () => {
     const html = list(none);
     expect(html.match(/<button/g)).toHaveLength(1);
     expect(html).toContain(
-      '<li class="person"><span class="person-name">Cy</span><button type="button" class="person-nudge">Nudge<span class="visually-hidden"> Cy</span></button><span class="pill pill--not-yet">Not yet</span></li>',
+      '<li class="person"><span class="person-name" dir="auto">Cy</span><button type="button" class="person-nudge">Nudge <span class="visually-hidden" dir="auto">Cy</span></button><span class="pill pill--not-yet">Not yet</span></li>',
     );
   });
 
   it("reads Nudged once sent, and stays focusable: aria-disabled, never disabled", () => {
     const html = list(new Map([["Cy", 0]]));
     expect(html).toContain(
-      '<button type="button" class="person-nudge person-nudge--sent" aria-disabled="true">Nudged<span class="visually-hidden"> Cy</span></button>',
+      '<button type="button" class="person-nudge person-nudge--sent" aria-disabled="true">Nudged <span class="visually-hidden" dir="auto">Cy</span></button>',
     );
     expect(html).not.toMatch(/<button[^>]*\sdisabled=""/);
   });

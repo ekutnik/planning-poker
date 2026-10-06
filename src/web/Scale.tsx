@@ -45,7 +45,7 @@ export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
             {voters.length > 0 && (
               <ul className="scale-names">
                 {voters.map((p) => (
-                  <li key={p.id} className="scale-name">
+                  <li key={p.id} className="scale-name" dir="auto">
                     {p.name}
                   </li>
                 ))}
