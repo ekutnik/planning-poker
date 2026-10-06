@@ -60,9 +60,11 @@ function namesPerStep(html: string): string[][] {
     .split(/<li class="scale-step[^"]*"[^>]*>/)
     .slice(1)
     .map((step) =>
-      [...step.matchAll(/<li class="scale-name[^"]*">([^<]*)<\/li>/g)].map(
-        ([, name = ""]) => name,
-      ),
+      [
+        ...step.matchAll(
+          /<li class="scale-name[^"]*" dir="auto">([^<]*)<\/li>/g,
+        ),
+      ].map(([, name = ""]) => name),
     );
 }
 
@@ -158,12 +160,12 @@ describe("the revealed people list", () => {
   it("gives each person their card in a neutral chip, and Away to someone away without a vote", () => {
     expect(people(render())).toBe(
       '<ul class="people people--revealed" aria-label="Participants">' +
-        '<li class="person"><span class="person-name">Ada</span> <span class="person-you">(you)</span> <span class="chip">3</span></li>' +
-        '<li class="person"><span class="person-name">Ben</span> <span class="chip">8</span></li>' +
-        '<li class="person"><span class="person-name">Cy</span> <span class="chip"><span aria-hidden="true">?</span><span class="visually-hidden">question mark</span></span></li>' +
-        '<li class="person"><span class="person-name">Dee</span> <span class="chip">8</span></li>' +
-        '<li class="person"><span class="person-name">Eli</span> <span class="chip">13</span></li>' +
-        '<li class="person"><span class="person-name">Fay</span> <span class="pill pill--away">Away</span></li>' +
+        '<li class="person"><span class="person-name" dir="auto">Ada</span> <span class="person-you">(you)</span> <span class="chip">3</span></li>' +
+        '<li class="person"><span class="person-name" dir="auto">Ben</span> <span class="chip">8</span></li>' +
+        '<li class="person"><span class="person-name" dir="auto">Cy</span> <span class="chip"><span aria-hidden="true">?</span><span class="visually-hidden">question mark</span></span></li>' +
+        '<li class="person"><span class="person-name" dir="auto">Dee</span> <span class="chip">8</span></li>' +
+        '<li class="person"><span class="person-name" dir="auto">Eli</span> <span class="chip">13</span></li>' +
+        '<li class="person"><span class="person-name" dir="auto">Fay</span> <span class="pill pill--away">Away</span></li>' +
         "</ul>",
     );
   });
@@ -181,7 +183,7 @@ describe("the revealed people list", () => {
       ],
     };
     expect(people(render(true, quiet))).toContain(
-      '<li class="person"><span class="person-name">Gus</span> <span class="pill pill--not-yet">No vote</span></li>',
+      '<li class="person"><span class="person-name" dir="auto">Gus</span> <span class="pill pill--not-yet">No vote</span></li>',
     );
   });
 });

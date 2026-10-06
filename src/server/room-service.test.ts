@@ -6,6 +6,7 @@ import { derivePublicId, roomLogId } from "./identity.js";
 import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
 import type { Connection, Limits, RoomLog } from "./room-service.js";
 import {
+  DEFAULT_LIMITS,
   JOIN_TIMEOUT_MS,
   MAX_SWEEP_INTERVAL_MS,
   PING_INTERVAL_MS,
@@ -19,6 +20,8 @@ import {
 } from "./room-service.js";
 
 const ROOM = "abcdefghijk";
+/** Every connection here comes from one client address (ADR 0009). */
+const ADDRESS = "203.0.113.1";
 const ALICE = "SESSIONTOKEN_ALICE_0001";
 const BOB = "SESSIONTOKEN_BOB_0000001";
 
@@ -52,13 +55,15 @@ function setup(
   let now = 1_000;
   const logs: Parameters<RoomLog["info"]>[0][] = [];
   const warns: Parameters<RoomLog["warn"]>[0][] = [];
+  const debugs: Parameters<RoomLog["debug"]>[0][] = [];
   const log: RoomLog = {
+    debug: (fields) => debugs.push(fields),
     info: (fields) => logs.push(fields),
     warn: (fields) => warns.push(fields),
   };
   const service = new RoomService(
     () => now,
-    { maxRooms: 10, maxPending: 10, ...limits },
+    { ...DEFAULT_LIMITS, maxRooms: 10, maxPending: 10, ...limits },
     { log, sweepIntervalMs },
   );
   const advance = (ms: number) => {
@@ -74,7 +79,7 @@ function setup(
   const connect = (id: string, roomId = ROOM) => {
     const conn = new FakeConnection(id);
     conn.onClose = () => service.close(conn);
-    service.open(conn, roomId);
+    service.open(conn, roomId, ADDRESS);
     return conn;
   };
   const join = (conn: FakeConnection, token: string, name: string) => {
@@ -83,7 +88,7 @@ function setup(
       JSON.stringify({ type: "join", sessionToken: token, name }),
     );
   };
-  return { service, connect, join, logs, warns, log, advance, tick };
+  return { service, connect, join, logs, warns, debugs, log, advance, tick };
 }
 
 /** A nudge for the person with this session token, in ROOM. */
@@ -351,6 +356,9 @@ describe("RoomService", () => {
     service.sweep();
     tick(PONG_TIMEOUT_MS); // the heartbeat terminates dave
     tick(DISCONNECT_GRACE_MS + ROOM_TTL_MS); // grace removal, then the room TTL
+    // The rooms created count against their address for an hour at most:
+    // once refilled, the bucket goes too (ADR 0009).
+    tick(60 * 60_000);
 
     expect(alice.closedWith?.code).toBe(CloseCode.SUPERSEDED);
     expect(bob.closedWith?.code).toBe(1000);
@@ -367,6 +375,9 @@ describe("RoomService", () => {
       liveness: 0,
       nudges: 0,
       timers: 0,
+      throttles: 0,
+      roomKeys: 0,
+      commandKeys: 0,
     });
   });
 
@@ -405,14 +416,17 @@ describe("RoomService", () => {
   it("scrubs room ids at every log level, including warn", () => {
     const lines: { level: string; room?: string }[] = [];
     const log = redactRoomIds({
+      debug: (fields) => lines.push({ level: "debug", room: fields.room }),
       info: (fields) => lines.push({ level: "info", room: fields.room }),
       warn: (fields) => lines.push({ level: "warn", room: fields.room }),
     });
+    log.debug({ room: ROOM, type: "castVote" });
     log.info({ room: ROOM, type: "open" });
     log.warn({ room: ROOM, type: "anything" });
     log.warn({ type: "sweep-stalled", gapMs: 1 });
 
     expect(lines).toEqual([
+      { level: "debug", room: roomLogId(ROOM) },
       { level: "info", room: roomLogId(ROOM) },
       { level: "warn", room: roomLogId(ROOM) },
       { level: "warn", room: undefined },
@@ -1055,12 +1069,12 @@ describe("RoomService — nudges (ADR 0007)", () => {
   });
 
   it("holds each person to one nudge in 30 seconds, whoever sends it", () => {
-    const { service, alice, bob, carol, advance, logs } = room();
+    const { service, alice, bob, carol, advance, debugs } = room();
     service.message(alice, nudge(BOB));
     advance(NUDGE_COOLDOWN_MS - 1);
     service.message(carol, nudge(BOB));
     expect(bob.sent).toEqual([{ type: "nudged" }]);
-    expect(logs.at(-1)).toMatchObject({
+    expect(debugs.at(-1)).toMatchObject({
       type: "nudge-ignored",
       code: "COOLDOWN",
     });
@@ -1070,14 +1084,14 @@ describe("RoomService — nudges (ADR 0007)", () => {
   });
 
   it("drops a nudge that breaks a rule, logs why, and tells the sender nothing", () => {
-    const { service, alice, bob, carol, logs } = room();
+    const { service, alice, bob, carol, debugs } = room();
     service.message(carol, JSON.stringify({ type: "castVote", card: "5" }));
     for (const conn of [alice, bob, carol]) conn.sent.length = 0;
 
     service.message(alice, nudge(ALICE));
     service.message(alice, nudge(CAROL));
     service.message(alice, nudge("SESSIONTOKEN_NOBODY_0001"));
-    const ignored = logs.filter(({ type }) => type === "nudge-ignored");
+    const ignored = debugs.filter(({ type }) => type === "nudge-ignored");
     expect(ignored.map(({ type, code }) => [type, code])).toEqual([
       ["nudge-ignored", "SELF"],
       ["nudge-ignored", "HAS_VOTED"],
@@ -1087,20 +1101,20 @@ describe("RoomService — nudges (ADR 0007)", () => {
   });
 
   it("drops a nudge once the round is revealed", () => {
-    const { service, alice, bob, logs } = room();
+    const { service, alice, bob, debugs } = room();
     service.message(alice, JSON.stringify({ type: "castVote", card: "5" }));
     service.message(alice, JSON.stringify({ type: "reveal" }));
     bob.sent.length = 0;
     service.message(alice, nudge(BOB));
     expect(bob.sent).toEqual([]);
-    expect(logs.at(-1)).toMatchObject({ code: "NOT_VOTING" });
+    expect(debugs.at(-1)).toMatchObject({ code: "NOT_VOTING" });
   });
 
   it("drops a nudge to someone away", () => {
-    const { service, alice, bob, logs } = room();
+    const { service, alice, bob, debugs } = room();
     service.close(bob);
     service.message(alice, nudge(BOB));
-    expect(logs.at(-1)).toMatchObject({ code: "AWAY" });
+    expect(debugs.at(-1)).toMatchObject({ code: "AWAY" });
   });
 
   it("refuses a nudge from a socket that has not joined", () => {
@@ -1230,5 +1244,85 @@ describe("RoomService — shutdown (#29)", () => {
     const late = connect("late");
     expect(late.closedWith).toEqual({ code: 1001, reason: "going away" });
     expect(service.bookkeeping().pending).toBe(0);
+  });
+});
+
+describe("RoomService — log levels (docs/operations.md)", () => {
+  /** Alice and Bob in ROOM; the lines their joins wrote, then cleared. */
+  function joined() {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    const bob = ctx.connect("bob");
+    ctx.join(alice, ALICE, "Alice");
+    ctx.join(bob, BOB, "Bob");
+    const joins = { info: [...ctx.logs], debug: [...ctx.debugs] };
+    ctx.logs.length = 0;
+    ctx.debugs.length = 0;
+    return { ...ctx, alice, bob, joins };
+  }
+
+  it("adds no info line for 100 vote changes in a joined room, and one debug line each", () => {
+    const { service, alice, logs, debugs, advance } = joined();
+    for (let i = 0; i < 100; i += 1) {
+      // Within the message limit, so every one is applied.
+      advance(200);
+      const card = i % 2 === 0 ? "5" : "8";
+      service.message(alice, JSON.stringify({ type: "castVote", card }));
+    }
+    expect(logs).toEqual([]);
+    expect(debugs.filter(({ type }) => type === "castVote")).toHaveLength(100);
+  });
+
+  it("logs every command at debug, and joining and leaving at info", () => {
+    const { service, alice, bob, logs, debugs, advance, joins } = joined();
+    expect(joins.info.map(({ conn, type }) => [conn, type])).toEqual([
+      ["alice", "open"],
+      ["bob", "open"],
+      ["alice", "join"],
+      ["bob", "join"],
+    ]);
+    expect(joins.debug).toEqual([]);
+    const commands = [
+      { type: "castVote", card: "5" },
+      { type: "clearVote" },
+      { type: "castVote", card: "8" },
+      { type: "setTicket", text: "PROJ-1" },
+      { type: "setScoring", on: true },
+      { type: "timerSetDuration", ms: 60_000 },
+      { type: "timerStart" },
+      { type: "timerAdd" },
+      { type: "timerPause" },
+      { type: "timerResume" },
+      { type: "nudge", participantId: derivePublicId(ROOM, BOB) },
+      { type: "reveal" },
+      { type: "reset" },
+    ];
+    for (const command of commands) {
+      advance(200);
+      service.message(alice, JSON.stringify(command));
+    }
+    expect(debugs.map(({ type }) => type)).toEqual(
+      commands.map(({ type }) => type),
+    );
+    expect(logs).toEqual([]);
+
+    service.message(bob, JSON.stringify({ type: "leave" }));
+    expect(logs).toContainEqual(
+      expect.objectContaining({ conn: "bob", type: "leave" }),
+    );
+  });
+
+  it("caps the errors sent to clients at 10 lines a minute across the server, and still sends each", () => {
+    const { service, alice, bob, logs } = joined();
+    for (let i = 0; i < 15; i += 1) {
+      service.message(i % 2 === 0 ? alice : bob, "not json");
+    }
+    const errors = [...alice.sent, ...bob.sent].filter(
+      (message) => message.type === "error",
+    );
+    expect(errors).toHaveLength(15);
+    expect(logs.filter(({ code }) => code === "INVALID_MESSAGE")).toHaveLength(
+      10,
+    );
   });
 });

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createRoom } from "./api.js";
+import { createRoom, TooManyRooms } from "./api.js";
 import { HOME_COPY, RUNNING_COPY } from "./copy.js";
 import type { FacilitateStore } from "./facilitate.js";
 import type { Identity } from "./identity.js";
@@ -27,21 +27,26 @@ export function HomePage({
 }) {
   useDocumentTitle(null);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // Why the last try failed, said under the button; null before any.
+  const [failed, setFailed] = useState<string | null>(null);
   const [running, setRunning] = useState(() => facilitate.isOn());
 
   const create = (name: string) => {
     setBusy(true);
-    setFailed(false);
+    setFailed(null);
     createRoom().then(
       (roomId) => {
         identity.rememberName(name);
         facilitate.set(running);
         onCreated(roomId);
       },
-      () => {
+      (error: unknown) => {
         setBusy(false);
-        setFailed(true);
+        setFailed(
+          error instanceof TooManyRooms
+            ? HOME_COPY.tooMany(Math.ceil(error.retryAfterSeconds / 60))
+            : HOME_COPY.failed,
+        );
       },
     );
   };
@@ -66,7 +71,7 @@ export function HomePage({
           />
         </NameForm>
         <p className="page-note">{HOME_COPY.invite}</p>
-        {failed && <p role="alert">{HOME_COPY.failed}</p>}
+        {failed !== null && <p role="alert">{failed}</p>}
       </div>
       <LandingPreview />
     </main>

@@ -1,5 +1,6 @@
 import websocket from "@fastify/websocket";
 import Fastify, {
+  LogController,
   type FastifyBaseLogger,
   type FastifyLoggerOptions,
   type FastifyRequest,
@@ -19,6 +20,9 @@ import {
   type Connection,
   type Limits,
 } from "./room-service.js";
+import { AddressLimits } from "./limits/address.js";
+import { limitKey } from "./limits/limit-key.js";
+import { LogCaps } from "./limits/log-cap.js";
 import { CLOSE_GRACE_MS } from "./shutdown.js";
 import { notFound, serveClient } from "./web.js";
 
@@ -41,6 +45,30 @@ export interface ServerOptions {
   readonly production?: boolean;
   /** The proxy in front, whose header names the client (client-ip.ts). */
   readonly proxy?: Proxy;
+  /** For tests that read the per-address counts; built from `limits` otherwise. */
+  readonly addressLimits?: AddressLimits;
+}
+
+/**
+ * Requests a client can make as fast as it likes, each refused in a moment
+ * once over its limit (ADR 0009): WebSocket upgrades, and room ids from the
+ * API. Fastify would log each one as it arrives, whatever the limit says,
+ * so one client could write a line per attempt without end. Their own
+ * handlers write the same line instead: always for one the limits accept,
+ * and within the server-wide cap for one they refuse.
+ *
+ * Chosen by the route Fastify matched, never by the request alone: a header
+ * or a query string must not be a way to keep any other request out of the
+ * log. The socket route also needs the upgrade itself, since a plain GET to
+ * it reaches no handler that would write the line.
+ */
+function loggedByHandler(request: FastifyRequest): boolean {
+  const route = request.routeOptions.url;
+  if (route === "/api/rooms") return request.method === "POST";
+  return (
+    route === "/ws/:roomId" &&
+    request.headers.upgrade?.toLowerCase() === "websocket"
+  );
 }
 
 const roomParams = {
@@ -62,18 +90,42 @@ function requestSerializer(proxy: Proxy | undefined) {
   });
 }
 
-type Socket = Pick<WebSocket, "send" | "close" | "ping" | "terminate">;
+type Socket = Pick<
+  WebSocket,
+  "send" | "close" | "ping" | "terminate" | "bufferedAmount"
+>;
+
+/**
+ * What one socket may hold unsent before it is dropped: a client that has
+ * stopped reading. Send buffers live outside the JavaScript heap, so the
+ * heap cap does not bound them, and a socket that never reads would grow
+ * without limit, at however many snapshots its room sends. A snapshot is
+ * a few KB; the largest a room can make measured 8,100 bytes (30 people
+ * with 32-character names that JSON escapes to 6 bytes a character, a
+ * 120-character ticket of the same, scores on, every vote revealed). So
+ * 1 MiB is at least 129 snapshots unread: a dead or hostile client, never
+ * a slow phone.
+ */
+export const MAX_BUFFERED_BYTES = 1024 * 1024;
+
+/** How often the sweep writes the counts line (#85): 288 lines a day. */
+export const COUNTS_INTERVAL_MS = 5 * 60_000;
 
 /**
  * Wraps a socket as a Connection that never throws, as the interface requires.
  * RoomService calls out to connections mid-loop (sweep, broadcast, supersede);
  * a throw there would skip the rest of the loop or, from the sweep interval,
  * crash the process and every room in it. A failed call is logged at warn.
+ *
+ * A socket holding more than MAX_BUFFERED_BYTES unsent is terminated
+ * instead of sent to, once, and `onSlowConsumer` says so. Its close then
+ * goes through the room service like any other dropped socket.
  */
 export function toConnection(
   socket: Socket,
   id: string,
   log: Pick<FastifyBaseLogger, "warn">,
+  onSlowConsumer: () => void = () => {},
 ): Connection {
   const guard = (op: string, call: () => void) => {
     try {
@@ -82,10 +134,19 @@ export function toConnection(
       log.warn({ err, conn: id, op }, "socket call failed");
     }
   };
+  let dropped = false;
   return {
     id,
-    send: (message) =>
-      guard("send", () => socket.send(JSON.stringify(message))),
+    send: (message) => {
+      if (dropped) return;
+      if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+        dropped = true;
+        onSlowConsumer();
+        guard("terminate", () => socket.terminate());
+        return;
+      }
+      guard("send", () => socket.send(JSON.stringify(message)));
+    },
     close: (code, reason) => guard("close", () => socket.close(code, reason)),
     ping: () => guard("ping", () => socket.ping()),
     terminate: () => guard("terminate", () => socket.terminate()),
@@ -109,33 +170,83 @@ export function buildServer(options: ServerOptions = {}) {
     // counts that as neither, so close() would wait for it until the
     // shutdown timeout. Chrome preconnects, so a real deploy would too.
     forceCloseConnections: true,
+    logController: new LogController({
+      disableRequestLogging: loggedByHandler,
+    }),
   });
   securityHeaders(app, { production: options.production ?? false });
   if (options.webRoot !== undefined) serveClient(app, options.webRoot);
   // The default 404 handler logs the raw URL; this one does not.
   app.setNotFoundHandler(notFound(options.webRoot !== undefined));
   const sweepIntervalMs = options.sweepIntervalMs ?? SWEEP_INTERVAL_MS;
-  const rooms = new RoomService(
-    options.clock ?? Date.now,
-    { ...DEFAULT_LIMITS, ...options.limits },
-    {
-      log: {
-        info: (fields) => app.log.info(fields),
-        warn: (fields) => app.log.warn(fields),
-      },
-      sweepIntervalMs,
-      roomTtlMs: options.roomTtlMs,
+  const clock = options.clock ?? Date.now;
+  // One cap per kind of line a client can make the server write, for the
+  // whole server (#16): the oversized-frame warning here, and the limits'
+  // own lines in the service.
+  const logCaps = new LogCaps();
+  const limits = { ...DEFAULT_LIMITS, ...options.limits };
+  const address = options.addressLimits ?? new AddressLimits(limits);
+  // Since the last counts line (#85): what the limits refused, messages,
+  // joins and requests alike, and the sockets dropped for not reading.
+  let rateLimited = 0;
+  let slowConsumerDrops = 0;
+  const rooms = new RoomService(clock, limits, {
+    log: {
+      debug: (fields) => app.log.debug(fields),
+      info: (fields) => app.log.info(fields),
+      warn: (fields) => app.log.warn(fields),
     },
-  );
+    sweepIntervalMs,
+    roomTtlMs: options.roomTtlMs,
+    logCaps,
+    onRateLimited: () => {
+      rateLimited += 1;
+    },
+  });
+
+  /**
+   * The counts line (#85): numbers only, every one of them, so no id or name
+   * can reach it. Written even when nothing changed, so a missing line means
+   * the sweep or the process has stopped.
+   */
+  const countsLine = () => {
+    const memory = process.memoryUsage();
+    const mib = (bytes: number) => Math.round(bytes / 2 ** 20);
+    const line = {
+      type: "counts",
+      ...rooms.counts(),
+      slowConsumerDrops,
+      rateLimited,
+      rssMiB: mib(memory.rss),
+      heapUsedMiB: mib(memory.heapUsed),
+      externalMiB: mib(memory.external),
+    };
+    rateLimited = 0;
+    slowConsumerDrops = 0;
+    return line;
+  };
 
   // One interval drives every timeout; there are no per-connection timers.
   let sweeper: NodeJS.Timeout | undefined;
   app.addHook("onReady", (done) => {
+    // Read in the first sweep, inside its try, like every other clock read.
+    let countedAt: number | undefined;
     sweeper = setInterval(() => {
       // A throw from the service is a bug: log it loudly, but don't let one
       // bug crash the process and drop every room with it.
       try {
         rooms.sweep();
+        address.sweep(clock());
+        // Whatever the caps held back, once a minute after it started.
+        for (const { line, count } of logCaps.due(clock())) {
+          app.log.warn({ type: "suppressed", line, count });
+        }
+        const now = clock();
+        countedAt ??= now;
+        if (now - countedAt >= COUNTS_INTERVAL_MS) {
+          countedAt = now;
+          app.log.info(countsLine());
+        }
       } catch (err) {
         app.log.error(err, "sweep failed");
       }
@@ -187,15 +298,65 @@ export function buildServer(options: ServerOptions = {}) {
     // ws closes oversized frames with 1009 before they reach the parser.
     options: { maxPayload: 4096 },
     // Socket errors are almost always a misbehaving client, not a server fault.
-    // Log at warn, and let a close ws has already begun (1009) finish cleanly.
+    // Log at warn, within the server-wide cap, since each oversized frame
+    // closes its own connection and the next can come on a fresh one; let a
+    // close ws has already begun (1009) finish cleanly.
     errorHandler: (error, socket, request) => {
-      request.log.warn({ err: error }, "websocket error");
+      if (logCaps.allow("websocket error", clock())) {
+        request.log.warn({ err: error }, "websocket error");
+      }
       if (socket.readyState === socket.OPEN) socket.terminate();
     },
   });
 
-  app.get("/health", () => ({ status: "ok" }));
-  app.post("/api/rooms", () => ({ roomId: generateRoomId() }));
+  // Fly checks it every 15 s: 11,520 lines a day, with nothing in them (#65).
+  app.get("/health", { logLevel: "silent" }, () => ({ status: "ok" }));
+  /** The request's own line, as Fastify would have written it. */
+  const requestLine = (request: FastifyRequest) => {
+    request.log.info({ req: request }, "incoming request");
+  };
+
+  /**
+   * One capped line for a per-address refusal, with the request's own line
+   * before it, which carries the address; the limit's line never does.
+   */
+  const limitedLine = (
+    take: "limited" | "full",
+    limit: string,
+    request: FastifyRequest,
+  ) => {
+    rateLimited += 1;
+    const now = clock();
+    if (take === "full") {
+      if (logCaps.allow("limiter full", now)) {
+        requestLine(request);
+        app.log.warn({ type: "limiter-full", limit });
+      }
+    } else if (logCaps.allow("rate-limited", now)) {
+      requestLine(request);
+      app.log.info({ type: "rate-limited", limit, conn: request.id });
+    }
+  };
+
+  // Only makes up an id: a room exists once someone joins it, and that is
+  // where creating one is counted (ADR 0009). The id itself is limited per
+  // address like an upgrade, and the request has no body to speak of.
+  app.post("/api/rooms", { bodyLimit: 1024 }, (request, reply) => {
+    const key = limitKey(clientIp(request, options.proxy));
+    const { take, retryAfterMs } = address.roomId(key, clock());
+    if (take !== "ok") {
+      limitedLine(take, "room-ids", request);
+      return reply
+        .code(429)
+        .header(
+          "Retry-After",
+          String(Math.max(1, Math.ceil(retryAfterMs / 1000))),
+        )
+        .send({ error: "RATE_LIMITED" });
+    }
+    requestLine(request);
+    return { roomId: generateRoomId() };
+  });
 
   // A child plugin loads after the websocket plugin, so its onRoute hook sees
   // this route. The params schema rejects a malformed room id with 400 before upgrade.
@@ -204,7 +365,23 @@ export function buildServer(options: ServerOptions = {}) {
       "/ws/:roomId",
       { websocket: true, schema: { params: roomParams } },
       (socket, request) => {
-        const conn = toConnection(socket, request.id, request.log);
+        const conn = toConnection(socket, request.id, request.log, () => {
+          slowConsumerDrops += 1;
+          if (logCaps.allow("slow consumer", clock())) {
+            request.log.warn({ type: "slow-consumer", conn: request.id });
+          }
+        });
+        const key = limitKey(clientIp(request, options.proxy));
+        // Per address (ADR 0009), checked after the upgrade for the reason
+        // below: 1013, which the client retries with its long backoff. The
+        // upgrade rate first, for every attempt, outdated clients too.
+        const upgrade = address.upgrade(key, clock());
+        if (upgrade !== "ok") {
+          limitedLine(upgrade, "upgrades", request);
+          conn.close(1013, "try again later"); // standard: Try Again Later
+          return;
+        }
+        requestLine(request);
         // Checked after upgrade, not in the schema: a browser cannot read the
         // HTTP status of a failed upgrade, only a close code (#17). An outdated
         // client never reaches the service, so no room state is touched.
@@ -222,7 +399,18 @@ export function buildServer(options: ServerOptions = {}) {
           conn.close(CloseCode.OUTDATED_CLIENT, "outdated client");
           return;
         }
-        rooms.open(conn, request.params.roomId);
+        const room = address.roomForSocket(key);
+        if (room !== "ok") {
+          limitedLine(room, "sockets", request);
+          conn.close(1013, "try again later");
+          return;
+        }
+        // The count's only two writers, so it cannot leak: one more now, and
+        // one fewer from this socket's own close, which ws fires exactly
+        // once, whatever closes it.
+        address.open(key);
+        socket.once("close", () => address.close(key));
+        rooms.open(conn, request.params.roomId, key);
         // Never log `data`: a join frame carries the session token.
         socket.on("message", (data: Buffer) =>
           rooms.message(conn, data.toString("utf8")),

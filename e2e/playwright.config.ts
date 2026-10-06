@@ -46,6 +46,17 @@ export default defineConfig({
       HOST: "127.0.0.1",
       PORT: String(PORT),
       LOG_LEVEL: "warn",
+      // Every test makes its own room, about 150 a run, and none is empty
+      // long enough to be evicted before the run ends: room for many more
+      // than production's 200, so the suite never meets that limit.
+      MAX_ROOMS: "2000",
+      // The suite is one address making hundreds of rooms and sockets in a
+      // minute or two, far past what one team needs; production keeps the
+      // code's defaults (ADR 0009).
+      CONNECTS_PER_IP_PER_MINUTE: "100000",
+      SOCKETS_PER_IP: "100000",
+      ROOMS_PER_IP_PER_HOUR: "100000",
+      COMMANDS_PER_IP_PER_SECOND: "100000",
     },
     reuseExistingServer: false,
     timeout: 120_000,

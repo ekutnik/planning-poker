@@ -133,7 +133,9 @@ function VotingPerson({
       {/* "(you)" sits outside the name, so shortening a long name never
           cuts it: it is what tells you which row is yours. The space
           between them is for a screen reader; flex drops it. */}
-      <span className="person-name">{person.name}</span>
+      <span className="person-name" dir="auto">
+        {person.name}
+      </span>
       {you && (
         <>
           {" "}
@@ -203,8 +205,10 @@ function NudgeButton({
         if (!sent && live) onNudge();
       }}
     >
-      {sent ? NUDGE_COPY.nudged : NUDGE_COPY.nudge}
-      <span className="visually-hidden"> {name}</span>
+      {sent ? NUDGE_COPY.nudged : NUDGE_COPY.nudge}{" "}
+      <span className="visually-hidden" dir="auto">
+        {name}
+      </span>
     </button>
   );
 }
@@ -227,7 +231,9 @@ function RevealedPerson({
   const card = person.vote;
   return (
     <li className="person">
-      <span className="person-name">{person.name}</span>
+      <span className="person-name" dir="auto">
+        {person.name}
+      </span>
       {you && (
         <>
           {" "}

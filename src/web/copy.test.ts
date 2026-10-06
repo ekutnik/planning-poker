@@ -24,6 +24,8 @@ const sentences = [
   HOME_COPY.intro,
   HOME_COPY.invite,
   HOME_COPY.failed,
+  HOME_COPY.tooMany(1),
+  HOME_COPY.tooMany(3),
   JOIN_COPY.intro,
   NOT_FOUND_COPY.title,
   NOT_FOUND_COPY.body,

@@ -8,11 +8,18 @@ import {
   type ServerMessage,
 } from "../shared/protocol.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
-import { buildServer, toConnection, type ServerOptions } from "./app.js";
+import {
+  buildServer,
+  COUNTS_INTERVAL_MS,
+  MAX_BUFFERED_BYTES,
+  toConnection,
+  type ServerOptions,
+} from "./app.js";
 import { CloseCode } from "../shared/close-codes.js";
 import { ROOM_ID_PATTERN } from "../shared/rules.js";
 import { roomLogId } from "./identity.js";
 import {
+  DEFAULT_LIMITS,
   JOIN_TIMEOUT_MS,
   PING_INTERVAL_MS,
   PONG_TIMEOUT_MS,
@@ -76,6 +83,17 @@ async function connect(roomId: string): Promise<TestClient> {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Waits until `done` holds, up to 2 s, however busy the machine is: a fixed
+ * sleep for the sweep timer to run was not always enough with other test
+ * files running alongside.
+ */
+async function until(done: () => boolean): Promise<void> {
+  for (let waited = 0; !done() && waited < 2_000; waited += 10) {
+    await sleep(10);
+  }
+}
 
 /** Replaces the default app for a test that needs its own options. */
 async function restart(options: ServerOptions): Promise<void> {
@@ -207,7 +225,14 @@ describe("websocket route", () => {
 
   it("forwards pongs, so a client that answers pings outlives the pong deadline", async () => {
     let now = 0;
-    await restart({ clock: () => now, sweepIntervalMs: 5 });
+    let reads = 0;
+    await restart({
+      clock: () => {
+        reads += 1;
+        return now;
+      },
+      sweepIntervalMs: 5,
+    });
     const alice = await connect(await createRoom());
     alice.send({ type: "join", sessionToken: randomUUID(), name: "Alice" });
     await alice.snapshot();
@@ -221,7 +246,11 @@ describe("websocket route", () => {
     await pinged;
     await sleep(20); // let the pong reach the server
     now = PONG_TIMEOUT_MS; // past the deadline measured from join
-    await sleep(30);
+    // Until the sweep has run on the new time, twice: without that, the
+    // socket being open would prove nothing.
+    const before = reads;
+    await until(() => reads >= before + 2);
+    expect(reads).toBeGreaterThanOrEqual(before + 2);
 
     expect(alice.socket.readyState).toBe(alice.socket.OPEN);
   });
@@ -337,13 +366,235 @@ describe("websocket route", () => {
 
     expect((await client.closed).code).toBe(1009);
   });
+
+  it("lets the largest messages a client can legitimately send through the 4 KiB cap", async () => {
+    // The protocol's own caps: a 200-character name and a 200-character
+    // ticket, each made of characters JSON escapes to 6 bytes, the most any
+    // character costs on the wire, and the longest session token.
+    const worst = "\u0001".repeat(200);
+    const join = {
+      type: "join",
+      sessionToken: "T".repeat(64),
+      name: worst,
+    } as const;
+    // Ending in one visible character, so the room has a ticket to show.
+    const ticket = {
+      type: "setTicket",
+      text: `${worst.slice(1)}A`,
+    } as const;
+    for (const message of [join, ticket]) {
+      expect(Buffer.byteLength(JSON.stringify(message))).toBeLessThan(4096);
+    }
+    const client = await connect(await createRoom());
+    client.send(join);
+    expect(await client.next()).toEqual({
+      type: "error",
+      code: "INVALID_NAME",
+    });
+    client.send({ type: "join", sessionToken: randomUUID(), name: "Ada" });
+    await client.snapshot();
+    client.send(ticket);
+    // The control characters go, and what is left is the ticket: an
+    // answer, not a 1009.
+    expect((await client.snapshot()).ticket).toBe("A");
+  });
+
+  it("caps the oversized-frame warning for the whole server, not per connection (#16)", async () => {
+    const FRAMES = 10_000;
+    const lines: Record<string, unknown>[] = [];
+    let now = 0;
+    await restart({
+      clock: () => now,
+      sweepIntervalMs: 5,
+      // Not what this test is about: the server notices each socket's close
+      // a moment after the client does, so a batch can briefly hold more
+      // than the 1,000 unjoined sockets allowed; and every connection here
+      // comes from one address.
+      limits: {
+        maxPending: FRAMES,
+        connectsPerMinute: FRAMES,
+        socketsPerAddress: FRAMES,
+      },
+      logger: {
+        level: "warn",
+        stream: {
+          write: (line: string) =>
+            lines.push(JSON.parse(line) as Record<string, unknown>),
+        },
+      },
+    });
+    const roomId = await createRoom();
+    // Each on a fresh connection, since each closes its own: 10,000 in a
+    // minute, in batches.
+    for (let sent = 0; sent < FRAMES; sent += 250) {
+      await Promise.all(
+        Array.from({ length: 250 }, async () => {
+          const client = new TestClient(await app.injectWS(socketPath(roomId)));
+          client.socket.send("x".repeat(4097));
+          expect((await client.closed).code).toBe(1009);
+        }),
+      );
+    }
+    const warnings = () => lines.filter((l) => l.msg === "websocket error");
+    expect(warnings()).toHaveLength(10);
+    // A minute after the first was held back, the count goes out, once.
+    now += 60_000;
+    await until(() => lines.some((l) => l.type === "suppressed"));
+    expect(lines.filter((l) => l.type === "suppressed")).toEqual([
+      expect.objectContaining({
+        type: "suppressed",
+        line: "websocket error",
+        count: FRAMES - 10,
+      }),
+    ]);
+    expect(warnings()).toHaveLength(10);
+  }, 60_000);
 });
 
 describe("logging", () => {
+  /** Lines the app logged, parsed, and the logger that captures them. */
+  function capture(level?: string) {
+    const lines: Record<string, unknown>[] = [];
+    const logger = {
+      level,
+      stream: {
+        write: (line: string) =>
+          lines.push(JSON.parse(line) as Record<string, unknown>),
+      },
+    };
+    return { lines, logger };
+  }
+
+  it("writes no line for GET /health, and the usual request line for any other route (#65)", async () => {
+    const { lines, logger } = capture();
+    await restart({ logger });
+    lines.length = 0;
+
+    const health = await app.inject({ method: "GET", url: "/health" });
+    expect(health.statusCode).toBe(200);
+    expect(lines).toEqual([]);
+
+    await app.inject({ method: "GET", url: "/" });
+    expect(lines.map((line) => line.msg)).toContain("incoming request");
+  });
+
+  /**
+   * A server on a fake clock whose sweep runs every 5 ms, and a way to wait
+   * for a few more sweeps: the clock is read on every one.
+   */
+  async function counted(options: ServerOptions = {}) {
+    const { lines, logger } = capture();
+    let now = 0;
+    let reads = 0;
+    await restart({
+      ...options,
+      logger,
+      sweepIntervalMs: 5,
+      clock: () => {
+        reads += 1;
+        return now;
+      },
+    });
+    const sweeps = async () => {
+      const from = reads;
+      await until(() => reads >= from + 20);
+    };
+    await sweeps();
+    return {
+      lines,
+      counts: () => lines.filter((line) => line.type === "counts"),
+      at: (ms: number) => {
+        now = ms;
+      },
+      sweeps,
+    };
+  }
+
+  it("writes one counts line every 5 minutes from the sweep, even when nothing changed (#85)", async () => {
+    const { counts, at, sweeps } = await counted();
+    at(COUNTS_INTERVAL_MS - 1);
+    await sweeps();
+    expect(counts()).toHaveLength(0);
+    at(COUNTS_INTERVAL_MS);
+    await sweeps();
+    expect(counts()).toHaveLength(1);
+    at(2 * COUNTS_INTERVAL_MS - 1);
+    await sweeps();
+    expect(counts()).toHaveLength(1);
+    at(2 * COUNTS_INTERVAL_MS);
+    await sweeps();
+    expect(counts()).toHaveLength(2);
+    expect(counts()[1]).toMatchObject({ level: 30, rooms: 0, sockets: 0 });
+  });
+
+  it("puts nothing but numbers in the counts line, beside its type (#85)", async () => {
+    const { counts, at, sweeps } = await counted();
+    const roomId = await createRoom();
+    const alice = await connect(roomId);
+    alice.send({ type: "join", sessionToken: randomUUID(), name: "Alice" });
+    await alice.snapshot();
+    at(COUNTS_INTERVAL_MS);
+    await sweeps();
+
+    // Pino's own fields, then the line's.
+    const [line] = counts();
+    const { level, time, pid, hostname, type, ...fields } = line ?? {};
+    expect([level, time, pid, hostname, type]).toEqual([
+      30,
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(String),
+      "counts",
+    ]);
+    expect(Object.keys(fields).sort()).toEqual(
+      [
+        "rooms",
+        "pending",
+        "sockets",
+        "participants",
+        "timersRunning",
+        "roomKeys",
+        "commandKeys",
+        "slowConsumerDrops",
+        "rateLimited",
+        "rssMiB",
+        "heapUsedMiB",
+        "externalMiB",
+      ].sort(),
+    );
+    for (const value of Object.values(fields)) {
+      expect(typeof value).toBe("number");
+    }
+    expect(fields).toMatchObject({
+      rooms: 1,
+      pending: 0,
+      sockets: 1,
+      participants: 1,
+      roomKeys: 1,
+      commandKeys: 0,
+    });
+  });
+
+  it("counts the refusals since the last counts line, not since the start (#85)", async () => {
+    const { counts, at, sweeps } = await counted({
+      limits: { connectsPerMinute: 1 },
+    });
+    await createRoom();
+    const refused = await app.inject({ method: "POST", url: "/api/rooms" });
+    expect(refused.statusCode).toBe(429);
+    at(COUNTS_INTERVAL_MS);
+    await sweeps();
+    at(2 * COUNTS_INTERVAL_MS);
+    await sweeps();
+    expect(counts().map((line) => line.rateLimited)).toEqual([1, 0]);
+  });
+
   it("keeps room ids and session tokens out of every log line (#21)", async () => {
     const lines: Record<string, unknown>[] = [];
     await restart({
+      // Debug as well: what goes there must be as clean as info.
       logger: {
+        level: "debug",
         stream: {
           write: (line: string) =>
             lines.push(JSON.parse(line) as Record<string, unknown>),
@@ -402,6 +653,7 @@ describe("the ticket over real sockets", () => {
     const lines: Record<string, unknown>[] = [];
     await restart({
       logger: {
+        level: "debug",
         stream: {
           write: (line: string) =>
             lines.push(JSON.parse(line) as Record<string, unknown>),
@@ -429,7 +681,7 @@ describe("the ticket over real sockets", () => {
     });
     await app.close();
 
-    // The message type is logged, as for every message; the text never is.
+    // The message type is logged at debug, as for every command; the text never is.
     expect(lines.map((line) => line.type)).toContain("setTicket");
     expect(JSON.stringify(lines)).not.toContain("Quietly-logged-ticket-text");
     expect(JSON.stringify(lines)).not.toContain("x".repeat(121));
@@ -443,7 +695,13 @@ describe("failure containment", () => {
 
   it("toConnection never throws, and logs each failed socket call at warn", () => {
     const warnings: { op?: string }[] = [];
-    const socket = { send: boom, close: boom, ping: boom, terminate: boom };
+    const socket = {
+      send: boom,
+      close: boom,
+      ping: boom,
+      terminate: boom,
+      bufferedAmount: 0,
+    };
     const conn = toConnection(socket, "req-1", {
       warn: (fields: { op?: string }) => warnings.push(fields),
     });
@@ -462,9 +720,98 @@ describe("failure containment", () => {
     ]);
   });
 
+  it("drops a socket that has stopped reading, once, instead of queueing more for it", () => {
+    const sent: string[] = [];
+    let terminated = 0;
+    let slow = 0;
+    const socket = {
+      bufferedAmount: 0,
+      send: (data: string) => sent.push(data),
+      close: () => {},
+      ping: () => {},
+      terminate: () => {
+        terminated += 1;
+      },
+    };
+    const conn = toConnection(socket, "req-1", { warn: () => {} }, () => {
+      slow += 1;
+    });
+    const message = { type: "error", code: "NOT_JOINED" } as const;
+    // A slow phone with a few snapshots waiting is sent to as usual.
+    socket.bufferedAmount = MAX_BUFFERED_BYTES;
+    conn.send(message);
+    expect(sent).toHaveLength(1);
+    // Past 1 MiB unread: dropped, not sent to, and said once.
+    socket.bufferedAmount = MAX_BUFFERED_BYTES + 1;
+    conn.send(message);
+    conn.send(message);
+    expect(sent).toHaveLength(1);
+    expect([terminated, slow]).toEqual([1, 1]);
+  });
+
+  it("forgets a dropped slow socket everywhere, through the room service's close", () => {
+    const service = new RoomService(() => 0, {
+      ...DEFAULT_LIMITS,
+      maxRooms: 10,
+      maxPending: 10,
+    });
+    const make = (id: string) => {
+      const socket = {
+        bufferedAmount: 0,
+        send: () => {},
+        close: () => {},
+        ping: () => {},
+        // ws fires close after terminate, and the route passes it on.
+        terminate: () => service.close(conn),
+      };
+      const conn = toConnection(socket, id, { warn: () => {} });
+      return { socket, conn };
+    };
+    const reader = make("reader");
+    const stalled = make("stalled");
+    for (const { conn } of [reader, stalled]) {
+      service.open(conn, "abcdefghijk", "203.0.113.1");
+      service.message(
+        conn,
+        JSON.stringify({
+          type: "join",
+          sessionToken: randomUUID(),
+          name: conn.id,
+        }),
+      );
+    }
+    stalled.socket.bufferedAmount = MAX_BUFFERED_BYTES + 1;
+    // The reader's next move sends the stalled socket a snapshot: dropped.
+    service.message(
+      reader.conn,
+      JSON.stringify({ type: "castVote", card: "5" }),
+    );
+    service.message(reader.conn, JSON.stringify({ type: "leave" }));
+    service.close(reader.conn);
+    const counts = service.bookkeeping();
+    expect({
+      pending: counts.pending,
+      bindings: counts.bindings,
+      sockets: counts.sockets,
+      socketRooms: counts.socketRooms,
+      lastSent: counts.lastSent,
+      liveness: counts.liveness,
+      throttles: counts.throttles,
+    }).toEqual({
+      pending: 0,
+      bindings: 0,
+      sockets: 0,
+      socketRooms: 0,
+      lastSent: 0,
+      liveness: 0,
+      throttles: 0,
+    });
+  });
+
   it("a socket whose close throws does not stop the sweep closing the rest", () => {
     let now = 0;
     const service = new RoomService(() => now, {
+      ...DEFAULT_LIMITS,
       maxRooms: 10,
       maxPending: 10,
     });
@@ -472,13 +819,18 @@ describe("failure containment", () => {
     const quiet = { warn: () => {} };
     const sockets = ["broken", "second", "third"].map((id) => ({
       id,
+      bufferedAmount: 0,
       send: () => {},
       ping: () => {},
       terminate: () => {},
       close: id === "broken" ? boom : () => closed.push(id),
     }));
     for (const socket of sockets) {
-      service.open(toConnection(socket, socket.id, quiet), "abcdefghijk");
+      service.open(
+        toConnection(socket, socket.id, quiet),
+        "abcdefghijk",
+        "203.0.113.1",
+      );
     }
 
     now += JOIN_TIMEOUT_MS;
@@ -504,7 +856,8 @@ describe("failure containment", () => {
         },
       },
     });
-    await sleep(30);
+    // Until a later tick has run.
+    await until(() => reads >= 3);
 
     expect(lines.filter((line) => line.msg === "sweep failed")).toEqual([
       expect.objectContaining({ level: 50 }),

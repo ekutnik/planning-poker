@@ -15,6 +15,9 @@ import {
 import { project } from "./domain/projection.js";
 import { derivePublicId, roomLogId } from "./identity.js";
 import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
+import { KeyedLimiter } from "./limits/keyed.js";
+import { LogCaps } from "./limits/log-cap.js";
+import { TokenBucket } from "./limits/token-bucket.js";
 import { nudgeRefusal } from "./nudge.js";
 
 /**
@@ -92,9 +95,67 @@ export interface Limits {
    * answers. A per-IP connection cap (#16) bounds those.
    */
   readonly maxPending: number;
+  /**
+   * Per client address (ADR 0009), sized for a whole team behind one office
+   * address, who all join at once and reconnect together after a restart.
+   * WebSocket upgrades a minute, and room ids from the API too: two full
+   * rooms reconnecting at once.
+   */
+  readonly connectsPerMinute: number;
+  /** Sockets open at once: several teams behind one address. */
+  readonly socketsPerAddress: number;
+  /** Rooms created an hour: a team needs one or two. */
+  readonly roomsPerHour: number;
+  /**
+   * Commands a second, across all of an address's sockets: each one can
+   * send a snapshot to everyone in a room. Its burst is one command per
+   * socket the address may hold (socketsPerAddress), so several teams
+   * behind one NAT can all vote at the same moment.
+   */
+  readonly commandsPerSecond: number;
 }
 
-export const DEFAULT_LIMITS: Limits = { maxRooms: 10_000, maxPending: 1_000 };
+/**
+ * The defaults are safe on the production machine without any setting
+ * (#63): 200 full rooms of 30, plus 1,000 sockets not yet joined, measured
+ * 86.9 MiB of heap, inside Node's 128 MiB cap there; 10,000 rooms, the
+ * default until v0.5.0, ran the heap out at 400 full rooms. fly.toml sets
+ * the same 200, and a test keeps the two equal. The per-address limits are
+ * production's values too, and fly.toml sets none of them (ADR 0009).
+ */
+export const DEFAULT_LIMITS: Limits = {
+  maxRooms: 200,
+  maxPending: 1_000,
+  connectsPerMinute: 60,
+  socketsPerAddress: 100,
+  roomsPerHour: 10,
+  commandsPerSecond: 10,
+};
+
+/**
+ * One connection's message limits (#16), as token buckets: a capacity, and
+ * the window it refills over. Constants, not settings: nothing legitimate
+ * comes near them, so a setting would only be a way to switch them off.
+ *
+ * - Messages: 20, refilled at 5 a second. A person clicking fast sends 1 to
+ *   3 a second, and each message fans out a snapshot to everyone in the room.
+ * - RATE_LIMITED replies: 1 a second. Answering every refused message would
+ *   amplify the flood it refuses.
+ * - The client's own liveness ping (#20): 5, refilled at 1 every 5 s. A
+ *   bucket of its own, so a command flood never starves a healthy client's
+ *   ping, which comes every 20 s, and makes it look dead.
+ * - Strikes: 40, refilled at 4 a second; each refused message or ping takes
+ *   one, and with none left the socket is closed with 1008. They only build
+ *   while refusals outpace 4 a second, so above 9 messages a second in all:
+ *   about 40 s at 10 a second, under half a second at 100. Below that, a
+ *   client is held to 5 a second and never closed.
+ */
+export const MESSAGE_LIMIT = { capacity: 20, windowMs: 4_000 } as const;
+export const REPLY_LIMIT = { capacity: 1, windowMs: 1_000 } as const;
+export const PING_LIMIT = { capacity: 5, windowMs: 25_000 } as const;
+export const STRIKE_LIMIT = { capacity: 40, windowMs: 10_000 } as const;
+/** A connection's refusals of one kind are logged at most this often. */
+export const RATE_LIMITED_LOG_MS = 60_000;
 
 interface LogFields {
   conn?: string;
@@ -102,20 +163,28 @@ interface LogFields {
   type?: string;
   code?: string;
   gapMs?: number;
+  /** Which limit refused it (#16). */
+  limit?: string;
+  /** How many it refused since the last line for this connection and limit. */
+  count?: number;
 }
 
 /**
  * Structured fields only. Raw frames are never logged (join carries the token),
- * and `room` is always a roomLogId, never the room id itself (#21).
+ * and `room` is always a roomLogId, never the room id itself (#21). The
+ * levels follow one rule (docs/operations.md): info is a connection's
+ * lifecycle or anything unusual, debug is what people do in a room.
  */
 export interface RoomLog {
-  /** Client behaviour: opens, joins, timeouts, errors sent to a client. */
+  /** Every command in a room: votes, tickets, the timer, nudges. Off in production. */
+  debug(fields: LogFields): void;
+  /** Lifecycle and the unusual: opens, joins, leaves, timeouts, refusals, errors. */
   info(fields: LogFields): void;
   /** Server health: something about this process needs attention. */
   warn(fields: LogFields): void;
 }
 
-const NO_LOG: RoomLog = { info() {}, warn() {} };
+const NO_LOG: RoomLog = { debug() {}, info() {}, warn() {} };
 
 /** Wraps a RoomLog so that no level can receive a raw room id (#21). */
 export function redactRoomIds(log: RoomLog): RoomLog {
@@ -124,6 +193,7 @@ export function redactRoomIds(log: RoomLog): RoomLog {
       ? fields
       : { ...fields, room: roomLogId(fields.room) };
   return {
+    debug: (fields) => log.debug(scrub(fields)),
     info: (fields) => log.info(scrub(fields)),
     warn: (fields) => log.warn(scrub(fields)),
   };
@@ -154,6 +224,10 @@ export interface ServiceOptions {
   readonly sweepIntervalMs?: number;
   /** How long a room may stay empty before the sweep evicts it (#18). */
   readonly roomTtlMs?: number;
+  /** The server-wide caps on the limits' own log lines (#16). */
+  readonly logCaps?: LogCaps;
+  /** Called once for every message or join a limit refuses, for the counts line (#85). */
+  readonly onRateLimited?: () => void;
 }
 
 /**
@@ -165,6 +239,8 @@ type RoomMessage = Exclude<ClientMessage, { type: "join" | "ping" | "nudge" }>;
 interface Pending {
   readonly roomId: string;
   readonly openedAt: number;
+  /** The client's limitKey(), for one purpose: counting rooms it creates. */
+  readonly key: string;
 }
 
 interface Liveness {
@@ -175,6 +251,44 @@ interface Liveness {
 interface Binding {
   readonly roomId: string;
   readonly participantId: ParticipantId;
+}
+
+/**
+ * What refused a message: its connection's message or ping limit (#16), or
+ * its address's command limit (ADR 0009). Each is a log line's `limit`.
+ */
+type Limited = "messages" | "pings" | "address-commands";
+
+/** One connection's buckets (#16), from open() until forget(). */
+interface Throttle {
+  /** The client's limitKey(), for the limits its address shares. */
+  readonly key: string;
+  readonly messages: TokenBucket;
+  readonly replies: TokenBucket;
+  readonly pings: TokenBucket;
+  readonly strikes: TokenBucket;
+  /** Per limit: refusals since its last log line, and when that was. */
+  readonly refused: Record<Limited, { count: number; loggedAt: number | null }>;
+  /** Out of strikes and closing with 1008: nothing more is read. */
+  closing: boolean;
+}
+
+function newThrottle(now: number, key: string): Throttle {
+  const bucket = (limit: { capacity: number; windowMs: number }) =>
+    new TokenBucket(limit.capacity, limit.windowMs, now);
+  return {
+    key,
+    messages: bucket(MESSAGE_LIMIT),
+    replies: bucket(REPLY_LIMIT),
+    pings: bucket(PING_LIMIT),
+    strikes: bucket(STRIKE_LIMIT),
+    refused: {
+      messages: { count: 0, loggedAt: null },
+      pings: { count: 0, loggedAt: null },
+      "address-commands": { count: 0, loggedAt: null },
+    },
+    closing: false,
+  };
 }
 
 /**
@@ -191,6 +305,16 @@ export class RoomService {
   private readonly current = new Map<string, Map<ParticipantId, Connection>>();
   private readonly lastSent = new Map<Connection, string>();
   private readonly liveness = new Map<Connection, Liveness>();
+  // Every connection the service holds, pending or joined, has one (#16).
+  // Only open() adds and forget() removes, like `pending`.
+  private readonly throttles = new Map<Connection, Throttle>();
+  // Rooms created, per client address (ADR 0009). Charged only when a join
+  // really creates a room, never for joining one that exists.
+  private readonly roomCreations: KeyedLimiter;
+  // Commands, per client address, across all its sockets (ADR 0009).
+  private readonly commands: KeyedLimiter;
+  private readonly logCaps: LogCaps;
+  private readonly onRateLimited: () => void;
   // When each room became empty. The domain has no timestamp for that; only
   // store() and evict() write it, together with `rooms` (#18).
   private readonly emptySince = new Map<string, number>();
@@ -229,15 +353,31 @@ export class RoomService {
       sweepIntervalMs = SWEEP_INTERVAL_MS,
       roomTtlMs = ROOM_TTL_MS,
       scheduler = REAL_SCHEDULER,
+      logCaps,
+      onRateLimited = () => {},
     }: ServiceOptions = {},
   ) {
     this.scheduler = scheduler;
+    this.logCaps = logCaps ?? new LogCaps();
+    this.onRateLimited = onRateLimited;
+    this.roomCreations = new KeyedLimiter(limits.roomsPerHour, 60 * 60_000);
+    this.commands = new KeyedLimiter(
+      limits.socketsPerAddress,
+      (limits.socketsPerAddress / limits.commandsPerSecond) * 1_000,
+    );
     this.stallAfterMs = sweepIntervalMs * STALL_INTERVALS;
     this.roomTtlMs = roomTtlMs;
     this.log = redactRoomIds(log);
   }
 
-  open(conn: Connection, roomId: string): void {
+  /**
+   * `key` is the client's limitKey(), never its address: the service uses
+   * it only for the limits its address shares, the rooms it creates and the
+   * commands it sends. Required, so a caller
+   * can't forget it and quietly put every client into one shared bucket of
+   * rooms (ADR 0009).
+   */
+  open(conn: Connection, roomId: string, key: string): void {
     if (this.stopping) {
       conn.close(1001, "going away");
       return;
@@ -245,20 +385,31 @@ export class RoomService {
     if (this.closed.has(conn) || this.pending.has(conn)) return;
     if (this.bindings.has(conn)) return;
     if (this.pending.size >= this.limits.maxPending) {
-      this.log.info({ conn: conn.id, room: roomId, code: "PENDING_FULL" });
+      if (this.logCaps.allow("client error", this.clock())) {
+        this.log.info({ conn: conn.id, room: roomId, code: "PENDING_FULL" });
+      }
       conn.close(1013, "try again later"); // standard: Try Again Later
       return;
     }
-    this.pending.set(conn, { roomId, openedAt: this.clock() });
+    const now = this.clock();
+    this.pending.set(conn, { roomId, openedAt: now, key });
+    this.throttles.set(conn, newThrottle(now, key));
     this.log.info({ conn: conn.id, room: roomId, type: "open" });
   }
 
   message(conn: Connection, raw: string): void {
-    const roomId = this.pending.get(conn)?.roomId;
+    const pending = this.pending.get(conn);
+    const roomId = pending?.roomId;
     const binding = this.bindings.get(conn);
     if (roomId === undefined && binding === undefined) return;
 
     const message = parseClientMessage(raw);
+    // Limits first, before anything is logged or answered: a malformed
+    // message or a join counts like any other, and a refused one does
+    // nothing at all, beyond the reply and the strike in admit().
+    if (!this.admit(conn, message)) {
+      return;
+    }
     if (!message) {
       this.sendError(conn, "INVALID_MESSAGE", roomId ?? binding?.roomId);
       return;
@@ -269,18 +420,21 @@ export class RoomService {
       conn.send({ type: "pong" });
       return;
     }
-    this.log.info({
+    // Joining and leaving are a connection's lifecycle; everything else is
+    // what people do in the room, and goes to debug (docs/operations.md).
+    const lifecycle = message.type === "join" || message.type === "leave";
+    this.log[lifecycle ? "info" : "debug"]({
       conn: conn.id,
       room: roomId ?? binding?.roomId,
       type: message.type,
     });
 
     if (!binding) {
-      if (message.type !== "join" || roomId === undefined) {
+      if (message.type !== "join" || pending === undefined) {
         this.sendError(conn, "NOT_JOINED", roomId);
         return;
       }
-      this.join(conn, roomId, message.sessionToken, message.name);
+      this.join(conn, pending, message.sessionToken, message.name);
       return;
     }
     if (message.type === "join") {
@@ -340,6 +494,96 @@ export class RoomService {
     const everyone = [...this.pending.keys(), ...this.bindings.keys()];
     this.log.info({ type: "shutdown" });
     for (const conn of everyone) conn.close(1001, "going away");
+  }
+
+  /**
+   * Whether this connection may send this message now (#16, ADR 0009). A
+   * ping is held to its own bucket. Anything else, malformed included, to
+   * its connection's message limit, then, if that let it through and it is
+   * a command, not a join, to its address's: one command refused by its
+   * connection is never charged to the address as well.
+   */
+  private admit(conn: Connection, message: ClientMessage | null): boolean {
+    const throttle = this.throttles.get(conn);
+    if (throttle === undefined) return true;
+    if (throttle.closing) return false;
+    const now = this.clock();
+    const own = message?.type === "ping" ? "pings" : "messages";
+    if (!throttle[own].take(now)) return this.refuse(conn, throttle, own, now);
+    if (own === "pings" || message?.type === "join") return true;
+    const take = this.commands.take(throttle.key, now);
+    if (take === "ok") return true;
+    if (take === "full" && this.logCaps.allow("limiter full", now)) {
+      this.log.warn({ type: "limiter-full", limit: "address-commands" });
+    }
+    return this.refuse(conn, throttle, "address-commands", now);
+  }
+
+  /**
+   * A refused message is not applied. A refused command gets RATE_LIMITED,
+   * at most once a second, and a refused ping nothing; either takes a
+   * strike, and with no strikes left the socket is closed with 1008, which
+   * the client retries with its long backoff. A refusal is logged at most
+   * once a minute per connection and limit, and those lines are capped for
+   * the whole server.
+   */
+  private refuse(
+    conn: Connection,
+    throttle: Throttle,
+    limited: Limited,
+    now: number,
+  ): false {
+    this.onRateLimited();
+    if (limited !== "pings" && throttle.replies.take(now)) {
+      conn.send({ type: "error", code: "RATE_LIMITED" });
+    }
+    const refused = throttle.refused[limited];
+    refused.count += 1;
+    if (
+      refused.loggedAt === null ||
+      now - refused.loggedAt >= RATE_LIMITED_LOG_MS
+    ) {
+      if (this.logCaps.allow("rate-limited", now)) {
+        this.log.info({
+          type: "rate-limited",
+          limit: limited,
+          conn: conn.id,
+          count: refused.count,
+        });
+      }
+      refused.count = 0;
+      refused.loggedAt = now;
+    }
+    if (!throttle.strikes.take(now)) {
+      throttle.closing = true;
+      if (this.logCaps.allow("strikes", now)) {
+        this.log.info({
+          type: "rate-limited",
+          limit: "strikes",
+          conn: conn.id,
+        });
+      }
+      conn.close(1008, "rate limited"); // standard: Policy Violation
+    }
+    return false;
+  }
+
+  /** Charges `key` for one new room, or refuses it with RATE_LIMITED, then 1013. */
+  private createAllowed(conn: Connection, key: string, now: number): boolean {
+    const take = this.roomCreations.take(key, now);
+    if (take === "ok") return true;
+    this.onRateLimited();
+    const line = take === "full" ? "limiter full" : "rate-limited";
+    if (this.logCaps.allow(line, now)) {
+      // A full table is about the server, like the app's own (ADR 0009).
+      if (take === "full")
+        this.log.warn({ type: "limiter-full", limit: "rooms" });
+      else
+        this.log.info({ type: "rate-limited", limit: "rooms", conn: conn.id });
+    }
+    conn.send({ type: "error", code: "RATE_LIMITED" });
+    conn.close(1013, "try again later"); // standard: Try Again Later
+    return false;
   }
 
   /** Records a pong from a joined connection; others are ignored (#13). */
@@ -440,6 +684,8 @@ export class RoomService {
     for (const roomId of evicted) this.evict(roomId);
     for (const room of expiredRooms) this.store(room, now);
     for (const key of cooled) this.nudgedAt.delete(key);
+    this.roomCreations.sweep(now);
+    this.commands.sweep(now);
 
     for (const [conn, { roomId }] of expired) {
       this.log.info({ conn: conn.id, room: roomId, type: "join-timeout" });
@@ -460,6 +706,38 @@ export class RoomService {
     }
   }
 
+  /**
+   * The counts line's share (#85), every 5 minutes in production: numbers
+   * only, so no id or name can reach it. Sockets are the joined ones;
+   * pending are those not joined yet. Participants include the disconnected
+   * ones a room still holds.
+   */
+  counts(): {
+    rooms: number;
+    pending: number;
+    sockets: number;
+    participants: number;
+    timersRunning: number;
+    roomKeys: number;
+    commandKeys: number;
+  } {
+    let participants = 0;
+    for (const room of this.rooms.values()) {
+      participants += room.participants.size;
+    }
+    const { rooms, pending, sockets, timers, roomKeys, commandKeys } =
+      this.bookkeeping();
+    return {
+      rooms,
+      pending,
+      sockets,
+      participants,
+      timersRunning: timers,
+      roomKeys,
+      commandKeys,
+    };
+  }
+
   /** Live bookkeeping, so tests can prove nothing leaks: not sockets, not rooms. */
   bookkeeping(): {
     rooms: number;
@@ -472,6 +750,9 @@ export class RoomService {
     liveness: number;
     nudges: number;
     timers: number;
+    throttles: number;
+    roomKeys: number;
+    commandKeys: number;
   } {
     let sockets = 0;
     for (const room of this.current.values()) sockets += room.size;
@@ -488,17 +769,21 @@ export class RoomService {
       liveness: this.liveness.size,
       nudges: this.nudgedAt.size,
       timers: this.timers.size,
+      throttles: this.throttles.size,
+      roomKeys: this.roomCreations.size,
+      commandKeys: this.commands.size,
     };
   }
 
   private join(
     conn: Connection,
-    roomId: string,
+    { roomId, key }: Pending,
     sessionToken: string,
     name: string,
   ): void {
     const participantId = derivePublicId(roomId, sessionToken);
-    let room = this.rooms.get(roomId);
+    const existing = this.rooms.get(roomId);
+    let room = existing;
     if (!room) {
       if (this.rooms.size >= this.limits.maxRooms) {
         this.sendError(conn, "SERVER_FULL", roomId);
@@ -515,6 +800,13 @@ export class RoomService {
     );
     if (!result.ok) {
       this.sendError(conn, result.error, roomId);
+      return;
+    }
+    // This join creates the room: the one moment it counts against the
+    // client's address (ADR 0009). Over the limit, the room is not created;
+    // RATE_LIMITED, then 1013, which the client retries with its long
+    // backoff until the address has a room to spare.
+    if (existing === undefined && !this.createAllowed(conn, key, now)) {
       return;
     }
 
@@ -595,7 +887,8 @@ export class RoomService {
     // Connected means a current socket; checked anyway, rather than assumed.
     const to = this.current.get(binding.roomId)?.get(target);
     if (refusal !== null || to === undefined) {
-      this.log.info({
+      // A second click within the cooldown: ordinary, so debug.
+      this.log.debug({
         conn: conn.id,
         room: binding.roomId,
         type: "nudge-ignored",
@@ -652,8 +945,15 @@ export class RoomService {
     conn.send({ type: "snapshot", snapshot, serverNow: this.clock() });
   }
 
+  /**
+   * An error to a client is a refusal, so its line is at info, within the
+   * server-wide cap: a client sending nothing but bad commands, under its
+   * limits, would otherwise write one line for each.
+   */
   private sendError(conn: Connection, code: ErrorCode, room?: string): void {
-    this.log.info({ conn: conn.id, room, code });
+    if (this.logCaps.allow("client error", this.clock())) {
+      this.log.info({ conn: conn.id, room, code });
+    }
     conn.send({ type: "error", code });
   }
 
@@ -727,7 +1027,7 @@ export class RoomService {
     if (!result.ok || result.room === room) return;
     this.store(result.room, now);
     this.endCooldowns(roomId, command);
-    this.log.info({ room: roomId, type: "time-up" });
+    this.log.debug({ room: roomId, type: "time-up" });
     this.broadcast(result.room);
   }
 
@@ -737,6 +1037,7 @@ export class RoomService {
     this.bindings.delete(conn);
     this.lastSent.delete(conn);
     this.liveness.delete(conn);
+    this.throttles.delete(conn);
     if (!binding) return;
     const sockets = this.current.get(binding.roomId);
     if (sockets?.get(binding.participantId) === conn) {

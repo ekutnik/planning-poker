@@ -217,33 +217,38 @@ test("a second facilitator's select shows the room's duration, custom or not", a
   await expect(ada.page.getByLabel("Custom time")).toHaveCount(0);
 });
 
-test("the timer's block keeps its height when Start becomes Pause", async ({
-  people,
-  baseURL,
-}) => {
-  const roomId = await newRoom(baseURL ?? "");
-  const ada = await people.join(roomId, "Ada", {
-    facilitate: true,
-    tools: { timer: true },
+for (const touch of [false, true]) {
+  test(`the timer's block keeps its height when Start becomes Pause${touch ? ", with touch at 1180 px" : ""}`, async ({
+    people,
+    baseURL,
+  }) => {
+    const roomId = await newRoom(baseURL ?? "");
+    const ada = await people.join(roomId, "Ada", {
+      facilitate: true,
+      tools: { timer: true },
+      touch,
+    });
+    // With touch, an iPad in landscape: the wide layout, 16 px fields (#86).
+    if (touch) await ada.page.setViewportSize({ width: 1180, height: 820 });
+    const block = ada.page.locator(".timer-block");
+    const height = async () => (await block.boundingBox())?.height;
+    expect(await height()).toBe(40);
+    const start = await ada.page
+      .getByRole("button", { name: "Start the timer" })
+      .boundingBox();
+    expect([start?.width, start?.height]).toEqual([28, 28]);
+    await ada.page.getByRole("button", { name: "Start the timer" }).click();
+    await expect(
+      ada.page.getByRole("button", { name: "Pause the timer" }),
+    ).toBeVisible();
+    expect(await height()).toBe(40);
+    for (const name of ["Pause the timer", "Add 30 seconds"]) {
+      const box = await ada.page.getByRole("button", { name }).boundingBox();
+      expect(box?.height).toBe(28);
+    }
+    const pause = await ada.page
+      .getByRole("button", { name: "Pause the timer" })
+      .boundingBox();
+    expect(pause?.width).toBe(28);
   });
-  const block = ada.page.locator(".timer-block");
-  const height = async () => (await block.boundingBox())?.height;
-  expect(await height()).toBe(40);
-  const start = await ada.page
-    .getByRole("button", { name: "Start the timer" })
-    .boundingBox();
-  expect([start?.width, start?.height]).toEqual([28, 28]);
-  await ada.page.getByRole("button", { name: "Start the timer" }).click();
-  await expect(
-    ada.page.getByRole("button", { name: "Pause the timer" }),
-  ).toBeVisible();
-  expect(await height()).toBe(40);
-  for (const name of ["Pause the timer", "Add 30 seconds"]) {
-    const box = await ada.page.getByRole("button", { name }).boundingBox();
-    expect(box?.height).toBe(28);
-  }
-  const pause = await ada.page
-    .getByRole("button", { name: "Pause the timer" })
-    .boundingBox();
-  expect(pause?.width).toBe(28);
-});
+}

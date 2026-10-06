@@ -290,3 +290,44 @@ describe("RoomSession: a nudge (ADR 0007)", () => {
     expect(connections[0]?.listening()).toBe(0);
   });
 });
+
+describe("RoomSession: a notice raised while joining (ADR 0009)", () => {
+  const RECONNECTING: ConnectionState = {
+    status: "reconnecting",
+    attempt: 1,
+    retryAt: 5_000,
+    snapshot: null,
+  };
+
+  it("goes once the join works: RATE_LIMITED, then 1013, then a successful join", () => {
+    const { session, connections } = setup();
+    session.subscribe(() => undefined);
+    const connection = connections[0];
+    connection?.error("RATE_LIMITED"); // while joining
+    connection?.setState(RECONNECTING); // the 1013, retried
+    expect(session.getSnapshot().notice).toBe(ERROR_COPY.RATE_LIMITED);
+    connection?.setState(open(false)); // the retry joined
+    expect(session.getSnapshot().notice).toBeNull();
+  });
+
+  it("goes after a reconnect's join too, not only the first", () => {
+    const { session, connections } = setup();
+    session.subscribe(() => undefined);
+    const connection = connections[0];
+    connection?.setState(open(false));
+    connection?.setState(RECONNECTING);
+    connection?.error("RATE_LIMITED");
+    connection?.setState(open(false));
+    expect(session.getSnapshot().notice).toBeNull();
+  });
+
+  it("stays when it was raised after the join, through someone else's vote", () => {
+    const { session, connections } = setup();
+    session.subscribe(() => undefined);
+    const connection = connections[0];
+    connection?.setState(open(false));
+    connection?.error("RATE_LIMITED"); // your own message refused
+    connection?.setState(open(false)); // Ben votes: a new snapshot
+    expect(session.getSnapshot().notice).toBe(ERROR_COPY.RATE_LIMITED);
+  });
+});
