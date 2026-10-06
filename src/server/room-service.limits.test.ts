@@ -38,7 +38,11 @@ class FakeConnection implements Connection {
 function setup() {
   let now = 1_000;
   const logs: Parameters<RoomLog["info"]>[0][] = [];
-  const log: RoomLog = { info: (f) => logs.push(f), warn: (f) => logs.push(f) };
+  const log: RoomLog = {
+    debug: (f) => logs.push(f),
+    info: (f) => logs.push(f),
+    warn: (f) => logs.push(f),
+  };
   const logCaps = new LogCaps();
   const service = new RoomService(
     () => now,
@@ -264,6 +268,7 @@ describe("rooms created per address (ADR 0009)", () => {
     let now = 1_000;
     const logs: Parameters<RoomLog["info"]>[0][] = [];
     const log: RoomLog = {
+      debug: (f) => logs.push(f),
       info: (f) => logs.push(f),
       warn: (f) => logs.push(f),
     };
@@ -365,6 +370,7 @@ describe("commands per address, across its sockets (ADR 0009)", () => {
     let now = 1_000;
     const logs: Parameters<RoomLog["info"]>[0][] = [];
     const log: RoomLog = {
+      debug: (f) => logs.push(f),
       info: (f) => logs.push(f),
       warn: (f) => logs.push(f),
     };
@@ -456,7 +462,11 @@ describe("commands per address, across its sockets (ADR 0009)", () => {
   it("logs the refusals as this limit's, and takes a strike for each, as the others do", () => {
     const now = 1_000;
     const logs: Parameters<RoomLog["info"]>[0][] = [];
-    const log: RoomLog = { info: (f) => logs.push(f), warn: () => {} };
+    const log: RoomLog = {
+      debug: (f) => logs.push(f),
+      info: (f) => logs.push(f),
+      warn: () => {},
+    };
     // An address allowed 5 at once and 1 a second, so it refuses what the
     // connection itself would let through.
     const service = new RoomService(

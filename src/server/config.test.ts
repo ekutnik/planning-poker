@@ -274,7 +274,8 @@ describe("main", () => {
     });
     await firstLine(child.stdout, "Server listening", 4_000);
     const logged = firstLine(child.stdout, "incoming request", 4_000);
-    await fetch(`http://127.0.0.1:${String(port)}/health`, {
+    // Any route but /health, which writes no request line (#65).
+    await fetch(`http://127.0.0.1:${String(port)}/nowhere`, {
       headers: { "fly-client-ip": "203.0.113.7" },
     });
     const line = JSON.parse(await logged) as {

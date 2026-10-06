@@ -108,6 +108,9 @@ type Socket = Pick<
  */
 export const MAX_BUFFERED_BYTES = 1024 * 1024;
 
+/** How often the sweep writes the counts line (#85): 288 lines a day. */
+export const COUNTS_INTERVAL_MS = 5 * 60_000;
+
 /**
  * Wraps a socket as a Connection that never throws, as the interface requires.
  * RoomService calls out to connections mid-loop (sweep, broadcast, supersede);
@@ -183,19 +186,51 @@ export function buildServer(options: ServerOptions = {}) {
   const logCaps = new LogCaps();
   const limits = { ...DEFAULT_LIMITS, ...options.limits };
   const address = options.addressLimits ?? new AddressLimits(limits);
+  // Since the last counts line (#85): what the limits refused, messages,
+  // joins and requests alike, and the sockets dropped for not reading.
+  let rateLimited = 0;
+  let slowConsumerDrops = 0;
   const rooms = new RoomService(clock, limits, {
     log: {
+      debug: (fields) => app.log.debug(fields),
       info: (fields) => app.log.info(fields),
       warn: (fields) => app.log.warn(fields),
     },
     sweepIntervalMs,
     roomTtlMs: options.roomTtlMs,
     logCaps,
+    onRateLimited: () => {
+      rateLimited += 1;
+    },
   });
+
+  /**
+   * The counts line (#85): numbers only, every one of them, so no id or name
+   * can reach it. Written even when nothing changed, so a missing line means
+   * the sweep or the process has stopped.
+   */
+  const countsLine = () => {
+    const memory = process.memoryUsage();
+    const mib = (bytes: number) => Math.round(bytes / 2 ** 20);
+    const line = {
+      type: "counts",
+      ...rooms.counts(),
+      slowConsumerDrops,
+      rateLimited,
+      rssMiB: mib(memory.rss),
+      heapUsedMiB: mib(memory.heapUsed),
+      externalMiB: mib(memory.external),
+    };
+    rateLimited = 0;
+    slowConsumerDrops = 0;
+    return line;
+  };
 
   // One interval drives every timeout; there are no per-connection timers.
   let sweeper: NodeJS.Timeout | undefined;
   app.addHook("onReady", (done) => {
+    // Read in the first sweep, inside its try, like every other clock read.
+    let countedAt: number | undefined;
     sweeper = setInterval(() => {
       // A throw from the service is a bug: log it loudly, but don't let one
       // bug crash the process and drop every room with it.
@@ -205,6 +240,12 @@ export function buildServer(options: ServerOptions = {}) {
         // Whatever the caps held back, once a minute after it started.
         for (const { line, count } of logCaps.due(clock())) {
           app.log.warn({ type: "suppressed", line, count });
+        }
+        const now = clock();
+        countedAt ??= now;
+        if (now - countedAt >= COUNTS_INTERVAL_MS) {
+          countedAt = now;
+          app.log.info(countsLine());
         }
       } catch (err) {
         app.log.error(err, "sweep failed");
@@ -268,7 +309,8 @@ export function buildServer(options: ServerOptions = {}) {
     },
   });
 
-  app.get("/health", () => ({ status: "ok" }));
+  // Fly checks it every 15 s: 11,520 lines a day, with nothing in them (#65).
+  app.get("/health", { logLevel: "silent" }, () => ({ status: "ok" }));
   /** The request's own line, as Fastify would have written it. */
   const requestLine = (request: FastifyRequest) => {
     request.log.info({ req: request }, "incoming request");
@@ -283,6 +325,7 @@ export function buildServer(options: ServerOptions = {}) {
     limit: string,
     request: FastifyRequest,
   ) => {
+    rateLimited += 1;
     const now = clock();
     if (take === "full") {
       if (logCaps.allow("limiter full", now)) {
@@ -323,6 +366,7 @@ export function buildServer(options: ServerOptions = {}) {
       { websocket: true, schema: { params: roomParams } },
       (socket, request) => {
         const conn = toConnection(socket, request.id, request.log, () => {
+          slowConsumerDrops += 1;
           if (logCaps.allow("slow consumer", clock())) {
             request.log.warn({ type: "slow-consumer", conn: request.id });
           }
