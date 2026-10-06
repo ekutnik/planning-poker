@@ -216,7 +216,7 @@ describe("invisible and direction-changing characters (#80)", () => {
     it("leaves no code point from the list, no tag outside a flag and no lone surrogate", () => {
       for (const text of texts(20_000)) {
         const cleaned = cleanText(text);
-        expect(cleaned.isWellFormed(), where(text)).toBe(true);
+        expect(/\p{Cs}/u.test(cleaned), where(text)).toBe(false);
         for (const char of cleaned) {
           expect(REMOVED, where(text)).not.toContain(char.codePointAt(0));
         }
@@ -225,6 +225,18 @@ describe("invisible and direction-changing characters (#80)", () => {
           "",
         );
         expect(flagless, where(text)).not.toMatch(/[\u{E0000}-\u{E007F}]/u);
+      }
+    });
+
+    it("replaces lone surrogates exactly as Node's own toWellFormed() does", () => {
+      // The client's browsers may not have toWellFormed() (Safari before
+      // 16.4), so cleanText uses \p{Cs}; Node 24 has the real thing.
+      const wellFormed = (text: string) =>
+        (text as unknown as { toWellFormed(): string }).toWellFormed();
+      for (const text of texts(20_000)) {
+        expect(text.replace(/\p{Cs}/gu, "\uFFFD"), where(text)).toBe(
+          wellFormed(text),
+        );
       }
     });
 

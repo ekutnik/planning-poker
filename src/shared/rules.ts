@@ -139,6 +139,9 @@ export function stripInvisible(raw: string): string {
  * 1. A lone surrogate becomes U+FFFD, a visible replacement character.
  *    JSON can carry one inside valid UTF-8, so it gets past the socket's
  *    UTF-8 check, and a name made only of them would pass as not empty.
+ *    With the u flag, a lone surrogate is a code point of its own and
+ *    matches \p{Cs}, and a pair is one character, which doesn't: the same
+ *    as toWellFormed(), which throws in browsers before Safari 16.4.
  * 2. The invisible characters go, before any whitespace is touched: JS's
  *    \s includes U+FEFF, so turning whitespace into spaces first would
  *    split "a\uFEFFb" with a space instead of joining it.
@@ -152,7 +155,7 @@ export function stripInvisible(raw: string): string {
  * Length is checked by the caller, on the result.
  */
 export function cleanText(raw: string): string {
-  return stripInvisible(raw.toWellFormed())
+  return stripInvisible(raw.replace(/\p{Cs}/gu, "\uFFFD"))
     .replace(/\s+/g, " ")
     .replace(/\p{Cc}/gu, "")
     .replace(/ {2,}/g, " ")
