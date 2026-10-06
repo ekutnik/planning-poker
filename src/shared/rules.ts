@@ -135,18 +135,24 @@ export function stripInvisible(raw: string): string {
 }
 
 /**
- * One rule for a name and a ticket (#80), in this order: the invisible
- * characters go; runs of whitespace, newlines and tabs included, become one
- * space, so a pasted line break separates words rather than joining them;
- * then any other control character goes, and the spaces either side of it
- * collapse again, so no double space is left; then the ends are trimmed;
- * then NFC, so one letter has one spelling. NFC comes last because a
- * character removed between a letter and its accent leaves a pair that NFC
- * joins, so cleaning twice would change the text again. Length is checked
- * by the caller, on the result.
+ * One rule for a name and a ticket (#80), in this order:
+ * 1. A lone surrogate becomes U+FFFD, a visible replacement character.
+ *    JSON can carry one inside valid UTF-8, so it gets past the socket's
+ *    UTF-8 check, and a name made only of them would pass as not empty.
+ * 2. The invisible characters go, before any whitespace is touched: JS's
+ *    \s includes U+FEFF, so turning whitespace into spaces first would
+ *    split "a\uFEFFb" with a space instead of joining it.
+ * 3. Runs of whitespace, newlines and tabs included, become one space, so
+ *    a pasted line break separates words rather than joining them.
+ * 4. Any other control character goes, and the spaces either side of it
+ *    collapse again, so no double space is left; the ends are trimmed.
+ * 5. NFC, so one letter has one spelling. Last, because a character removed
+ *    between a letter and its accent leaves a pair that NFC joins: before,
+ *    cleaning twice would change the text again.
+ * Length is checked by the caller, on the result.
  */
 export function cleanText(raw: string): string {
-  return stripInvisible(raw)
+  return stripInvisible(raw.toWellFormed())
     .replace(/\s+/g, " ")
     .replace(/\p{Cc}/gu, "")
     .replace(/ {2,}/g, " ")

@@ -95,6 +95,13 @@ describe("invisible and direction-changing characters (#80)", () => {
       "\u{1F3F4}",
     ],
     ["an isolate typed in", "\u2068Ada", "Ada"],
+    ["a byte order mark inside a word, joining it", "a\uFEFFb", "ab"],
+    [
+      "a lone surrogate, to the replacement character",
+      "Ada\uD800",
+      "Ada\uFFFD",
+    ],
+    ["a lone low surrogate too", "\uDC00Ada", "\uFFFDAda"],
     [
       "one between two spaces, leaving no double space",
       "Ada \u200B Lovelace",
@@ -122,35 +129,60 @@ describe("invisible and direction-changing characters (#80)", () => {
   });
 
   describe("on arbitrary text", () => {
-    // Seeded, so a failure repeats: text drawn mostly from the characters
-    // the rule is about, with letters, marks, spaces and anything at all.
+    // Fixed, and named in every failure, so a failure repeats.
+    const SEED = 0x80;
+    const range = (from: number, to: number) =>
+      Array.from({ length: to - from + 1 }, (_, i) => from + i);
+    // Text drawn mostly from what the rule is about, and a fifth of the
+    // time from anything at all, surrogates included.
     const POOL = [
       ...REMOVED,
+      // What it keeps where it does something: the joiners, the variation
+      // selectors, and a subdivision flag's black flag, tags and cancel tag.
       0x200c,
       0x200d,
-      0xfe0f,
-      0xfe0e,
+      ...range(0xfe00, 0xfe0f),
       0x1f3f4,
       0xe0067,
       0xe0062,
+      0xe0073,
+      0xe0063,
+      0xe0074,
+      0xe0030,
       0xe007f,
+      // Tags no flag uses.
+      0xe0001,
       0xe0041,
+      // Combining marks.
+      0x0301,
+      0x0308,
+      0x094d,
+      0x0651,
+      // Astral characters.
+      0x1f469,
+      0x1f3fd,
+      0x1f525,
+      0x20000,
+      0x1d400,
+      // Lone surrogates.
+      0xd800,
+      0xdbff,
+      0xdc00,
+      0xdfff,
+      // Spaces, controls and letters.
       0x0000,
       0x0007,
-      0x0020,
       0x0009,
       0x000a,
-      0x0301,
-      0x094d,
+      0x0020,
+      0x00a0,
       0x0041,
       0x0065,
       0x0639,
       0x2764,
-      0x1f469,
-      0x1f3fd,
     ];
     function texts(count: number): string[] {
-      let seed = 0x80;
+      let seed = SEED;
       const random = () => {
         // mulberry32
         seed = (seed + 0x6d2b79f5) | 0;
@@ -162,35 +194,44 @@ describe("invisible and direction-changing characters (#80)", () => {
         const length = Math.floor(random() * 12);
         let text = "";
         for (let i = 0; i < length; i += 1) {
-          const c =
+          text += String.fromCodePoint(
             random() < 0.8
               ? (POOL[Math.floor(random() * POOL.length)] ?? 0)
-              : Math.floor(random() * 0x110000);
-          // A lone surrogate is not a code point a string can carry whole.
-          text += c >= 0xd800 && c <= 0xdfff ? "x" : String.fromCodePoint(c);
+              : Math.floor(random() * 0x110000),
+          );
         }
         return text;
       });
     }
+    const where = (text: string) =>
+      `seed ${String(SEED)}, text ${JSON.stringify(text)}`;
 
     it("is idempotent: cleaning twice changes nothing", () => {
       for (const text of texts(20_000)) {
         const once = cleanText(text);
-        expect(cleanText(once)).toBe(once);
+        expect(cleanText(once), where(text)).toBe(once);
       }
     });
 
-    it("leaves no code point from the list, and no tag outside a flag", () => {
+    it("leaves no code point from the list, no tag outside a flag and no lone surrogate", () => {
       for (const text of texts(20_000)) {
         const cleaned = cleanText(text);
+        expect(cleaned.isWellFormed(), where(text)).toBe(true);
         for (const char of cleaned) {
-          expect(REMOVED).not.toContain(char.codePointAt(0));
+          expect(REMOVED, where(text)).not.toContain(char.codePointAt(0));
         }
         const flagless = cleaned.replace(
           /\u{1F3F4}[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]+\u{E007F}/gu,
           "",
         );
-        expect(flagless).not.toMatch(/[\u{E0000}-\u{E007F}]/u);
+        expect(flagless, where(text)).not.toMatch(/[\u{E0000}-\u{E007F}]/u);
+      }
+    });
+
+    it("draws from every group above, so neither property is vacuous", () => {
+      const drawn = new Set(texts(20_000).flatMap((text) => [...text]));
+      for (const c of POOL) {
+        expect(drawn.has(String.fromCodePoint(c)), hex(c)).toBe(true);
       }
     });
   });
