@@ -361,8 +361,9 @@ export class RoomService {
   }
 
   /**
-   * `key` is the client's limitKey(), never its address: the service only
-   * uses it to count the rooms that client creates. Required, so a caller
+   * `key` is the client's limitKey(), never its address: the service uses
+   * it only for the limits its address shares, the rooms it creates and the
+   * commands it sends. Required, so a caller
    * can't forget it and quietly put every client into one shared bucket of
    * rooms (ADR 0009).
    */
