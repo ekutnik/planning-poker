@@ -20,6 +20,23 @@ select {
   color: inherit;
 }
 
+/* On a touch screen, every field's text is 16px at least (#86): iOS and
+   iPadOS Safari zoom the page when a field with smaller text gets focus,
+   at any width, so an iPad in landscape, with the wide layout, zooms too.
+   So this keys on the device, not the width. any-pointer, not pointer: an
+   iPad with a trackpad reports a fine primary pointer and still zooms.
+   !important, so it wins over each field's own size, the timer's 13px and
+   the Menu's 15px, and any field added later. The viewport never gets
+   maximum-scale or user-scalable=no instead: that stops all zoom, which
+   fails WCAG 1.4.4. */
+@media (any-pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: max(1rem, 16px) !important;
+  }
+}
+
 h1,
 h2 {
   font-size: var(--text-heading);

@@ -98,6 +98,8 @@ export interface PersonOptions {
   readonly tools?: { readonly ticket?: boolean; readonly timer?: boolean };
   /** A stored theme choice. */
   readonly theme?: "light" | "dark";
+  /** A touch screen: any-pointer: coarse matches, as on a phone or an iPad (#86). */
+  readonly touch?: boolean;
   /** Another server, for the restart test. */
   readonly baseURL?: string;
   /** Runs before the page opens: to install a fake clock, say. */
@@ -177,6 +179,7 @@ async function newPerson(
   }
   const context = await browser.newContext({
     baseURL,
+    hasTouch: options.touch ?? false,
     storageState: {
       cookies: [],
       origins: [{ origin: baseURL, localStorage: stored }],
