@@ -69,3 +69,7 @@ It is written even when nothing changed, so a missing line means the sweep or th
 - room ids: only a hash of each (`roomLogId`);
 - client addresses, except in request lines;
 - the contents of any message.
+
+## The Budget workflow, once the repository is public
+
+The Budget workflow (`.github/workflows/budget.yml`) checks every Monday that the app is still what the budget pays for (see the README's budget paragraph). GitHub disables scheduled workflows in a public repository after 60 days without repository activity ([GitHub's docs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows)). The repository is private today, so this applies once it goes public. When it does, the workflow goes silent: no failed run and no failure email, just no run, so a change to the app made from a laptop would go unnoticed. GitHub's docs don't say what counts as activity; a commit to `develop`, the default branch, is the safe assumption. To turn it back on: Actions, then Budget, then Enable workflow (or `gh workflow enable budget.yml`), then run it once by hand.
