@@ -14,7 +14,7 @@ afterEach(async () => {
   app = null;
 });
 
-/** The remoteAddress logged for one GET /health with these headers. */
+/** The remoteAddress logged for one request with these headers. */
 async function loggedAddress(
   proxy: Proxy | undefined,
   headers: Record<string, string>,
@@ -31,11 +31,12 @@ async function loggedAddress(
   });
   const response = await app.inject({
     method: "GET",
-    url: "/health",
+    // Any route but /health, which writes no request line (#65).
+    url: "/nowhere",
     headers,
     remoteAddress: "10.0.0.9", // the connection: Fly's proxy, on Fly
   });
-  expect(response.statusCode).toBe(200);
+  expect(response.statusCode).toBe(404);
   return lines.find((line) => line.req !== undefined)?.req?.remoteAddress;
 }
 

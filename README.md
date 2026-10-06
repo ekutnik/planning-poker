@@ -127,7 +127,7 @@ Checked against WCAG 2.2 AA in September 2026: a self-audit, not an outside one.
 - **The room link is the credential.** Room ids are 64 random bits. The id never appears in the page, the page title or the logs (which hold only a hash of it), and the link is never sent to another site (`Referrer-Policy: no-referrer`). Copy link and the address bar are the only places it shows.
 - **Votes are private until the reveal,** enforced by the server's per-viewer projection, not by the client hiding them.
 - **Nothing is stored on the server:** no accounts, no database. Rooms hold first names, votes, the ticket text and any points, kept in memory only, and are gone when the room empties or the server restarts. The ticket text is never logged. The browser keeps its session token, the last name used, the theme, the Facilitate setting and whether Ticket name and Timer are on, in its own storage.
-- **Logs:** the server logs each request's client address and the type of each message, never names or votes, and room ids only in hashed form. What is logged, and for how long, is being written up for launch ([#65](https://github.com/ekutnik/planning-poker/issues/65)).
+- **Logs:** the server logs each request's client address, which the limits need, and each connection's opening, joining and closing; never names, votes or the ticket, and room ids only in hashed form. What people do in a room is logged only at `debug`, by message type, and production runs at `info`. The logs are Fly's, kept for Fly's retention period. Every line it writes, and its level, is in [docs/operations.md](docs/operations.md#what-the-server-logs).
 - **Headers:** a strict Content-Security-Policy on every page, and HSTS in production (see [Security headers](#security-headers)).
 
 ## Development
@@ -268,7 +268,6 @@ The visual and interaction design, and the reasoning behind it, is in [docs/desi
 
 - **Now (v0.x): Team trial.** One team uses it for its planning sessions, and what they find shapes what comes next.
 - **v1 launch.** Before the repository and the link go public:
-  - a privacy note, and quieter logs ([#65](https://github.com/ekutnik/planning-poker/issues/65));
   - the scheduled budget check kept alive ([#64](https://github.com/ekutnik/planning-poker/issues/64));
   - the remaining accessibility checks ([#44](https://github.com/ekutnik/planning-poker/issues/44)), and the Safari console error ([#71](https://github.com/ekutnik/planning-poker/issues/71)).
 - **Later:** named rooms ([#35](https://github.com/ekutnik/planning-poker/issues/35)).

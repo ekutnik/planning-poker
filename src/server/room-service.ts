@@ -171,16 +171,20 @@ interface LogFields {
 
 /**
  * Structured fields only. Raw frames are never logged (join carries the token),
- * and `room` is always a roomLogId, never the room id itself (#21).
+ * and `room` is always a roomLogId, never the room id itself (#21). The
+ * levels follow one rule (docs/operations.md): info is a connection's
+ * lifecycle or anything unusual, debug is what people do in a room.
  */
 export interface RoomLog {
-  /** Client behaviour: opens, joins, timeouts, errors sent to a client. */
+  /** Every command in a room: votes, tickets, the timer, nudges. Off in production. */
+  debug(fields: LogFields): void;
+  /** Lifecycle and the unusual: opens, joins, leaves, timeouts, refusals, errors. */
   info(fields: LogFields): void;
   /** Server health: something about this process needs attention. */
   warn(fields: LogFields): void;
 }
 
-const NO_LOG: RoomLog = { info() {}, warn() {} };
+const NO_LOG: RoomLog = { debug() {}, info() {}, warn() {} };
 
 /** Wraps a RoomLog so that no level can receive a raw room id (#21). */
 export function redactRoomIds(log: RoomLog): RoomLog {
@@ -189,6 +193,7 @@ export function redactRoomIds(log: RoomLog): RoomLog {
       ? fields
       : { ...fields, room: roomLogId(fields.room) };
   return {
+    debug: (fields) => log.debug(scrub(fields)),
     info: (fields) => log.info(scrub(fields)),
     warn: (fields) => log.warn(scrub(fields)),
   };
@@ -221,6 +226,8 @@ export interface ServiceOptions {
   readonly roomTtlMs?: number;
   /** The server-wide caps on the limits' own log lines (#16). */
   readonly logCaps?: LogCaps;
+  /** Called once for every message or join a limit refuses, for the counts line (#85). */
+  readonly onRateLimited?: () => void;
 }
 
 /**
@@ -307,6 +314,7 @@ export class RoomService {
   // Commands, per client address, across all its sockets (ADR 0009).
   private readonly commands: KeyedLimiter;
   private readonly logCaps: LogCaps;
+  private readonly onRateLimited: () => void;
   // When each room became empty. The domain has no timestamp for that; only
   // store() and evict() write it, together with `rooms` (#18).
   private readonly emptySince = new Map<string, number>();
@@ -346,10 +354,12 @@ export class RoomService {
       roomTtlMs = ROOM_TTL_MS,
       scheduler = REAL_SCHEDULER,
       logCaps,
+      onRateLimited = () => {},
     }: ServiceOptions = {},
   ) {
     this.scheduler = scheduler;
     this.logCaps = logCaps ?? new LogCaps();
+    this.onRateLimited = onRateLimited;
     this.roomCreations = new KeyedLimiter(limits.roomsPerHour, 60 * 60_000);
     this.commands = new KeyedLimiter(
       limits.socketsPerAddress,
@@ -375,7 +385,9 @@ export class RoomService {
     if (this.closed.has(conn) || this.pending.has(conn)) return;
     if (this.bindings.has(conn)) return;
     if (this.pending.size >= this.limits.maxPending) {
-      this.log.info({ conn: conn.id, room: roomId, code: "PENDING_FULL" });
+      if (this.logCaps.allow("client error", this.clock())) {
+        this.log.info({ conn: conn.id, room: roomId, code: "PENDING_FULL" });
+      }
       conn.close(1013, "try again later"); // standard: Try Again Later
       return;
     }
@@ -408,7 +420,10 @@ export class RoomService {
       conn.send({ type: "pong" });
       return;
     }
-    this.log.info({
+    // Joining and leaving are a connection's lifecycle; everything else is
+    // what people do in the room, and goes to debug (docs/operations.md).
+    const lifecycle = message.type === "join" || message.type === "leave";
+    this.log[lifecycle ? "info" : "debug"]({
       conn: conn.id,
       room: roomId ?? binding?.roomId,
       type: message.type,
@@ -499,7 +514,7 @@ export class RoomService {
     const take = this.commands.take(throttle.key, now);
     if (take === "ok") return true;
     if (take === "full" && this.logCaps.allow("limiter full", now)) {
-      this.log.info({ type: "limiter-full", limit: "address-commands" });
+      this.log.warn({ type: "limiter-full", limit: "address-commands" });
     }
     return this.refuse(conn, throttle, "address-commands", now);
   }
@@ -518,6 +533,7 @@ export class RoomService {
     limited: Limited,
     now: number,
   ): false {
+    this.onRateLimited();
     if (limited !== "pings" && throttle.replies.take(now)) {
       conn.send({ type: "error", code: "RATE_LIMITED" });
     }
@@ -556,13 +572,14 @@ export class RoomService {
   private createAllowed(conn: Connection, key: string, now: number): boolean {
     const take = this.roomCreations.take(key, now);
     if (take === "ok") return true;
+    this.onRateLimited();
     const line = take === "full" ? "limiter full" : "rate-limited";
     if (this.logCaps.allow(line, now)) {
-      this.log.info(
-        take === "full"
-          ? { type: "limiter-full", limit: "rooms" }
-          : { type: "rate-limited", limit: "rooms", conn: conn.id },
-      );
+      // A full table is about the server, like the app's own (ADR 0009).
+      if (take === "full")
+        this.log.warn({ type: "limiter-full", limit: "rooms" });
+      else
+        this.log.info({ type: "rate-limited", limit: "rooms", conn: conn.id });
     }
     conn.send({ type: "error", code: "RATE_LIMITED" });
     conn.close(1013, "try again later"); // standard: Try Again Later
@@ -687,6 +704,38 @@ export class RoomService {
     for (const roomId of evicted) {
       this.log.info({ room: roomId, type: "evict" });
     }
+  }
+
+  /**
+   * The counts line's share (#85), every 5 minutes in production: numbers
+   * only, so no id or name can reach it. Sockets are the joined ones;
+   * pending are those not joined yet. Participants include the disconnected
+   * ones a room still holds.
+   */
+  counts(): {
+    rooms: number;
+    pending: number;
+    sockets: number;
+    participants: number;
+    timersRunning: number;
+    roomKeys: number;
+    commandKeys: number;
+  } {
+    let participants = 0;
+    for (const room of this.rooms.values()) {
+      participants += room.participants.size;
+    }
+    const { rooms, pending, sockets, timers, roomKeys, commandKeys } =
+      this.bookkeeping();
+    return {
+      rooms,
+      pending,
+      sockets,
+      participants,
+      timersRunning: timers,
+      roomKeys,
+      commandKeys,
+    };
   }
 
   /** Live bookkeeping, so tests can prove nothing leaks: not sockets, not rooms. */
@@ -838,7 +887,8 @@ export class RoomService {
     // Connected means a current socket; checked anyway, rather than assumed.
     const to = this.current.get(binding.roomId)?.get(target);
     if (refusal !== null || to === undefined) {
-      this.log.info({
+      // A second click within the cooldown: ordinary, so debug.
+      this.log.debug({
         conn: conn.id,
         room: binding.roomId,
         type: "nudge-ignored",
@@ -895,8 +945,15 @@ export class RoomService {
     conn.send({ type: "snapshot", snapshot, serverNow: this.clock() });
   }
 
+  /**
+   * An error to a client is a refusal, so its line is at info, within the
+   * server-wide cap: a client sending nothing but bad commands, under its
+   * limits, would otherwise write one line for each.
+   */
   private sendError(conn: Connection, code: ErrorCode, room?: string): void {
-    this.log.info({ conn: conn.id, room, code });
+    if (this.logCaps.allow("client error", this.clock())) {
+      this.log.info({ conn: conn.id, room, code });
+    }
     conn.send({ type: "error", code });
   }
 
@@ -970,7 +1027,7 @@ export class RoomService {
     if (!result.ok || result.room === room) return;
     this.store(result.room, now);
     this.endCooldowns(roomId, command);
-    this.log.info({ room: roomId, type: "time-up" });
+    this.log.debug({ room: roomId, type: "time-up" });
     this.broadcast(result.room);
   }
 

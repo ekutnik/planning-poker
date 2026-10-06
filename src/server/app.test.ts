@@ -10,6 +10,7 @@ import {
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import {
   buildServer,
+  COUNTS_INTERVAL_MS,
   MAX_BUFFERED_BYTES,
   toConnection,
   type ServerOptions,
@@ -451,10 +452,149 @@ describe("websocket route", () => {
 });
 
 describe("logging", () => {
+  /** Lines the app logged, parsed, and the logger that captures them. */
+  function capture(level?: string) {
+    const lines: Record<string, unknown>[] = [];
+    const logger = {
+      level,
+      stream: {
+        write: (line: string) =>
+          lines.push(JSON.parse(line) as Record<string, unknown>),
+      },
+    };
+    return { lines, logger };
+  }
+
+  it("writes no line for GET /health, and the usual request line for any other route (#65)", async () => {
+    const { lines, logger } = capture();
+    await restart({ logger });
+    lines.length = 0;
+
+    const health = await app.inject({ method: "GET", url: "/health" });
+    expect(health.statusCode).toBe(200);
+    expect(lines).toEqual([]);
+
+    await app.inject({ method: "GET", url: "/" });
+    expect(lines.map((line) => line.msg)).toContain("incoming request");
+  });
+
+  /**
+   * A server on a fake clock whose sweep runs every 5 ms, and a way to wait
+   * for a few more sweeps: the clock is read on every one.
+   */
+  async function counted(options: ServerOptions = {}) {
+    const { lines, logger } = capture();
+    let now = 0;
+    let reads = 0;
+    await restart({
+      ...options,
+      logger,
+      sweepIntervalMs: 5,
+      clock: () => {
+        reads += 1;
+        return now;
+      },
+    });
+    const sweeps = async () => {
+      const from = reads;
+      await until(() => reads >= from + 20);
+    };
+    await sweeps();
+    return {
+      lines,
+      counts: () => lines.filter((line) => line.type === "counts"),
+      at: (ms: number) => {
+        now = ms;
+      },
+      sweeps,
+    };
+  }
+
+  it("writes one counts line every 5 minutes from the sweep, even when nothing changed (#85)", async () => {
+    const { counts, at, sweeps } = await counted();
+    at(COUNTS_INTERVAL_MS - 1);
+    await sweeps();
+    expect(counts()).toHaveLength(0);
+    at(COUNTS_INTERVAL_MS);
+    await sweeps();
+    expect(counts()).toHaveLength(1);
+    at(2 * COUNTS_INTERVAL_MS - 1);
+    await sweeps();
+    expect(counts()).toHaveLength(1);
+    at(2 * COUNTS_INTERVAL_MS);
+    await sweeps();
+    expect(counts()).toHaveLength(2);
+    expect(counts()[1]).toMatchObject({ level: 30, rooms: 0, sockets: 0 });
+  });
+
+  it("puts nothing but numbers in the counts line, beside its type (#85)", async () => {
+    const { counts, at, sweeps } = await counted();
+    const roomId = await createRoom();
+    const alice = await connect(roomId);
+    alice.send({ type: "join", sessionToken: randomUUID(), name: "Alice" });
+    await alice.snapshot();
+    at(COUNTS_INTERVAL_MS);
+    await sweeps();
+
+    // Pino's own fields, then the line's.
+    const [line] = counts();
+    const { level, time, pid, hostname, type, ...fields } = line ?? {};
+    expect([level, time, pid, hostname, type]).toEqual([
+      30,
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(String),
+      "counts",
+    ]);
+    expect(Object.keys(fields).sort()).toEqual(
+      [
+        "rooms",
+        "pending",
+        "sockets",
+        "participants",
+        "timersRunning",
+        "roomKeys",
+        "commandKeys",
+        "slowConsumerDrops",
+        "rateLimited",
+        "rssMiB",
+        "heapUsedMiB",
+        "externalMiB",
+      ].sort(),
+    );
+    for (const value of Object.values(fields)) {
+      expect(typeof value).toBe("number");
+    }
+    expect(fields).toMatchObject({
+      rooms: 1,
+      pending: 0,
+      sockets: 1,
+      participants: 1,
+      roomKeys: 1,
+      commandKeys: 0,
+    });
+  });
+
+  it("counts the refusals since the last counts line, not since the start (#85)", async () => {
+    const { counts, at, sweeps } = await counted({
+      limits: { connectsPerMinute: 1 },
+    });
+    await createRoom();
+    const refused = await app.inject({ method: "POST", url: "/api/rooms" });
+    expect(refused.statusCode).toBe(429);
+    at(COUNTS_INTERVAL_MS);
+    await sweeps();
+    at(2 * COUNTS_INTERVAL_MS);
+    await sweeps();
+    expect(counts().map((line) => line.rateLimited)).toEqual([1, 0]);
+  });
+
   it("keeps room ids and session tokens out of every log line (#21)", async () => {
     const lines: Record<string, unknown>[] = [];
     await restart({
+      // Debug as well: what goes there must be as clean as info.
       logger: {
+        level: "debug",
         stream: {
           write: (line: string) =>
             lines.push(JSON.parse(line) as Record<string, unknown>),
@@ -513,6 +653,7 @@ describe("the ticket over real sockets", () => {
     const lines: Record<string, unknown>[] = [];
     await restart({
       logger: {
+        level: "debug",
         stream: {
           write: (line: string) =>
             lines.push(JSON.parse(line) as Record<string, unknown>),
@@ -540,7 +681,7 @@ describe("the ticket over real sockets", () => {
     });
     await app.close();
 
-    // The message type is logged, as for every message; the text never is.
+    // The message type is logged at debug, as for every command; the text never is.
     expect(lines.map((line) => line.type)).toContain("setTicket");
     expect(JSON.stringify(lines)).not.toContain("Quietly-logged-ticket-text");
     expect(JSON.stringify(lines)).not.toContain("x".repeat(121));

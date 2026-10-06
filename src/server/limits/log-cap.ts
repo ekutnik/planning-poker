@@ -59,14 +59,15 @@ export class LogCap {
 
 /**
  * The capped lines and how many of each a minute: the oversized-frame
- * warning, the limits' own and a socket dropped for not reading, 10 each,
- * and a full table of keys, once (ADR 0009).
+ * warning, the limits' own, a socket dropped for not reading and an error
+ * sent to a client, 10 each, and a full table of keys, once (ADR 0009).
  */
 const LINES_PER_MINUTE = {
   "websocket error": LOG_LINES_PER_MINUTE,
   "rate-limited": LOG_LINES_PER_MINUTE,
   strikes: LOG_LINES_PER_MINUTE,
   "slow consumer": LOG_LINES_PER_MINUTE,
+  "client error": LOG_LINES_PER_MINUTE,
   "limiter full": 1,
 } as const;
 export type CappedLine = keyof typeof LINES_PER_MINUTE;
