@@ -63,3 +63,26 @@ test("nothing in the landing preview takes focus or a click", async ({
     ),
   ).toBeNull();
 });
+
+test("says how long to wait when the server's limit refuses a room (ADR 0009)", async ({
+  page,
+}) => {
+  // The suite's server raises the limits, so the refusal is the server's
+  // answer played back: 429, with 90 s to wait.
+  await page.route("**/api/rooms", (route) =>
+    route.fulfill({
+      status: 429,
+      headers: { "Retry-After": "90" },
+      contentType: "application/json",
+      body: JSON.stringify({ error: "RATE_LIMITED" }),
+    }),
+  );
+  await page.goto("/");
+  await page.getByLabel("Your name").fill("Ada");
+  await page.getByRole("button", { name: "Create a room" }).click();
+  // Rounded up to whole minutes.
+  await expect(page.getByRole("alert")).toHaveText(
+    "Too many rooms were made from your network just now. Try again in 2 minutes.",
+  );
+  await expect(page).toHaveURL(/\/$/);
+});

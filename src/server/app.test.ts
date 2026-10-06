@@ -18,6 +18,7 @@ import { CloseCode } from "../shared/close-codes.js";
 import { ROOM_ID_PATTERN } from "../shared/rules.js";
 import { roomLogId } from "./identity.js";
 import {
+  DEFAULT_LIMITS,
   JOIN_TIMEOUT_MS,
   PING_INTERVAL_MS,
   PONG_TIMEOUT_MS,
@@ -406,8 +407,13 @@ describe("websocket route", () => {
       sweepIntervalMs: 5,
       // Not what this test is about: the server notices each socket's close
       // a moment after the client does, so a batch can briefly hold more
-      // than the 1,000 unjoined sockets allowed.
-      limits: { maxPending: FRAMES },
+      // than the 1,000 unjoined sockets allowed; and every connection here
+      // comes from one address.
+      limits: {
+        maxPending: FRAMES,
+        connectsPerMinute: FRAMES,
+        socketsPerAddress: FRAMES,
+      },
       logger: {
         level: "warn",
         stream: {
@@ -604,6 +610,7 @@ describe("failure containment", () => {
 
   it("forgets a dropped slow socket everywhere, through the room service's close", () => {
     const service = new RoomService(() => 0, {
+      ...DEFAULT_LIMITS,
       maxRooms: 10,
       maxPending: 10,
     });
@@ -622,7 +629,7 @@ describe("failure containment", () => {
     const reader = make("reader");
     const stalled = make("stalled");
     for (const { conn } of [reader, stalled]) {
-      service.open(conn, "abcdefghijk");
+      service.open(conn, "abcdefghijk", "203.0.113.1");
       service.message(
         conn,
         JSON.stringify({
@@ -663,6 +670,7 @@ describe("failure containment", () => {
   it("a socket whose close throws does not stop the sweep closing the rest", () => {
     let now = 0;
     const service = new RoomService(() => now, {
+      ...DEFAULT_LIMITS,
       maxRooms: 10,
       maxPending: 10,
     });
@@ -677,7 +685,11 @@ describe("failure containment", () => {
       close: id === "broken" ? boom : () => closed.push(id),
     }));
     for (const socket of sockets) {
-      service.open(toConnection(socket, socket.id, quiet), "abcdefghijk");
+      service.open(
+        toConnection(socket, socket.id, quiet),
+        "abcdefghijk",
+        "203.0.113.1",
+      );
     }
 
     now += JOIN_TIMEOUT_MS;

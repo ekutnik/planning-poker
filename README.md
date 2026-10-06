@@ -76,6 +76,7 @@ flowchart LR
 - **Every change sends each person a full snapshot of the room, projected for them** ([ADR 0003](docs/decisions/0003-full-snapshot-broadcasts.md), [ADR 0004](docs/decisions/0004-vote-privacy-via-projection.md)): nobody receives another person's vote before the reveal.
 - **The client and server share one set of rules and message types** (`src/shared`), validated with Zod on the server. A client of another protocol version is told to reload.
 - **Anyone in the room can reveal** ([ADR 0005](docs/decisions/0005-anyone-can-reveal.md)). A browser keeps a session token, and the room shows a public id derived from it, so a seat survives a reload without exposing the token ([ADR 0006](docs/decisions/0006-session-token-vs-participant-id.md)).
+- **Limits per client address and per connection** ([ADR 0009](docs/decisions/0009-limits-per-client-address.md)), sized for a whole team behind one office address (see [Limits](#limits)).
 - **Timeouts, heartbeats and grace periods run in one sweep** (see [Presence and timeouts](#presence-and-timeouts)). A shutdown closes every socket with a code the client understands, so a deploy is a short "restarting" banner, not an error (see [Shutdown](#shutdown)).
 
 ### Presence and timeouts
@@ -94,6 +95,22 @@ Every timeout runs in one periodic sweep that compares timestamps (no per-connec
 **Worst case:** a laptop whose lid closes (no FIN is ever sent) shows as disconnected 35–40s after its last pong and, absent a server stall, leaves the room at most **105s** after it (35s + 60s + two sweep intervals). Reconnecting before then reclaims the seat with the vote. A test asserts this bound.
 
 **Server stalls.** If the server itself pauses for longer than two sweep intervals (10s), the next sweep enforces no deadline, so clients are not blamed for the server's own stall; every deadline moves back by one interval. A shorter stall goes undetected but delays pongs by at most two intervals. A healthy connection is safe as long as `PING_INTERVAL_MS + 3 × interval + RTT_MARGIN_MS < PONG_TIMEOUT_MS` (a ping can go out one interval late, its pong needs a round trip, and an undetected stall adds up to two intervals). `MAX_SWEEP_INTERVAL_MS` in `src/server/room-service.ts` is the largest interval that satisfies it (6,333 ms with the current constants), configuration rejects anything above it, and a test fails if the constants ever stop satisfying it. The heartbeat therefore either detects a stall or absorbs it.
+
+### Limits
+
+One client, buggy or hostile, can't flood a room, fill the server's caps or its logs on its own ([ADR 0009](docs/decisions/0009-limits-per-client-address.md)). Every number is sized for a whole team of up to 30 behind one office address, joining together and reconnecting together after a restart.
+
+| Limit                                        | Default               | Over it                                         |
+| -------------------------------------------- | --------------------- | ----------------------------------------------- |
+| Messages, per connection                     | 20, then 5 a second   | `RATE_LIMITED`; past 40 refusals, closed (1008) |
+| Liveness pings, per connection               | 5, then 1 every 5s    | dropped, so a flood never starves them          |
+| WebSocket upgrades, per address              | 60 a minute           | closed with `1013`, retried by the client       |
+| Sockets open at once, per address            | 100                   | closed with `1013`                              |
+| Rooms created, per address                   | 10 an hour            | `RATE_LIMITED`, then `1013`                     |
+| Commands, per address, across its sockets    | 100, then 10 a second | `RATE_LIMITED`; counts toward the 1008          |
+| Room ids from `POST /api/rooms`, per address | 60 a minute           | `429` with `Retry-After`                        |
+
+An address is the client's as `Fly-Client-IP` reports it behind Fly (never a header the client sets), and IPv6 counts by its /64. Each kind of log line a client can cause goes out at most 10 times a minute across the server, then once with a count. **This is not a defence against a distributed attack**: one small machine can't absorb one.
 
 ## Accessibility
 
@@ -139,19 +156,23 @@ The server (`src/server`) and the client (`src/web`) have separate TypeScript co
 
 The server reads its settings from environment variables. Unset means the default. A set but invalid value, including an empty string, stops it from starting, with a message that names every bad variable. Numbers must be plain decimal digits (`0x10`, `1e4` and ` 5` are refused). The effective configuration is logged once at startup, so a misspelled variable, which is simply ignored, shows up as its default.
 
-| Variable              | Default     | Meaning                                                                                                                                                       |
-| --------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`                | `3000`      | HTTP and WebSocket port                                                                                                                                       |
-| `HOST`                | `127.0.0.1` | The IP address to listen on. The default keeps a dev server off the network; the Docker image sets `0.0.0.0`                                                  |
-| `LOG_LEVEL`           | `info`      | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`                                                                                                |
-| `MAX_ROOMS`           | `200`       | Rooms held in memory; a join that would create one more is refused. The default fits the production machine (see Deploy)                                      |
-| `MAX_PENDING`         | `1000`      | Sockets that have not joined yet; more are refused with `1013`                                                                                                |
-| `SWEEP_INTERVAL_MS`   | `5000`      | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls)                                                          |
-| `ROOM_TTL_MS`         | `600000`    | How long a room may stay empty before it is evicted                                                                                                           |
-| `SHUTDOWN_TIMEOUT_MS` | `10000`     | How long a shutdown may take before the process exits anyway, with 1 (at least 3000: the two-second close grace plus a second)                                |
-| `NODE_ENV`            | unset       | `production` makes a missing client build fatal: the server refuses to start rather than serve only the API                                                   |
-| `PROXY`               | unset       | `fly`: the server is behind Fly's proxy, so the client's address is its `Fly-Client-IP` header. Set only there: anywhere else a client could send that header |
-| `WEB_ROOT`            | `dist/web`  | Where the built client is                                                                                                                                     |
+| Variable                     | Default     | Meaning                                                                                                                                                       |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                       | `3000`      | HTTP and WebSocket port                                                                                                                                       |
+| `HOST`                       | `127.0.0.1` | The IP address to listen on. The default keeps a dev server off the network; the Docker image sets `0.0.0.0`                                                  |
+| `LOG_LEVEL`                  | `info`      | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`                                                                                                |
+| `MAX_ROOMS`                  | `200`       | Rooms held in memory; a join that would create one more is refused. The default fits the production machine (see Deploy)                                      |
+| `MAX_PENDING`                | `1000`      | Sockets that have not joined yet; more are refused with `1013`                                                                                                |
+| `CONNECTS_PER_IP_PER_MINUTE` | `60`        | WebSocket upgrades, and room ids from the API, per client address a minute (ADR 0009)                                                                         |
+| `SOCKETS_PER_IP`             | `100`       | Sockets open at once per client address                                                                                                                       |
+| `ROOMS_PER_IP_PER_HOUR`      | `10`        | Rooms a client address may create an hour; joining a room that exists never counts                                                                            |
+| `COMMANDS_PER_IP_PER_SECOND` | `10`        | Commands a second per client address, across all its sockets, after a burst of `SOCKETS_PER_IP`; joins and pings don't count                                  |
+| `SWEEP_INTERVAL_MS`          | `5000`      | How often timeouts are checked (100–6333; the ceiling is `MAX_SWEEP_INTERVAL_MS`, see Server stalls)                                                          |
+| `ROOM_TTL_MS`                | `600000`    | How long a room may stay empty before it is evicted                                                                                                           |
+| `SHUTDOWN_TIMEOUT_MS`        | `10000`     | How long a shutdown may take before the process exits anyway, with 1 (at least 3000: the two-second close grace plus a second)                                |
+| `NODE_ENV`                   | unset       | `production` makes a missing client build fatal: the server refuses to start rather than serve only the API                                                   |
+| `PROXY`                      | unset       | `fly`: the server is behind Fly's proxy, so the client's address is its `Fly-Client-IP` header. Set only there: anywhere else a client could send that header |
+| `WEB_ROOT`                   | `dist/web`  | Where the built client is                                                                                                                                     |
 
 ## Testing
 
@@ -213,7 +234,7 @@ The app runs on [Fly.io](https://fly.io) (`fly.toml`): one machine in Frankfurt,
 
 **Deploys come only from `main`, through the Deploy workflow.** Never run `fly deploy` from a laptop or a feature branch. In an emergency, re-run the latest Deploy run in GitHub Actions: it redeploys the same commit from `main`. A re-run repeats the workflow exactly as it ran then. If Actions itself is down, deploy a clean checkout of `main`. Either way, the running image always matches a commit on `main`.
 
-**The budget:** one `shared-cpu-1x` machine with 256 MB and Fly's free shared IPv4, about $2.24 a month. As of September 2026, Fly has no spending cap and no billing alerts, so three checks stand in: a test fails if `fly.toml` asks for more (size, memory, count, auto-start, a volume, another process group or service) or drops the restart policy, the heap cap or `MAX_ROOMS`; `scripts/check-fly-budget.sh` runs after every deploy and fails on a second machine, another size, a dedicated IPv4 or a volume; and the Budget workflow runs the same check every Monday, so a change made from someone's laptop shows up as a failed run. Traffic out is $0.02/GB; rate limits ([#16](https://github.com/ekutnik/planning-poker/issues/16)) come before the link is shared publicly.
+**The budget:** one `shared-cpu-1x` machine with 256 MB and Fly's free shared IPv4, about $2.24 a month. As of September 2026, Fly has no spending cap and no billing alerts, so three checks stand in: a test fails if `fly.toml` asks for more (size, memory, count, auto-start, a volume, another process group or service) or drops the restart policy, the heap cap or `MAX_ROOMS`; `scripts/check-fly-budget.sh` runs after every deploy and fails on a second machine, another size, a dedicated IPv4 or a volume; and the Budget workflow runs the same check every Monday, so a change made from someone's laptop shows up as a failed run. Traffic out is $0.02/GB; the limits per address ([ADR 0009](docs/decisions/0009-limits-per-client-address.md)) keep one client from running it up, though not a distributed attack.
 
 **Don't deploy during your team's planning sessions.** There is one machine, and rooms live in its memory (ADR 0001), so every deploy restarts it and every room loses its round in progress. Each page says "The server is restarting. Reconnecting…" and rejoins on its own within seconds, but the votes cast so far are gone and the round starts again. A second machine wouldn't help: the rooms would be split between them.
 
@@ -238,6 +259,8 @@ The architecture decisions, each with its context and consequences:
 - [0005. Anyone can reveal](docs/decisions/0005-anyone-can-reveal.md)
 - [0006. Session token vs. public participant id](docs/decisions/0006-session-token-vs-participant-id.md)
 - [0007. Nudges are transient and anonymous](docs/decisions/0007-nudges-are-transient-and-anonymous.md)
+- [0008. The server holds the timer](docs/decisions/0008-the-server-holds-the-timer.md)
+- [0009. Limits per client address, sized for a team behind one NAT](docs/decisions/0009-limits-per-client-address.md)
 
 The visual and interaction design, and the reasoning behind it, is in [docs/design.md](docs/design.md).
 
@@ -245,7 +268,6 @@ The visual and interaction design, and the reasoning behind it, is in [docs/desi
 
 - **Now (v0.x): Team trial.** One team uses it for its planning sessions, and what they find shapes what comes next.
 - **v1 launch.** Before the repository and the link go public:
-  - rate limits ([#16](https://github.com/ekutnik/planning-poker/issues/16)), keyed on the real client address ([#66](https://github.com/ekutnik/planning-poker/issues/66));
   - a privacy note, and quieter logs ([#65](https://github.com/ekutnik/planning-poker/issues/65));
   - the scheduled budget check kept alive ([#64](https://github.com/ekutnik/planning-poker/issues/64));
   - the remaining accessibility checks ([#44](https://github.com/ekutnik/planning-poker/issues/44)), and the Safari console error ([#71](https://github.com/ekutnik/planning-poker/issues/71)).
