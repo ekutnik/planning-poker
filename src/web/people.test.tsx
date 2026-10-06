@@ -35,9 +35,9 @@ describe("the people list while voting", () => {
   it("gives each person a row: the name, then a pill in words", () => {
     expect(html).toBe(
       '<ul class="people" aria-label="Participants">' +
-        '<li class="person"><span class="person-name">Ben</span><span class="pill pill--voted">Voted</span></li>' +
-        '<li class="person"><span class="person-name">Ada</span> <span class="person-you">(you)</span><span class="pill pill--not-yet">Not yet</span></li>' +
-        '<li class="person"><span class="person-name">Fay</span><span class="pill pill--away">Away</span></li>' +
+        '<li class="person"><span class="person-name" dir="auto">Ben</span><span class="pill pill--voted">Voted</span></li>' +
+        '<li class="person"><span class="person-name" dir="auto">Ada</span> <span class="person-you">(you)</span><span class="pill pill--not-yet">Not yet</span></li>' +
+        '<li class="person"><span class="person-name" dir="auto">Fay</span><span class="pill pill--away">Away</span></li>' +
         "</ul>",
     );
   });
@@ -49,7 +49,7 @@ describe("the people list while voting", () => {
 
   it('keeps "(you)" out of the name, so a long name is never cut there', () => {
     // .person-name is the part that shrinks with "…".
-    expect(html).not.toMatch(/<span class="person-name">[^<]*<span/);
+    expect(html).not.toMatch(/<span class="person-name" dir="auto">[^<]*<span/);
     expect(html).toMatch(/<\/span> <span class="person-you">\(you\)<\/span>/);
   });
 });

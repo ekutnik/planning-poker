@@ -48,19 +48,119 @@ export const MAX_TICKET_LENGTH = 120;
 export const MAX_TICKET_INPUT = 200;
 
 /**
- * A ticket as the room shows it, or null for none. Runs of whitespace,
- * newlines and tabs included, become one space first, so a pasted line break
- * separates words rather than joining them; then any other control character
- * goes, and the spaces that were either side of it collapse again, so no
- * double space is left; then the ends are trimmed. Empty means no ticket. Length is checked by
- * the caller, against MAX_TICKET_LENGTH.
+ * Characters that are never wanted in a name or a ticket (#80), by code
+ * point. An explicit list, not \p{Cf}: that class also holds the joiners
+ * and the tag characters, which emoji, the subdivision flags and several
+ * scripts need.
+ * - Direction controls: the Arabic letter mark, the LTR and RTL marks, the
+ *   embeddings and overrides, and the isolates. Only isolate() adds an
+ *   isolate, when a name is shown in a sentence, so none can be typed.
+ * - Zero-width and invisible: the soft hyphen, the combining grapheme
+ *   joiner, the Hangul fillers, the Khmer inherent vowels, the Mongolian
+ *   vowel separator, the zero-width space, the word joiner and the
+ *   invisible operators, and the byte order mark.
  */
-export function cleanTicket(raw: string): string | null {
-  const cleaned = raw
+const INVISIBLE = new Set([
+  0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066,
+  0x2067, 0x2068, 0x2069, 0x00ad, 0x034f, 0x115f, 0x1160, 0x17b4, 0x17b5,
+  0x180e, 0x200b, 0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0x3164, 0xfeff,
+  0xffa0,
+]);
+const ZWNJ = 0x200c;
+const ZWJ = 0x200d;
+const BLACK_FLAG = 0x1f3f4;
+const CANCEL_TAG = 0xe007f;
+
+const isJoiner = (c: number) => c === ZWNJ || c === ZWJ;
+const isVariationSelector = (c: number) => c >= 0xfe00 && c <= 0xfe0f;
+const isTag = (c: number) => c >= 0xe0000 && c <= 0xe007f;
+/** The tags a subdivision flag spells its code with: a–z and 0–9. */
+const isFlagTag = (c: number) =>
+  (c >= 0xe0061 && c <= 0xe007a) || (c >= 0xe0030 && c <= 0xe0039);
+/** A character with a shape of its own: not a space, a control or one of these. */
+const isVisible = (c: number) =>
+  !INVISIBLE.has(c) &&
+  !isJoiner(c) &&
+  !isVariationSelector(c) &&
+  !isTag(c) &&
+  !/[\s\p{Cc}]/u.test(String.fromCodePoint(c));
+
+/**
+ * Removes the characters nobody can see (#80): everything in INVISIBLE, and
+ * three kinds kept only where they do something.
+ * - A joiner (ZWJ, ZWNJ) between a visible character, or the selector or
+ *   flag ending one, and a visible character: 👩‍💻, and Persian, Hindi and
+ *   other scripts. A leading, trailing or repeated one goes.
+ * - A variation selector directly after a visible character: ❤️. A leading
+ *   or repeated one goes.
+ * - Tag characters inside a subdivision flag (🏴, then a–z or 0–9 tags,
+ *   then the cancel tag), such as Scotland's. Any other tag goes.
+ * Used by cleanText, so names and tickets get the same rule.
+ */
+export function stripInvisible(raw: string): string {
+  const input = [...raw].map((char) => char.codePointAt(0) ?? 0);
+  // First the list, and every tag outside a flag.
+  const kept: number[] = [];
+  for (let i = 0; i < input.length; i += 1) {
+    const c = input[i] ?? 0;
+    if (c === BLACK_FLAG) {
+      let end = i + 1;
+      while (isFlagTag(input[end] ?? 0)) end += 1;
+      if (end > i + 1 && input[end] === CANCEL_TAG) {
+        kept.push(...input.slice(i, end + 1));
+        i = end;
+        continue;
+      }
+    }
+    if (!INVISIBLE.has(c) && !isTag(c)) kept.push(c);
+  }
+  // Then the joiners and selectors, each by its neighbours as now kept.
+  const out: number[] = [];
+  for (let i = 0; i < kept.length; i += 1) {
+    const c = kept[i] ?? 0;
+    const before = out.at(-1);
+    if (isJoiner(c)) {
+      const attached =
+        before !== undefined &&
+        (isVisible(before) ||
+          isVariationSelector(before) ||
+          before === CANCEL_TAG);
+      if (!attached || !isVisible(kept[i + 1] ?? 0x20)) continue;
+    } else if (isVariationSelector(c)) {
+      if (before === undefined || !isVisible(before)) continue;
+    }
+    out.push(c);
+  }
+  return String.fromCodePoint(...out);
+}
+
+/**
+ * One rule for a name and a ticket (#80), in this order: the invisible
+ * characters go; runs of whitespace, newlines and tabs included, become one
+ * space, so a pasted line break separates words rather than joining them;
+ * then any other control character goes, and the spaces either side of it
+ * collapse again, so no double space is left; then the ends are trimmed;
+ * then NFC, so one letter has one spelling. NFC comes last because a
+ * character removed between a letter and its accent leaves a pair that NFC
+ * joins, so cleaning twice would change the text again. Length is checked
+ * by the caller, on the result.
+ */
+export function cleanText(raw: string): string {
+  return stripInvisible(raw)
     .replace(/\s+/g, " ")
     .replace(/\p{Cc}/gu, "")
     .replace(/ {2,}/g, " ")
-    .trim();
+    .trim()
+    .normalize("NFC");
+}
+
+/**
+ * A ticket as the room shows it, or null for none: cleanText, and empty
+ * means no ticket. Length is checked by the caller, against
+ * MAX_TICKET_LENGTH.
+ */
+export function cleanTicket(raw: string): string | null {
+  const cleaned = cleanText(raw);
   return cleaned === "" ? null : cleaned;
 }
 
@@ -89,11 +189,11 @@ export function validDuration(ms: number): boolean {
 export const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22,64}$/;
 
 /**
- * Trims the ends and collapses internal runs of spaces, tabs and newlines to
- * one space, so a pasted name cannot break the participant list.
+ * A name as the room shows it: cleanText, the same rule as a ticket's, so a
+ * pasted name cannot break the participant list or hide in it (#80).
  */
 export function normaliseName(raw: string): string {
-  return raw.trim().replace(/\s+/g, " ");
+  return cleanText(raw);
 }
 
 /**

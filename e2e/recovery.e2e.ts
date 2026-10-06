@@ -1,4 +1,5 @@
 import { writeFile } from "node:fs/promises";
+import { isolate } from "../src/web/isolate.js";
 import { expectAccessible } from "./axe.js";
 import {
   expect,
@@ -41,7 +42,9 @@ test("a server restart: everyone is told, reconnects on their own, and carries o
     await server.restart();
     // In whichever order they reconnected: the delays are random (jitter).
     await expect(ada.heading).toHaveText(
-      /^Waiting for (Ada and Ben|Ben and Ada)$/,
+      new RegExp(
+        `^Waiting for (${isolate("Ada")} and ${isolate("Ben")}|${isolate("Ben")} and ${isolate("Ada")})$`,
+      ),
       { timeout: 20_000 },
     );
     await expect(ben.heading).toHaveText("0 of 2 have voted", {

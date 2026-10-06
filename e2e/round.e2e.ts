@@ -1,3 +1,4 @@
+import { isolate } from "../src/web/isolate.js";
 import {
   expect,
   personOn,
@@ -29,7 +30,7 @@ test("a full round in two browsers: create, join, vote, reveal, next round", asy
   await page.getByRole("button", { name: "Create a room" }).click();
   await expect(page).toHaveURL(/\/r\/[\w-]{11}$/);
   const ada = personOn(page, "Ada", adaFrames);
-  await expect(ada.heading).toHaveText("Waiting for Ada");
+  await expect(ada.heading).toHaveText(`Waiting for ${isolate("Ada")}`);
   await expect(ada.heading).toBeFocused(); // the form went with the landing
   await expect(page.getByText("Facilitating", { exact: true })).toBeVisible();
   await expect(page).toHaveTitle(TITLE("1 waiting"));
@@ -49,7 +50,9 @@ test("a full round in two browsers: create, join, vote, reveal, next round", asy
   await expect(
     ben.page.getByText("Facilitating", { exact: true }),
   ).not.toBeVisible();
-  await expect(ada.heading).toHaveText("Waiting for Ada and Ben");
+  await expect(ada.heading).toHaveText(
+    `Waiting for ${isolate("Ada")} and ${isolate("Ben")}`,
+  );
   await expect(page).toHaveTitle(TITLE("2 waiting"));
   await recordSpeech(ada.page);
   await recordSpeech(ben.page);
@@ -59,7 +62,7 @@ test("a full round in two browsers: create, join, vote, reveal, next round", asy
   await ben.card("5").click();
   await expect(ben.card("5")).toHaveAttribute("aria-pressed", "true");
   await expect(row(page, "Ben")).toContainText("Voted");
-  await expect(ada.heading).toHaveText("Waiting for Ada");
+  await expect(ada.heading).toHaveText(`Waiting for ${isolate("Ada")}`);
   await expect(page).toHaveTitle(TITLE("1 waiting"));
 
   // Ada votes 8. In the facilitator view her own card is never shown:
@@ -107,7 +110,9 @@ test("a full round in two browsers: create, join, vote, reveal, next round", asy
   // Ada starts the next round: the deck is back for both, with no votes,
   // her focus on the new heading, and "Next round started." said once each.
   await page.getByRole("button", { name: "Start next round" }).click();
-  await expect(ada.heading).toHaveText("Waiting for Ada and Ben");
+  await expect(ada.heading).toHaveText(
+    `Waiting for ${isolate("Ada")} and ${isolate("Ben")}`,
+  );
   await expect(ada.heading).toBeFocused();
   await expect(ben.heading).toHaveText("0 of 2 have voted");
   await expect(ben.card("5")).toHaveAttribute("aria-pressed", "false");

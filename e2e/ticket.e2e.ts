@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { isolate } from "../src/web/isolate.js";
 import { expectAccessible } from "./axe.js";
 import { expect, newRoom, recordSpeech, spoken, test } from "./fixtures.js";
 
@@ -74,7 +75,9 @@ test("the facilitator sets a ticket, and everyone sees it", async ({
     "PROJ-482 Admins can sign in with SSO",
   );
   await ada.page.getByRole("button", { name: "Start next round" }).click();
-  await expect(ada.heading).toHaveText("Waiting for Ada and Ben");
+  await expect(ada.heading).toHaveText(
+    `Waiting for ${isolate("Ada")} and ${isolate("Ben")}`,
+  );
   await expect(ticketText(ben.page)).toHaveText(
     "PROJ-482 Admins can sign in with SSO",
   );

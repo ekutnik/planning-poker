@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoomSnapshot } from "../shared/snapshot.js";
+import { isolate } from "./isolate.js";
 import { listNames, roundStatus } from "./status.js";
 
 type Voting = Extract<RoomSnapshot, { phase: "voting" }>;
@@ -47,7 +48,7 @@ describe("roundStatus: who the round waits for", () => {
       waitingFor: ["Cy"],
       away: ["Fay"],
       participantLine: "4 of 5 have voted",
-      facilitatorLine: "Waiting for Cy. Fay is away.",
+      facilitatorLine: `Waiting for ${isolate("Cy")}. ${isolate("Fay")} is away.`,
     });
   });
 
@@ -64,7 +65,7 @@ describe("roundStatus: who the round waits for", () => {
     );
     expect(status.participantLine).toBe("Everyone has voted");
     expect(status.facilitatorLine).toBe(
-      "Everyone has voted. Fay and Gus are away.",
+      `Everyone has voted. ${isolate("Fay")} and ${isolate("Gus")} are away.`,
     );
   });
 
@@ -77,7 +78,9 @@ describe("roundStatus: who the round waits for", () => {
         ["Dee", "c", "-"],
       ),
     );
-    expect(status.facilitatorLine).toBe("Waiting for Ada, Cy and Dee");
+    expect(status.facilitatorLine).toBe(
+      `Waiting for ${isolate("Ada")}, ${isolate("Cy")} and ${isolate("Dee")}`,
+    );
     expect(status.participantLine).toBe("1 of 4 has voted");
   });
 
@@ -86,7 +89,7 @@ describe("roundStatus: who the round waits for", () => {
     const back = roundStatus(room(["Ada", "c", "v"], ["Fay", "c", "-"]));
     expect(away.counted).toBe(1);
     expect(back.counted).toBe(2);
-    expect(back.facilitatorLine).toBe("Waiting for Fay");
+    expect(back.facilitatorLine).toBe(`Waiting for ${isolate("Fay")}`);
   });
 });
 

@@ -74,7 +74,7 @@ describe("the people list with Keep score", () => {
     "orders by points and ends each row with them (%s)",
     (phase) => {
       const html = renderPeople({ Ada: 1, Ben: 3, Cy: 0, Dee: 1 }, phase);
-      const names = [...html.matchAll(/class="person-name">([^<]+)</g)].map(
+      const names = [...html.matchAll(/class="person-name" dir="auto">([^<]+)</g)].map(
         (m) => m[1],
       );
       expect(names).toEqual(["Ben", "Ada", "Dee", "Cy"]);
