@@ -29,13 +29,47 @@ describe("names", () => {
 describe("invisible and direction-changing characters (#80)", () => {
   // Every code point is written as an escape: a literal invisible character
   // in the source is one nobody reviewing it can see.
+  const range = (from: number, to: number) =>
+    Array.from({ length: to - from + 1 }, (_, i) => from + i);
   const REMOVED = [
     // Direction controls.
-    0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066,
-    0x2067, 0x2068, 0x2069,
+    0x061c,
+    0x200e,
+    0x200f,
+    0x202a,
+    0x202b,
+    0x202c,
+    0x202d,
+    0x202e,
+    0x2066,
+    0x2067,
+    0x2068,
+    0x2069,
     // Zero-width and invisible.
-    0x00ad, 0x034f, 0x115f, 0x1160, 0x17b4, 0x17b5, 0x180e, 0x200b, 0x2060,
-    0x2061, 0x2062, 0x2063, 0x2064, 0x3164, 0xfeff, 0xffa0,
+    0x00ad,
+    0x034f,
+    0x115f,
+    0x1160,
+    0x17b4,
+    0x17b5,
+    0x180e,
+    0x200b,
+    0x2060,
+    0x2061,
+    0x2062,
+    0x2063,
+    0x2064,
+    0x3164,
+    0xfeff,
+    0xffa0,
+    // Found in review: U+2065, the deprecated format controls, U+FFF0 to
+    // U+FFFB, the shorthand and musical format controls, the braille blank.
+    0x2065,
+    ...range(0x206a, 0x206f),
+    ...range(0xfff0, 0xfffb),
+    ...range(0x1bca0, 0x1bca3),
+    ...range(0x1d173, 0x1d17a),
+    0x2800,
   ];
   const hex = (c: number) =>
     `U+${c.toString(16).toUpperCase().padStart(4, "0")}`;
@@ -69,6 +103,8 @@ describe("invisible and direction-changing characters (#80)", () => {
     ["an Arabic name", "\u0639\u0644\u064A"],
     ["a Hebrew name", "\u05D3\u05E0\u05D4"],
     ["accents", "Ren\u00E9e Z\u00F6e"],
+    ["an ideograph with its variation selector (VS17)", "\u845B\u{E0100}"],
+    ["a Mongolian letter with a free variation selector", "\u1820\u180B"],
   ])("keeps %s", (_, text) => {
     expect(cleanText(text)).toBe(text);
     expect(cleanTicket(text)).toBe(text);
@@ -123,16 +159,60 @@ describe("invisible and direction-changing characters (#80)", () => {
     ["a zero-width space alone", "\u200B"],
     ["a ZWJ and a variation selector", "\u200D\uFE0F"],
     ["direction marks around spaces", "\u200F \u200E"],
+    ["VS17 alone", "\u{E0100}"],
+    ["a Mongolian variation selector alone", "\u180B"],
+    ["a reserved code point after the tags", "\u{E0080}"],
+    ["a deprecated format control", "\u206A"],
+    ["an annotation control", "\uFFF9"],
+    ["a braille blank", "\u2800"],
   ])("counts %s as empty: an invalid name, and no ticket", (_, raw) => {
     expect(validName(raw)).toBeNull();
     expect(cleanTicket(raw)).toBeNull();
   });
 
+  it("removes every Default_Ignorable_Code_Point, but a joiner or selector where it joins or selects", () => {
+    // Unicode's own definition, over every code point: whatever the list
+    // misses now, or later, fails here.
+    const ignorable = /^\p{Default_Ignorable_Code_Point}$/u;
+    const keptBetweenLetters = (c: number) =>
+      c === 0x200c ||
+      c === 0x200d ||
+      (c >= 0xfe00 && c <= 0xfe0f) ||
+      (c >= 0xe0100 && c <= 0xe01ef) ||
+      (c >= 0x180b && c <= 0x180d) ||
+      c === 0x180f;
+    const wrong: string[] = [];
+    let checked = 0;
+    for (let c = 0; c <= 0x10ffff; c += 1) {
+      if (c >= 0xd800 && c <= 0xdfff) continue; // not a code point alone
+      const char = String.fromCodePoint(c);
+      if (!ignorable.test(char)) continue;
+      checked += 1;
+      const between = cleanText(`A${char}B`);
+      const expected = keptBetweenLetters(c) ? `A${char}B` : "AB";
+      // Alone, every one goes: nothing visible is left of the name.
+      if (between !== expected || validName(char) !== null) wrong.push(hex(c));
+    }
+    expect(wrong).toEqual([]);
+    expect(checked).toBeGreaterThan(4_000);
+  });
+
+  it("removes every bidirectional control", () => {
+    const control = /^\p{Bidi_Control}$/u;
+    const kept: string[] = [];
+    for (let c = 0; c <= 0xffff; c += 1) {
+      if (c >= 0xd800 && c <= 0xdfff) continue;
+      const char = String.fromCodePoint(c);
+      if (control.test(char) && cleanText(`A${char}B`) !== "AB") {
+        kept.push(hex(c));
+      }
+    }
+    expect(kept).toEqual([]);
+  });
+
   describe("on arbitrary text", () => {
     // Fixed, and named in every failure, so a failure repeats.
     const SEED = 0x80;
-    const range = (from: number, to: number) =>
-      Array.from({ length: to - from + 1 }, (_, i) => from + i);
     // Text drawn mostly from what the rule is about, and a fifth of the
     // time from anything at all, surrogates included.
     const POOL = [

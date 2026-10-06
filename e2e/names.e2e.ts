@@ -3,8 +3,8 @@ import { expectAccessible } from "./axe.js";
 import { expect, newRoom, row, test } from "./fixtures.js";
 
 // Ali and Sara, in Arabic, written as escapes: the browser shapes them.
-const ALI = "علي";
-const SARA = "سارة";
+const ALI = "\u0639\u0644\u064A";
+const SARA = "\u0633\u0627\u0631\u0629";
 
 test("right-to-left names keep the status line in its order, and the room accessible (#80)", async ({
   people,

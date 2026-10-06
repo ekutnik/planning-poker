@@ -14,7 +14,7 @@ import { VotingView } from "./VotingView.js";
  */
 
 // An Arabic name, Ali, among Latin ones; none of them is a word the copy uses.
-const ALI = "علي";
+const ALI = "\u0639\u0644\u064A";
 const NAMES = ["Zayd", "Quinn", ALI, "Xia", "Yusuf"];
 
 type Voting = Extract<RoomSnapshot, { phase: "voting" }>;

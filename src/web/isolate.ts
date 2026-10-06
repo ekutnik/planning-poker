@@ -1,5 +1,5 @@
-const FIRST_STRONG_ISOLATE = "⁨";
-const POP_DIRECTIONAL_ISOLATE = "⁩";
+const FIRST_STRONG_ISOLATE = "\u2068";
+const POP_DIRECTIONAL_ISOLATE = "\u2069";
 
 /**
  * A name put into a sentence, isolated (#80): a right-to-left name can't

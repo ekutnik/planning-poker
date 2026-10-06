@@ -48,38 +48,79 @@ export const MAX_TICKET_LENGTH = 120;
 export const MAX_TICKET_INPUT = 200;
 
 /**
- * Characters that are never wanted in a name or a ticket (#80), by code
- * point. An explicit list, not \p{Cf}: that class also holds the joiners
- * and the tag characters, which emoji, the subdivision flags and several
- * scripts need.
- * - Direction controls: the Arabic letter mark, the LTR and RTL marks, the
- *   embeddings and overrides, and the isolates. Only isolate() adds an
- *   isolate, when a name is shown in a sentence, so none can be typed.
- * - Zero-width and invisible: the soft hyphen, the combining grapheme
- *   joiner, the Hangul fillers, the Khmer inherent vowels, the Mongolian
- *   vowel separator, the zero-width space, the word joiner and the
- *   invisible operators, and the byte order mark.
+ * Characters that are never wanted in a name or a ticket (#80), as ranges
+ * of code points. An explicit list, so it can be audited, not \p{Cf}: that
+ * class also holds the joiners and the tag characters, which emoji, the
+ * subdivision flags and several scripts need. Unicode's own
+ * Default_Ignorable_Code_Point is the test of it (rules.test.ts): every such
+ * character is here, or is a joiner, a variation selector or a tag, which
+ * are kept only where they do something.
  */
-const INVISIBLE = new Set([
-  0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066,
-  0x2067, 0x2068, 0x2069, 0x00ad, 0x034f, 0x115f, 0x1160, 0x17b4, 0x17b5,
-  0x180e, 0x200b, 0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0x3164, 0xfeff,
-  0xffa0,
-]);
+const INVISIBLE: readonly (readonly [number, number])[] = [
+  // Direction controls: the Arabic letter mark, the LTR and RTL marks, the
+  // embeddings and overrides, and the isolates. Only isolate() adds an
+  // isolate, when a name is shown in a sentence, so none can be typed.
+  [0x061c, 0x061c],
+  [0x200e, 0x200f],
+  [0x202a, 0x202e],
+  [0x2066, 0x2069],
+  // Zero-width and invisible: the soft hyphen, the combining grapheme
+  // joiner, the Hangul fillers, the Khmer inherent vowels, the Mongolian
+  // vowel separator, the zero-width space and the byte order mark.
+  [0x00ad, 0x00ad],
+  [0x034f, 0x034f],
+  [0x115f, 0x1160],
+  [0x17b4, 0x17b5],
+  [0x180e, 0x180e],
+  [0x200b, 0x200b],
+  [0x3164, 0x3164],
+  [0xfeff, 0xfeff],
+  [0xffa0, 0xffa0],
+  // The word joiner and the invisible operators, U+2065 (unassigned, and
+  // ignorable), and the deprecated format controls.
+  [0x2060, 0x2065],
+  [0x206a, 0x206f],
+  // U+FFF0 to U+FFF8 (unassigned, and ignorable), and the interlinear
+  // annotation controls.
+  [0xfff0, 0xfffb],
+  // The shorthand format controls, and the musical symbol format controls.
+  [0x1bca0, 0x1bca3],
+  [0x1d173, 0x1d17a],
+  // The braille blank. Unicode doesn't count it as ignorable, since it is
+  // the braille pattern with no dots, but it shows as nothing: a common way
+  // to make a name that looks blank.
+  [0x2800, 0x2800],
+];
 const ZWNJ = 0x200c;
 const ZWJ = 0x200d;
 const BLACK_FLAG = 0x1f3f4;
 const CANCEL_TAG = 0xe007f;
 
+const isInvisible = (c: number) =>
+  INVISIBLE.some(([from, to]) => c >= from && c <= to);
 const isJoiner = (c: number) => c === ZWNJ || c === ZWJ;
-const isVariationSelector = (c: number) => c >= 0xfe00 && c <= 0xfe0f;
-const isTag = (c: number) => c >= 0xe0000 && c <= 0xe007f;
-/** The tags a subdivision flag spells its code with: a–z and 0–9. */
+/**
+ * The variation selectors: the 16 in U+FE00 to U+FE0F (VS16 turns a heart
+ * into a heart emoji), the 240 in U+E0100 to U+E01EF (variants of
+ * ideographs), and the Mongolian free variation selectors.
+ */
+const isVariationSelector = (c: number) =>
+  (c >= 0xfe00 && c <= 0xfe0f) ||
+  (c >= 0xe0100 && c <= 0xe01ef) ||
+  (c >= 0x180b && c <= 0x180d) ||
+  c === 0x180f;
+/**
+ * The tags, U+E0000 to U+E007F, and the rest of their ignorable block, up
+ * to U+E0FFF, all reserved, but for the selectors inside it.
+ */
+const isTag = (c: number) =>
+  c >= 0xe0000 && c <= 0xe0fff && !isVariationSelector(c);
+/** The tags a subdivision flag spells its code with: a to z and 0 to 9. */
 const isFlagTag = (c: number) =>
   (c >= 0xe0061 && c <= 0xe007a) || (c >= 0xe0030 && c <= 0xe0039);
 /** A character with a shape of its own: not a space, a control or one of these. */
 const isVisible = (c: number) =>
-  !INVISIBLE.has(c) &&
+  !isInvisible(c) &&
   !isJoiner(c) &&
   !isVariationSelector(c) &&
   !isTag(c) &&
@@ -89,12 +130,14 @@ const isVisible = (c: number) =>
  * Removes the characters nobody can see (#80): everything in INVISIBLE, and
  * three kinds kept only where they do something.
  * - A joiner (ZWJ, ZWNJ) between a visible character, or the selector or
- *   flag ending one, and a visible character: 👩‍💻, and Persian, Hindi and
- *   other scripts. A leading, trailing or repeated one goes.
- * - A variation selector directly after a visible character: ❤️. A leading
- *   or repeated one goes.
- * - Tag characters inside a subdivision flag (🏴, then a–z or 0–9 tags,
- *   then the cancel tag), such as Scotland's. Any other tag goes.
+ *   flag ending one, and a visible character: the emoji made of others
+ *   (woman, ZWJ, laptop), and Persian, Hindi and other scripts. A leading,
+ *   trailing or repeated one goes.
+ * - A variation selector directly after a visible character: a heart, then
+ *   VS16, is the heart emoji. A leading or repeated one goes.
+ * - Tag characters inside a subdivision flag (the black flag U+1F3F4, then
+ *   tags spelling a to z or 0 to 9, then the cancel tag), such as
+ *   Scotland's. Any other tag goes.
  * Used by cleanText, so names and tickets get the same rule.
  */
 export function stripInvisible(raw: string): string {
@@ -112,7 +155,7 @@ export function stripInvisible(raw: string): string {
         continue;
       }
     }
-    if (!INVISIBLE.has(c) && !isTag(c)) kept.push(c);
+    if (!isInvisible(c) && !isTag(c)) kept.push(c);
   }
   // Then the joiners and selectors, each by its neighbours as now kept.
   const out: number[] = [];
