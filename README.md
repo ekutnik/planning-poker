@@ -2,7 +2,7 @@
 
 Real-time planning poker for a team estimating on a video call. Everyone votes on their own screen, the votes stay hidden until someone reveals them, and the result sentence gives the spread and the winner without singling anyone out.
 
-> **Status:** early releases ([see Releases](https://github.com/ekutnik/planning-poker/releases)), about to go into use with one team. A public launch is planned for v1 (see [Roadmap](#roadmap)).
+> **Live:** https://estimate-together.fly.dev. **Status:** v1 ([Releases](https://github.com/ekutnik/planning-poker/releases)), in use by its first team.
 
 <table>
   <tr>
@@ -129,6 +129,7 @@ Checked against WCAG 2.2 AA in September 2026: a self-audit, not an outside one.
 - **Nothing is stored on the server:** no accounts, no database. Rooms hold first names, votes, the ticket text and any points, kept in memory only, and are gone when the room empties or the server restarts. The ticket text is never logged. The browser keeps its session token, the last name used, the theme, the Facilitate setting and whether Ticket name and Timer are on, in its own storage.
 - **Logs:** the server logs each request's client address, so a refused connection can be traced to its source, and each connection's opening, joining and closing; never names, votes or the ticket, and room ids only in hashed form. What people do in a room is logged only at `debug`, by message type, and production runs at `info`. The logs are Fly's, kept for Fly's retention period. Every line it writes, and its level, is in [docs/operations.md](docs/operations.md#what-the-server-logs).
 - **Headers:** a strict Content-Security-Policy on every page, and HSTS in production (see [Security headers](#security-headers)).
+- **Reporting a vulnerability:** privately, through GitHub's private vulnerability reporting; see [SECURITY.md](SECURITY.md).
 
 ## Development
 
@@ -235,7 +236,7 @@ The app runs on [Fly.io](https://fly.io) (`fly.toml`): one machine in Frankfurt,
 
 **Deploys come only from `main`, through the Deploy workflow.** Never run `fly deploy` from a laptop or a feature branch. In an emergency, re-run the latest Deploy run in GitHub Actions: it redeploys the same commit from `main`. A re-run repeats the workflow exactly as it ran then. If Actions itself is down, deploy a clean checkout of `main`. Either way, the running image always matches a commit on `main`.
 
-**The budget:** one `shared-cpu-1x` machine with 256 MB and Fly's free shared IPv4, about $2.24 a month. As of September 2026, Fly has no spending cap and no billing alerts, so three checks stand in: a test fails if `fly.toml` asks for more (size, memory, count, auto-start, a volume, another process group or service) or drops the restart policy, the heap cap or `MAX_ROOMS`; `scripts/check-fly-budget.sh` runs after every deploy and fails on a second machine, another size, a dedicated IPv4 or a volume; and the Budget workflow runs the same check every Monday, so a change made from someone's laptop shows up as a failed run. Once the repository is public, GitHub stops that workflow after 60 days without activity ([docs/operations.md](docs/operations.md#the-budget-workflow-once-the-repository-is-public)). Traffic out is $0.02/GB; the limits per address ([ADR 0009](docs/decisions/0009-limits-per-client-address.md)) keep one client from running it up, though not a distributed attack.
+**The budget:** one `shared-cpu-1x` machine with 256 MB and Fly's free shared IPv4, about $2.24 a month. As of September 2026, Fly has no spending cap and no billing alerts, so three checks stand in: a test fails if `fly.toml` asks for more (size, memory, count, auto-start, a volume, another process group or service) or drops the restart policy, the heap cap or `MAX_ROOMS`; `scripts/check-fly-budget.sh` runs after every deploy and fails on a second machine, another size, a dedicated IPv4 or a volume; and the Budget workflow runs the same check every Monday, so a change made from someone's laptop shows up as a failed run. The repository is public, so GitHub stops that workflow after 60 days without activity ([docs/operations.md](docs/operations.md#the-budget-workflow-and-the-60-day-rule)). Traffic out is $0.02/GB; the limits per address ([ADR 0009](docs/decisions/0009-limits-per-client-address.md)) keep one client from running it up, though not a distributed attack.
 
 **Don't deploy during your team's planning sessions.** There is one machine, and rooms live in its memory (ADR 0001), so every deploy restarts it and every room loses its round in progress. Each page says "The server is restarting. Reconnecting…" and rejoins on its own within seconds, but the votes cast so far are gone and the round starts again. A second machine wouldn't help: the rooms would be split between them.
 
@@ -267,9 +268,7 @@ The visual and interaction design, and the reasoning behind it, is in [docs/desi
 
 ## Roadmap
 
-- **Now (v0.x): Team trial.** One team uses it for its planning sessions, and what they find shapes what comes next.
-- **v1 launch.** Before the repository and the link go public:
-  - the remaining accessibility checks ([#44](https://github.com/ekutnik/planning-poker/issues/44)), and the Safari console error ([#71](https://github.com/ekutnik/planning-poker/issues/71)).
+- **Now (v1): launched.** The repository and the app are public. One team uses it for its planning sessions, and what they find shapes what comes next.
 - **Later:** named rooms ([#35](https://github.com/ekutnik/planning-poker/issues/35)).
 
 ## Credits
