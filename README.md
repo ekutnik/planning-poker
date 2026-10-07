@@ -179,6 +179,7 @@ The server reads its settings from environment variables. Unset means the defaul
 - **`npm test`:** about 640 unit and integration tests (Vitest). They cover the domain rules, the room service with a fake clock, the server through Fastify's injection and WebSockets, the real process in a child process for configuration and shutdown, the client's components as static markup, and the stylesheets' contrast, type scale and motion rules.
 - **`npm run test:e2e`:** the end-to-end suite, described next.
 - **CI:** every pull request runs `check`, the Docker `image` build and its smoke test, and `e2e`. All three are required on `develop` and `main`.
+- **The session simulation** (`scripts/soak/`, run by hand): 12 people from one address in a 30-minute session, with a restart of the server midway, against a local build, a release in Docker at production's floor, or production itself. Every release's figures for rounds, reveals, memory and refusals come from it; [its README](scripts/soak/README.md) says how to run it and what a release must pass.
 
 ### End-to-end tests
 
