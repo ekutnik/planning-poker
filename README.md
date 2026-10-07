@@ -114,7 +114,7 @@ An address is the client's as `Fly-Client-IP` reports it behind Fly (never a hea
 
 ## Accessibility
 
-Checked against WCAG 2.2 AA in September 2026: a self-audit, not an outside one. The record, with what was and wasn't tested, is in [docs/audit/2026-09-accessibility.md](docs/audit/2026-09-accessibility.md); the checks still due before launch are in [#44](https://github.com/ekutnik/planning-poker/issues/44).
+Checked against WCAG 2.2 AA in September 2026: a self-audit, not an outside one. The record, with what was and wasn't tested, is in [docs/audit/2026-09-accessibility.md](docs/audit/2026-09-accessibility.md); the checks due before launch were done by 2026-10-07 ([#44](https://github.com/ekutnik/planning-poker/issues/44)).
 
 - **Screen readers:** tested with VoiceOver in Safari.
 - **Keyboard only:** tested in Chromium.
