@@ -6,7 +6,8 @@
 //   node scripts/soak/soak.mjs --target local|docker|production
 //
 // --target is required, so nothing ever runs against production by default
-// (scripts/soak/README.md). SOAK_MINUTES sets the length (default 240),
+// (scripts/soak/README.md). SOAK_MINUTES sets the length (default 30, the
+// release gate),
 // RESTART_AT the minute of the restart (default none), SOAK_LOG the JSON
 // lines log (default soak-<target>.log here). A summary is printed at the
 // end, and the exit code is 1 if anything that should never happen did.
@@ -17,7 +18,6 @@ import { chromium, firefox, webkit } from "playwright";
 import WebSocket from "ws";
 
 const PRODUCTION = "https://estimate-together.fly.dev";
-const MACHINE = "7846ed2f3e9608"; // production's one machine
 // Where each target's server is, unless BASE says otherwise:
 // - local: a production build on this machine (run-local-server.sh), which
 //   that runner starts again after the restart's SIGTERM;
@@ -44,13 +44,24 @@ if (
   console.error(`refusing: ${BASE} is production; say --target production`);
   process.exit(2);
 }
+// Restarting production follows the deploy rules, so the run says it does.
+if (
+  TARGET === "production" &&
+  process.env.RESTART_AT &&
+  !process.argv.includes("--confirm-nobody-connected")
+) {
+  console.error(
+    "refusing: a production restart needs --confirm-nobody-connected (after a release, nobody connected, never during a planning session)",
+  );
+  process.exit(2);
+}
 const CONTAINER = process.env.CONTAINER ?? "pp-ab";
 
 const WSS = BASE.replace(/^http/, "ws");
 const RESTART_AT = Number(process.env.RESTART_AT ?? 0) * 60_000;
 let restarting = false;
 const MIN = 60_000;
-const TOTAL = Number(process.env.SOAK_MINUTES ?? 240) * MIN;
+const TOTAL = Number(process.env.SOAK_MINUTES ?? 30) * MIN;
 const LOG = process.env.SOAK_LOG ?? `soak-${TARGET}.log`;
 const CARDS = ["1", "2", "3", "5", "8", "13", "?"];
 const t0 = Date.now();
@@ -392,19 +403,43 @@ const memoryTimer = setInterval(
 // anyone votes, as a deploy between rounds would be. Everyone reconnects at
 // once, from one address; the runner starts the server again.
 let restarted = false;
+/** Runs a command without blocking the bots and browsers: { ok, text }. */
+function run(command, args) {
+  return new Promise((resolve) =>
+    execFile(command, args, { timeout: 180_000 }, (error, stdout) =>
+      resolve(
+        error
+          ? { ok: false, text: String(error.message).slice(0, 160) }
+          : { ok: true, text: stdout.trim() },
+      ),
+    ),
+  );
+}
+/** After a restart: everyone must be back, or it is a problem. */
+function everyoneBack(memory) {
+  const seen = bots.map((b) => b.snapshot?.participants.length);
+  log({ restart: "everyone back?", memory, participantsSeen: seen });
+  if (seen.some((n) => n !== 12)) {
+    problem(
+      `after the restart, the bots see ${JSON.stringify(seen)} people, not 12 each`,
+    );
+  }
+}
 async function restartLocal() {
   restarted = true;
   const { pid } = serverMemory();
   restarting = true;
   log({ restart: "SIGTERM", pid });
-  process.kill(pid, "SIGTERM");
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch (e) {
+    // Nothing restarted: the run must not pass as if it had.
+    problem(`the restart failed: no server process to stop (${e.message})`);
+    restarting = false;
+    return;
+  }
   await sleep(20_000);
-  const seen = bots.map((b) => b.snapshot?.participants.length);
-  log({
-    restart: "everyone back?",
-    memory: serverMemory(),
-    participantsSeen: seen,
-  });
+  everyoneBack(serverMemory());
   setTimeout(() => {
     restarting = false;
     log({ restart: "done" });
@@ -413,29 +448,44 @@ async function restartLocal() {
 async function restartProduction() {
   restarted = true;
   restarting = true;
-  log({ restart: "fly machine restart", machine: MACHINE });
+  // The app's one machine, looked up now: Fly may have replaced it.
+  const list = await run("fly", [
+    "machine",
+    "list",
+    "-a",
+    "estimate-together",
+    "--json",
+  ]);
+  let machine;
+  try {
+    const machines = list.ok ? JSON.parse(list.text) : [];
+    machine = machines.length === 1 ? machines[0].id : undefined;
+  } catch {
+    machine = undefined;
+  }
+  if (machine === undefined) {
+    problem(`the restart failed: expected one machine, fly said ${list.text}`);
+    restarting = false;
+    return;
+  }
+  log({ restart: "fly machine restart", machine });
   // Async: the bots and browsers keep running while Fly restarts it.
-  const result = await new Promise((resolve) =>
-    execFile(
-      "fly",
-      ["machine", "restart", MACHINE, "-a", "estimate-together"],
-      { timeout: 180_000 },
-      (error, stdout) =>
-        resolve(
-          error
-            ? `error: ${String(error.message).slice(0, 120)}`
-            : stdout.trim().split("\n").at(-1),
-        ),
-    ),
-  );
-  log({ restart: "fly says", result });
+  const result = await run("fly", [
+    "machine",
+    "restart",
+    machine,
+    "-a",
+    "estimate-together",
+  ]);
+  log({ restart: "fly says", result: result.text.split("\n").at(-1) });
+  if (!result.ok) {
+    // Nothing restarted: the run must not pass as if it had.
+    problem(`the restart failed: ${result.text}`);
+    restarting = false;
+    return;
+  }
   await sleep(40_000);
-  const seen = bots.map((b) => b.snapshot?.participants.length);
-  log({
-    restart: "everyone back?",
-    memory: serverMemory(),
-    participantsSeen: seen,
-  });
+  everyoneBack(serverMemory());
   setTimeout(() => {
     restarting = false;
     log({ restart: "done" });
@@ -445,25 +495,19 @@ async function restartDocker() {
   restarted = true;
   restarting = true;
   log({ restart: "docker restart", container: CONTAINER });
-  const result = await new Promise((resolve) =>
-    execFile(
-      "docker",
-      ["restart", "-t", "15", CONTAINER],
-      { timeout: 180_000 },
-      (error) =>
-        resolve(
-          error ? `error: ${String(error.message).slice(0, 120)}` : "restarted",
-        ),
-    ),
-  );
-  log({ restart: "docker says", result });
-  await sleep(40_000);
-  const seen = bots.map((b) => b.snapshot?.participants.length);
+  const result = await run("docker", ["restart", "-t", "15", CONTAINER]);
   log({
-    restart: "everyone back?",
-    memory: serverMemory(),
-    participantsSeen: seen,
+    restart: "docker says",
+    result: result.ok ? "restarted" : result.text,
   });
+  if (!result.ok) {
+    // Nothing restarted: the run must not pass as if it had.
+    problem(`the restart failed: ${result.text}`);
+    restarting = false;
+    return;
+  }
+  await sleep(40_000);
+  everyoneBack(serverMemory());
   setTimeout(() => {
     restarting = false;
     log({ restart: "done" });
