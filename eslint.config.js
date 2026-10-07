@@ -13,7 +13,11 @@ export default defineConfig([
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["eslint.config.js", "scripts/*.mjs"],
+          allowDefaultProject: [
+            "eslint.config.js",
+            "scripts/*.mjs",
+            "scripts/soak/*.mjs",
+          ],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -26,6 +30,15 @@ export default defineConfig([
         { ignoreRestSiblings: true },
       ],
     },
+  },
+  {
+    // The session simulation (scripts/soak): plain JavaScript run by hand,
+    // with JSON from the wire everywhere, so the type-checked rules can only
+    // say "any". The rest of the recommended rules still apply.
+    files: ["scripts/soak/**/*.mjs"],
+    extends: [tseslint.configs.disableTypeChecked],
+    // Node, and the browser for the code it runs inside the page.
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
   {
     // Architecture guard: wire types in src/shared must stay dependency-free of
