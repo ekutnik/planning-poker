@@ -452,7 +452,7 @@ Removed in the revision: "Your first name is enough.", "Your vote (hidden)", "Vo
 
 ## Accessibility, built in
 
-Checked against WCAG 2.2 AA in September 2026: a self-audit, not an outside one. The record, with what was and wasn't tested, is in [`docs/audit/2026-09-accessibility.md`](audit/2026-09-accessibility.md); the checks still due before launch are in [#44](https://github.com/ekutnik/planning-poker/issues/44).
+Checked against WCAG 2.2 AA in September 2026: a self-audit, not an outside one. The record, with what was and wasn't tested, is in [`docs/audit/2026-09-accessibility.md`](audit/2026-09-accessibility.md); the checks due before launch were done by 2026-10-07 ([#44](https://github.com/ekutnik/planning-poker/issues/44)).
 
 - **The deck is a toolbar of toggle buttons,** described under [Deck](#deck-voting).
 - **Reveal is announced** through a polite live region: "Votes revealed." followed by the sentence, range included, because someone who cannot see the scale needs the numbers. It does not list the non-numeric votes: the scale itself is a list a screen reader can read ("question mark: Cy"). On that list, the cards nobody chose are hidden from screen readers, which hear only the cards that were chosen, each with its names; on screen they stay, so the gaps still show the spread (decided after the VoiceOver check in #44). The person whose focus moved to the new heading has just heard "Votes revealed" from it, so their announcement gives only the sentence; everyone else hears it whole. The new heading reports whether it took focus, and only then is the text chosen.
