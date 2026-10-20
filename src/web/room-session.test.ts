@@ -306,6 +306,16 @@ describe("RoomSession: a nudge (ADR 0007)", () => {
     expect(sounds).toBe(2);
   });
 
+  it("plays the same sound for the timer's nudge at time's up (ADR 0010)", () => {
+    let sounds = 0;
+    const { session, connections } = setup(() => (sounds += 1));
+    session.subscribe(() => undefined);
+    connections[0]?.setState(open(false));
+    connections[0]?.nudge("time");
+    expect(sounds).toBe(1);
+    expect(session.getSnapshot().nudgeReason).toBe("time");
+  });
+
   it("ends with the session: leaving drops it", () => {
     const { session, connections } = setup();
     const stop = session.subscribe(() => undefined);

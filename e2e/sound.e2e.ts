@@ -108,6 +108,33 @@ test("joining with the Join button turns the sound on: that click is the gesture
   await expect.poll(() => audio(ben.page)).toEqual({ created: 1, notes: 2 });
 });
 
+test("a time's-up nudge plays the chime too (ADR 0010)", async ({
+  people,
+  baseURL,
+}) => {
+  test.setTimeout(60_000);
+  const roomId = await newRoom(baseURL ?? "");
+  const ada = await people.join(roomId, "Ada", {
+    facilitate: true,
+    tools: { timer: true },
+  });
+  const ben = await people.join(roomId, "Ben", { beforeOpen: stubAudio });
+  await ben.heading.click(); // the sound is ready
+
+  // Ada starts a 10 s timer; Ben never votes, so time's up nudges him.
+  await ada.page
+    .getByRole("combobox", { name: "Timer" })
+    .selectOption("custom");
+  const custom = ada.page.getByLabel("Custom time");
+  await custom.fill("0:10");
+  await custom.press("Enter");
+  await ada.page.getByRole("button", { name: "Start the timer" }).click();
+  await expect(
+    ben.page.getByText("Time's up. The room is waiting for your vote."),
+  ).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => audio(ben.page)).toEqual({ created: 1, notes: 2 });
+});
+
 test("the Sound switch is this browser's: off, a nudge is silent, and it stays off", async ({
   people,
   baseURL,
