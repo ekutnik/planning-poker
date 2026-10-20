@@ -10,6 +10,12 @@ import "./styles/room.css";
 import "./styles/pages.css";
 import "./styles/header.css";
 import { createRouter } from "./router.js";
+import {
+  createChime,
+  createSoundStore,
+  nudgeSound,
+  unlockOnGesture,
+} from "./sound.js";
 import { trackFocus } from "./focus.js";
 import { watchStorage } from "./storage.js";
 import { createThemeStore } from "./theme.js";
@@ -26,6 +32,15 @@ const identity = loadIdentity(
 );
 const facilitate = createFacilitateStore(() => window.localStorage);
 const tools = createToolsStore(() => window.localStorage);
+const sound = createSoundStore(() => window.localStorage);
+// The nudge's chime: its audio is created on the person's first gesture,
+// since browsers allow sound only after one (sound.ts).
+const chime = createChime(() => new AudioContext());
+unlockOnGesture(
+  document,
+  chime,
+  () => navigator.userActivation?.isActive ?? true,
+);
 const theme = createThemeStore(
   () => window.localStorage,
   document.documentElement,
@@ -40,6 +55,8 @@ createRoot(root).render(
       theme={theme}
       facilitate={facilitate}
       tools={tools}
+      sound={sound}
+      nudgeSound={nudgeSound(sound, chime)}
     />
   </StrictMode>,
 );

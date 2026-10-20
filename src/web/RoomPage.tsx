@@ -12,6 +12,7 @@ import { RoomSession } from "./room-session.js";
 import { RoomView } from "./RoomView.js";
 import { StoppedScreen } from "./StoppedScreen.js";
 import { SwitchRow } from "./SwitchRow.js";
+import type { SoundStore } from "./sound.js";
 import type { ThemeStore } from "./theme.js";
 import type { ToolsStore } from "./tools.js";
 import { bannerFor, canAct } from "./view.js";
@@ -20,6 +21,9 @@ interface Stores {
   readonly theme: ThemeStore;
   readonly facilitate: FacilitateStore;
   readonly tools: ToolsStore;
+  readonly sound: SoundStore;
+  /** Plays a nudge's sound, if this browser's Sound switch is on. */
+  readonly nudgeSound: () => void;
 }
 
 /** A direct link asks for a name first; then the room itself. */
@@ -85,8 +89,9 @@ function Room({
         connect: () => createBrowserConnection(roomId, { sessionToken, name }),
         watchReturn: (connection) =>
           retryOnReturn(connection, window, document),
+        onNudged: stores.nudgeSound,
       }),
-    [roomId, sessionToken, name],
+    [roomId, sessionToken, name, stores.nudgeSound],
   );
   const { state, notice, nudged, nudgeReason } = useSyncExternalStore(
     session.subscribe,
@@ -120,6 +125,7 @@ function Room({
       theme={stores.theme}
       room={{
         facilitate: stores.facilitate,
+        sound: stores.sound,
         link: window.location.href,
         onLeave: () => session.leave(),
         ...(shown && {

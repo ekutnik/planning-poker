@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { FacilitateStore } from "./facilitate.js";
 import { Header } from "./Header.js";
+import type { SoundStore } from "./sound.js";
 import type { ThemeStore } from "./theme.js";
 
 const theme: ThemeStore = {
@@ -9,6 +10,12 @@ const theme: ThemeStore = {
   subscribe: () => () => undefined,
   setTheme: () => undefined,
 };
+
+const sound = (on = true): SoundStore => ({
+  isOn: () => on,
+  subscribe: () => () => undefined,
+  set: () => undefined,
+});
 
 const facilitate = (on: boolean): FacilitateStore => ({
   isOn: () => on,
@@ -28,6 +35,7 @@ function inRoom(
       layout={layout}
       room={{
         facilitate: facilitate(on),
+        sound: sound(),
         link: "http://localhost/r/abcdefghijk",
         onLeave: () => undefined,
       }}
@@ -95,15 +103,40 @@ describe("the Menu, a disclosure", () => {
     expect(after).toMatch(/^<div[^>]*class="menu-panel">/);
   });
 
-  it("holds Facilitate, Theme and Leave the room in a room, in that order", () => {
+  it("holds Facilitate, Sound, Theme and Leave the room in a room, in that order", () => {
     const { after } = menuButton(inRoom(true, true));
     const facilitate = after.indexOf('role="switch"');
+    const sound = after.indexOf(">Sound<");
     const theme = after.indexOf(">Theme<");
     const leave = after.indexOf(">Leave the room<");
     expect(facilitate).toBeGreaterThan(-1);
-    expect(facilitate).toBeLessThan(theme);
+    expect(facilitate).toBeLessThan(sound);
+    expect(sound).toBeLessThan(theme);
     expect(theme).toBeLessThan(leave);
     expect(after).toMatch(/<hr class="menu-divider"\/>[\s\S]*Leave the room/);
+  });
+
+  it("describes Sound as a switch, with its note, on as given", () => {
+    const html = renderToStaticMarkup(
+      <Header
+        theme={theme}
+        menuOpen
+        layout="wide"
+        room={{
+          facilitate: facilitate(false),
+          sound: sound(false),
+          link: "http://localhost/r/abcdefghijk",
+          onLeave: () => undefined,
+        }}
+      />,
+    );
+    const switches = [...html.matchAll(/<button[^>]*role="switch"[^>]*>/g)].map(
+      ([tag]) => tag,
+    );
+    expect(switches).toHaveLength(2);
+    expect(switches[1]).toContain('aria-checked="false"');
+    expect(html).toContain(">Sound<");
+    expect(html).toContain("A short chime when someone nudges you.");
   });
 
   it("describes Facilitate as a switch, with its note", () => {
@@ -173,6 +206,7 @@ describe("the Menu's Session tools (facilitator view)", () => {
         layout="wide"
         room={{
           facilitate: facilitate(true),
+          sound: sound(),
           link: "http://localhost/r/abcdefghijk",
           onLeave: () => undefined,
           ticket: { on: ticket, live, onChange: () => undefined },
@@ -196,6 +230,7 @@ describe("the Menu's Session tools (facilitator view)", () => {
       '<hr class="menu-divider"/>',
       ">Just for you<",
       ">Facilitate<",
+      ">Sound<",
       ">Theme<",
       ">Leave the room<",
     ].map((text) => after.indexOf(text));
@@ -259,6 +294,7 @@ describe("the Menu's Session tools (facilitator view)", () => {
     const { after } = menuButton(inRoom(false, true));
     expect(after).not.toContain("Session tools");
     expect(after).not.toContain("Just for you");
-    expect(after.match(/role="switch"/g)).toHaveLength(1);
+    // Facilitate and Sound, with no group around them.
+    expect(after.match(/role="switch"/g)).toHaveLength(2);
   });
 });

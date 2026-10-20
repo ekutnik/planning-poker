@@ -114,6 +114,11 @@ describe("Keep score in the Menu", () => {
         layout="wide"
         room={{
           facilitate,
+          sound: {
+            isOn: () => true,
+            subscribe: () => () => undefined,
+            set: () => undefined,
+          },
           link: "http://localhost/r/abcdefghijk",
           onLeave: () => undefined,
           scoring: scoring && { ...scoring, onChange: () => undefined },

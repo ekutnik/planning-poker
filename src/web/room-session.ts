@@ -37,6 +37,8 @@ export interface SessionDeps {
   readonly connect: () => SessionConnection;
   /** Retry at once when the person comes back (online, tab visible). */
   readonly watchReturn: (connection: SessionConnection) => () => void;
+  /** Once for each nudge that arrives: its sound (sound.ts, v1.1). */
+  readonly onNudged?: () => void;
 }
 
 const BEFORE_CONNECT: SessionView = {
@@ -128,9 +130,10 @@ export class RoomSession {
       }
       update(this.view.notice);
     });
-    const stopNudges = connection.onNudged((reason) =>
-      update(this.view.notice, reason),
-    );
+    const stopNudges = connection.onNudged((reason) => {
+      this.deps.onNudged?.();
+      update(this.view.notice, reason);
+    });
     const stopErrors = connection.onServerError((code) => {
       const copy = ERROR_COPY[code];
       if (copy === null) return;
