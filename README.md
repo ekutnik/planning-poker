@@ -81,7 +81,7 @@ flowchart LR
 
 ### Presence and timeouts
 
-Every timeout runs in one periodic sweep that compares timestamps (no per-connection timers), so each deadline fires up to one sweep interval (5s) late. The room timer is the one exception: its reveal cannot be 5s late, so each running timer has one scheduled callback, checked again before it acts ([ADR 0008](docs/decisions/0008-the-server-holds-the-timer.md)).
+Every timeout runs in one periodic sweep that compares timestamps (no per-connection timers), so each deadline fires up to one sweep interval (5s) late. The room timer is the one exception: its nudge cannot be 5s late, so each running timer has one scheduled callback, checked again before it acts ([ADR 0008](docs/decisions/0008-the-server-holds-the-timer.md)).
 
 | Rule              | Threshold               | In practice                                                               |
 | ----------------- | ----------------------- | ------------------------------------------------------------------------- |

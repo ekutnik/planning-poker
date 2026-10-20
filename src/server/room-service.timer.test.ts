@@ -316,6 +316,25 @@ describe("time's up nudges whoever hasn't voted (ADR 0010)", () => {
     expect(t.last(t.ben).timer.state).toBe("expired");
   });
 
+  it("starts the cooldown at the deadline, even when the callback runs late", () => {
+    const t = runningWithAVote();
+    t.advance(MIN + 5_000); // the event loop was busy: time's up runs 5 s late
+    t.scheduler.runDue();
+    expect(nudges(t.ada)).toEqual([{ type: "nudged", reason: "time" }]);
+    // 30 s after the deadline, which is when the facilitator's screen shows
+    // Nudge again: the server takes it, though only 25 s have passed since
+    // the callback ran.
+    t.advance(NUDGE_COOLDOWN_MS - 5_000);
+    t.send(t.ben, {
+      type: "nudge",
+      participantId: derivePublicId(ROOM, tokenOf("Ada")),
+    });
+    expect(nudges(t.ada)).toEqual([
+      { type: "nudged", reason: "time" },
+      { type: "nudged" },
+    ]);
+  });
+
   it("restarts the cooldown: a person's nudge straight after is dropped, then allowed", () => {
     const t = runningWithAVote();
     atDeadline(t);

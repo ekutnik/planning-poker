@@ -22,19 +22,6 @@ export type NudgeRefusal =
  * Pure, and outside the domain on purpose: a nudge is transient and never
  * enters room state. The room service keeps the cooldown and sends it.
  */
-/**
- * Whom the timer nudges when its time runs out (ADR 0010): everyone in the
- * room who is connected and hasn't voted, while it is voting. The same rule
- * as a person's nudge, without a sender, and without the cooldown: the
- * timer's nudge restarts it instead.
- */
-export function timeUpNudges(room: Room): ParticipantId[] {
-  if (room.phase !== "voting") return [];
-  return [...room.participants.values()]
-    .filter((p) => p.status === "connected" && p.vote === null)
-    .map((p) => p.id);
-}
-
 export function nudgeRefusal(
   room: Room,
   from: ParticipantId,
@@ -53,4 +40,17 @@ export function nudgeRefusal(
     return "COOLDOWN";
   }
   return null;
+}
+
+/**
+ * Whom the timer nudges when its time runs out (ADR 0010): everyone in the
+ * room who is connected and hasn't voted, while it is voting. The same rule
+ * as a person's nudge, without a sender, and without the cooldown: the
+ * timer's nudge restarts it instead.
+ */
+export function timeUpNudges(room: Room): ParticipantId[] {
+  if (room.phase !== "voting") return [];
+  return [...room.participants.values()]
+    .filter((p) => p.status === "connected" && p.vote === null)
+    .map((p) => p.id);
 }

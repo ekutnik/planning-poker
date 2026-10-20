@@ -67,6 +67,12 @@ const PROTOCOL_VERSION = Number(
     ),
   )?.[1],
 );
+if (!Number.isInteger(PROTOCOL_VERSION)) {
+  console.error(
+    "refusing: no whole-number PROTOCOL_VERSION found in src/shared/socket.ts, so the bots can't say which protocol they speak",
+  );
+  process.exit(2);
+}
 
 const WSS = BASE.replace(/^http/, "ws");
 const RESTART_AT = Number(process.env.RESTART_AT ?? 0) * 60_000;

@@ -1026,7 +1026,7 @@ export class RoomService {
     this.store(result.room, now);
     this.log.debug({ room: roomId, type: "time-up" });
     this.broadcast(result.room);
-    this.nudgeAtTimeUp(result.room, now);
+    this.nudgeAtTimeUp(result.room, endsAt);
   }
 
   /**
@@ -1034,13 +1034,18 @@ export class RoomService {
    * once, with reason "time", and their cooldown restarts, so a person's
    * nudge straight after doesn't double it. If everyone has voted, nobody.
    * After the broadcast, so the nudge arrives with the expired timer shown.
+   *
+   * The cooldown starts at the deadline, not when this runs: under load the
+   * callback can run late, and the facilitator's screen starts the same
+   * cooldown at the same deadline (withTimeUpNudges), so the two agree, and
+   * a Nudge button never comes back before the server would take it.
    */
-  private nudgeAtTimeUp(room: Room, now: number): void {
+  private nudgeAtTimeUp(room: Room, deadline: number): void {
     const sockets = this.current.get(room.id);
     for (const participantId of timeUpNudges(room)) {
       const to = sockets?.get(participantId);
       if (to === undefined) continue;
-      this.nudgedAt.set(nudgeKey(room.id, participantId), now);
+      this.nudgedAt.set(nudgeKey(room.id, participantId), deadline);
       to.send({ type: "nudged", reason: "time" });
     }
   }
