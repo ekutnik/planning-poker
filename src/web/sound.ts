@@ -1,4 +1,8 @@
-import { safeStorage, type KeyValueStore } from "./storage.js";
+import {
+  safeStorage,
+  type KeyValueStore,
+  type StorageWatch,
+} from "./storage.js";
 
 /**
  * The nudge's sound (v1.1, on the team's feedback): the person nudged is
@@ -19,11 +23,28 @@ export interface SoundStore {
 /**
  * The Sound switch, remembered per browser like the theme. On unless this
  * browser turned it off: a nudge that makes no sound is the problem it fixes.
+ * Turned on or off in another tab, it applies here too, as Theme does (#41).
  */
-export function createSoundStore(getStorage: () => KeyValueStore): SoundStore {
+export function createSoundStore(
+  getStorage: () => KeyValueStore,
+  watch: StorageWatch = () => () => undefined,
+): SoundStore {
   const storage = safeStorage(getStorage);
   const listeners = new Set<() => void>();
-  let on = storage.read(SOUND_KEY) !== "off";
+  const parse = (value: string | null) => value !== "off";
+  let on = parse(storage.read(SOUND_KEY));
+  const show = (next: boolean) => {
+    if (next === on) return;
+    on = next;
+    for (const listener of listeners) listener();
+  };
+  // Another tab changed it, or cleared storage (key null): show it here,
+  // without writing it back. Watched for the page's whole life, unlike
+  // Theme's, which watches only while subscribed: a nudge reads isOn
+  // whenever it arrives, with or without the switch on screen.
+  watch((key, value) => {
+    if (key === SOUND_KEY || key === null) show(parse(value));
+  });
   return {
     isOn: () => on,
     subscribe: (listener) => {
@@ -32,9 +53,8 @@ export function createSoundStore(getStorage: () => KeyValueStore): SoundStore {
     },
     set: (next) => {
       if (next === on) return;
-      on = next;
       storage.write(SOUND_KEY, next ? "on" : "off");
-      for (const listener of listeners) listener();
+      show(next);
     },
   };
 }
@@ -51,7 +71,7 @@ export type ChimeContext = Pick<
 >;
 
 export interface Chime {
-  /** On a user's gesture: the first creates the audio, later ones resume it. */
+  /** On a user's gesture: creates the audio once, and resumes it if suspended. */
   readonly unlock: () => void;
   /** The chime, if the audio is unlocked and running; otherwise nothing. */
   readonly play: () => void;
@@ -77,10 +97,10 @@ export function createChime(createContext: () => ChimeContext): Chime {
   return {
     unlock: () => {
       try {
-        if (context === null) {
-          context = createContext();
-          return;
-        }
+        // Created during a gesture, the audio should be running, but a
+        // browser may still start it suspended: resume it at once, while the
+        // gesture still counts, rather than wait for the next one.
+        context ??= createContext();
         if (context.state === "suspended") {
           // A rejected resume is the browser saying no: nothing to report.
           context.resume().catch(() => undefined);
@@ -140,7 +160,12 @@ export function unlockOnGesture(
   };
 }
 
-/** What a nudge plays: the chime, while this browser's Sound switch is on. */
+/**
+ * What a nudge plays: the chime, while this browser's Sound switch is on.
+ * Call it once per page (main.tsx) and pass that one function down: it must
+ * stay the same function, since RoomPage's session depends on it, and a new
+ * one would make a new session, reconnecting the room.
+ */
 export function nudgeSound(store: SoundStore, chime: Chime): () => void {
   return () => {
     if (store.isOn()) chime.play();

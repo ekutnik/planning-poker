@@ -32,7 +32,7 @@ const identity = loadIdentity(
 );
 const facilitate = createFacilitateStore(() => window.localStorage);
 const tools = createToolsStore(() => window.localStorage);
-const sound = createSoundStore(() => window.localStorage);
+const sound = createSoundStore(() => window.localStorage, watchStorage(window));
 // The nudge's chime: its audio is created on the person's first gesture,
 // since browsers allow sound only after one (sound.ts).
 const chime = createChime(() => new AudioContext());
@@ -47,6 +47,9 @@ const theme = createThemeStore(
   watchStorage(window),
 );
 
+// Made once, here: it must stay the same function (sound.ts).
+const playNudgeSound = nudgeSound(sound, chime);
+
 createRoot(root).render(
   <StrictMode>
     <App
@@ -56,7 +59,7 @@ createRoot(root).render(
       facilitate={facilitate}
       tools={tools}
       sound={sound}
-      nudgeSound={nudgeSound(sound, chime)}
+      nudgeSound={playNudgeSound}
     />
   </StrictMode>,
 );

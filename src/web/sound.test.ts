@@ -8,7 +8,7 @@ import {
   type Chime,
   type ChimeContext,
 } from "./sound.js";
-import type { KeyValueStore } from "./storage.js";
+import type { KeyValueStore, StorageWatch } from "./storage.js";
 
 function memory(initial: Record<string, string> = {}): KeyValueStore & {
   values: Record<string, string>;
@@ -78,6 +78,34 @@ describe("the Sound switch (sound.ts)", () => {
     expect(storage.values[SOUND_KEY]).toBe("on");
   });
 
+  it("follows a change made in another tab, without writing it back (#41)", () => {
+    const storage = memory();
+    let fire: (key: string | null, value: string | null) => void = () =>
+      undefined;
+    const watch: StorageWatch = (onChange) => {
+      fire = onChange;
+      return () => undefined;
+    };
+    // Nobody subscribed: a nudge reads isOn with the switch off screen.
+    const store = createSoundStore(() => storage, watch);
+    fire(SOUND_KEY, "off");
+    expect(store.isOn()).toBe(false);
+    expect(storage.values).toEqual({});
+
+    const heard = vi.fn();
+    store.subscribe(heard);
+    fire(SOUND_KEY, "on");
+    expect(store.isOn()).toBe(true);
+    expect(heard).toHaveBeenCalledTimes(1);
+    fire("planning-poker:theme", "off"); // another key: nothing
+    expect(store.isOn()).toBe(true);
+    fire(SOUND_KEY, "off");
+    fire(null, null); // storage cleared in another tab: on, as in a new browser
+    expect(store.isOn()).toBe(true);
+    expect(heard).toHaveBeenCalledTimes(3);
+    expect(storage.values).toEqual({});
+  });
+
   it("is on when storage can't be read (a private window, say)", () => {
     const store = createSoundStore(() => {
       throw new Error("SecurityError");
@@ -115,6 +143,16 @@ describe("the chime", () => {
     expect(fake.started).toEqual([]);
     chime.unlock();
     expect(create).toHaveBeenCalledTimes(1);
+    expect(fake.resumes).toBe(1);
+    chime.play();
+    expect(fake.started).toHaveLength(2);
+  });
+
+  it("resumes the audio at once if the browser creates it suspended", () => {
+    const fake = new FakeContext();
+    fake.state = "suspended";
+    const chime = createChime(() => asContext(fake));
+    chime.unlock(); // the one gesture
     expect(fake.resumes).toBe(1);
     chime.play();
     expect(fake.started).toHaveLength(2);

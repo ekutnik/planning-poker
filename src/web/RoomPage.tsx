@@ -22,7 +22,11 @@ interface Stores {
   readonly facilitate: FacilitateStore;
   readonly tools: ToolsStore;
   readonly sound: SoundStore;
-  /** Plays a nudge's sound, if this browser's Sound switch is on. */
+  /**
+   * Plays a nudge's sound, if this browser's Sound switch is on. Must stay
+   * the same function: the session below depends on it, so a new one would
+   * reconnect the room.
+   */
   readonly nudgeSound: () => void;
 }
 

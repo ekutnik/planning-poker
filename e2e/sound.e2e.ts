@@ -84,6 +84,30 @@ test("a nudge plays the chime in a tab that has had a gesture, and not before", 
   expect(cyErrors).toEqual([]);
 });
 
+test("joining with the Join button turns the sound on: that click is the gesture", async ({
+  people,
+  baseURL,
+}) => {
+  const roomId = await newRoom(baseURL ?? "");
+  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  // A link with no name stored asks for one. The name is filled in without a
+  // key press, so the click on Join is the page's only gesture.
+  const ben = await people.open(`/r/${roomId}`, {
+    name: null,
+    beforeOpen: stubAudio,
+  });
+  await ben.page.getByLabel("Your name").fill("Ben");
+  expect(await audio(ben.page)).toEqual({ created: 0, notes: 0 });
+  await ben.page.getByRole("button", { name: "Join" }).click();
+  const nudgeBen = ada.page.getByRole("button", { name: "Nudge Ben" });
+  await expect(nudgeBen).toBeVisible(); // Ben has joined
+  expect(await audio(ben.page)).toEqual({ created: 1, notes: 0 });
+
+  await nudgeBen.click();
+  await expect(ben.page.getByText(BANNER)).toBeVisible();
+  await expect.poll(() => audio(ben.page)).toEqual({ created: 1, notes: 2 });
+});
+
 test("the Sound switch is this browser's: off, a nudge is silent, and it stays off", async ({
   people,
   baseURL,
@@ -112,6 +136,34 @@ test("the Sound switch is this browser's: off, a nudge is silent, and it stays o
   // Remembered across a reload.
   await ben.page.reload();
   await expect(ben.heading).toBeVisible();
+  await ben.page.getByRole("button", { name: "Menu" }).click();
+  await expect(ben.page.getByRole("switch", { name: "Sound" })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+});
+
+test("Sound turned off in another tab applies here too, as Theme does", async ({
+  people,
+  baseURL,
+}) => {
+  const roomId = await newRoom(baseURL ?? "");
+  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const ben = await people.join(roomId, "Ben", { beforeOpen: stubAudio });
+  await ben.heading.click(); // the sound is ready
+
+  // A second tab in Ben's browser, on the landing page so it doesn't take
+  // the room over, turns Sound off; Ben's room tab never opens its Menu.
+  const other = await ben.page.context().newPage();
+  await other.goto("/");
+  await other.evaluate(() =>
+    window.localStorage.setItem("planning-poker:sound", "off"),
+  );
+  await other.close();
+
+  await ada.page.getByRole("button", { name: "Nudge Ben" }).click();
+  await expect(ben.page.getByText(BANNER)).toBeVisible();
+  expect(await audio(ben.page)).toEqual({ created: 1, notes: 0 });
   await ben.page.getByRole("button", { name: "Menu" }).click();
   await expect(ben.page.getByRole("switch", { name: "Sound" })).toHaveAttribute(
     "aria-checked",
