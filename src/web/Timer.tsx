@@ -38,9 +38,10 @@ function useLeft(timer: TimerView): number {
 /**
  * The facilitator's timer block, in the action row while voting. Idle: the
  * duration and Start. Running: what is left, Pause and +30 s. Paused: the
- * time, quiet, with "Paused", Resume and +30 s. Start, Pause and Resume are
- * one button in one place, so focus stays on it as its job changes. What
- * is left of the duration is the block's underline.
+ * time, quiet, with "Paused", Resume and +30 s. Expired (ADR 0010): 0:00,
+ * quiet, with "Time's up", Start (the whole duration again) and +30 s.
+ * Start, Pause and Resume are one button in one place, so focus stays on it
+ * as its job changes. What is left of the duration is the block's underline.
  *
  * While a custom time that is out of range sits in its field, Start is
  * disabled, so a timer never starts with a length nobody meant, and once
@@ -56,6 +57,8 @@ export function TimerControls({
   readonly onAction: (action: RoomAction) => void;
 }) {
   const idle = timer.state === "idle";
+  // Start begins the timer from idle, and again once its time ran out.
+  const startable = idle || timer.state === "expired";
   const errorId = useId();
   // The custom field's text: invalid now, and the message once it was
   // committed (left, or Enter). freshAnnouncement repeats it if repeated.
@@ -94,7 +97,7 @@ export function TimerControls({
           className="small-button small-button--icon"
           disabled={!live || blocked}
           aria-label={
-            idle
+            startable
               ? TIMER_COPY.start
               : timer.state === "running"
                 ? TIMER_COPY.pause
@@ -102,7 +105,7 @@ export function TimerControls({
           }
           onClick={() =>
             onAction({
-              type: idle
+              type: startable
                 ? "timerStart"
                 : timer.state === "running"
                   ? "timerPause"
@@ -135,26 +138,33 @@ export function TimerControls({
 }
 
 /**
- * Everyone else's timer: the same block without its buttons, "1:24 left,
- * then votes are revealed", or the time, quiet, and "Paused". Nothing at
- * all while idle.
+ * Everyone else's timer: the same block without its buttons, "1:24 left",
+ * or the time, quiet, and "Paused", or 0:00, quiet, and "Time's up". Nothing
+ * at all while idle.
  */
 export function TimerReadout({ timer }: { readonly timer: TimerView }) {
   if (timer.state === "idle") return null;
   return <ActiveReadout timer={timer} />;
 }
 
-/** The facilitator's time: "1:24", or quiet with "Paused". */
+/** A stopped timer's word, paused or out of time; null while it counts. */
+function stoppedWord(timer: TimerView): string | null {
+  if (timer.state === "paused") return TIMER_COPY.paused;
+  if (timer.state === "expired") return TIMER_COPY.expired;
+  return null;
+}
+
+/** The facilitator's time: "1:24", or quiet with "Paused" or "Time's up". */
 function TimeLeft({ timer }: { readonly timer: TimerView }) {
   const left = useLeft(timer);
-  const paused = timer.state === "paused";
+  const word = stoppedWord(timer);
   return (
     <>
-      <span className={paused ? "timer-time timer-time--paused" : "timer-time"}>
+      <span className={word ? "timer-time timer-time--paused" : "timer-time"}>
         {formatClock(left)}
       </span>
-      {paused ? (
-        <span className="timer-word">{TIMER_COPY.paused}</span>
+      {word ? (
+        <span className="timer-word">{word}</span>
       ) : (
         <span className="visually-hidden"> {TIMER_COPY.left}</span>
       )}
@@ -164,19 +174,15 @@ function TimeLeft({ timer }: { readonly timer: TimerView }) {
 
 function ActiveReadout({ timer }: { readonly timer: TimerView }) {
   const clock = formatClock(useLeft(timer));
-  const paused = timer.state === "paused";
+  const word = stoppedWord(timer);
   return (
     <div className="timer timer--readout">
       <p className="timer-block">
         <ClockIcon />
-        <span
-          className={paused ? "timer-time timer-time--paused" : "timer-time"}
-        >
+        <span className={word ? "timer-time timer-time--paused" : "timer-time"}>
           {clock}
         </span>{" "}
-        <span className="timer-word">
-          {paused ? TIMER_COPY.paused : TIMER_COPY.thenRevealed}
-        </span>
+        <span className="timer-word">{word ?? TIMER_COPY.left}</span>
         <TimerEdge timer={timer} />
       </p>
     </div>

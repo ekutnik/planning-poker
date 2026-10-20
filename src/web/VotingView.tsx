@@ -6,6 +6,7 @@ import {
   expireNudges,
   nextExpiry,
   standingNudges,
+  withTimeUpNudges,
   type SentNudges,
 } from "./nudges.js";
 import { OwnVote, stillShown } from "./OwnVote.js";
@@ -48,7 +49,29 @@ export function VotingView({
   // since this screen goes at the reveal: the moments the server's
   // cooldown ends, so a Nudge button on screen is one it will deliver.
   const [sent, setSent] = useState<SentNudges>(() => new Map());
-  const standing = standingNudges(sent, snapshot.participants);
+  // Time ran out (ADR 0010): the server nudged whoever hadn't voted, and
+  // their cooldown restarted at the deadline, which this screen already had.
+  const [timerWas, setTimerWas] = useState(snapshot.timer);
+  let current = sent;
+  if (
+    snapshot.timer.state !== timerWas.state ||
+    snapshot.timer.endsAt !== timerWas.endsAt
+  ) {
+    setTimerWas(snapshot.timer);
+    if (
+      snapshot.timer.state === "expired" &&
+      timerWas.state === "running" &&
+      timerWas.endsAt !== null
+    ) {
+      current = withTimeUpNudges(
+        sent,
+        snapshot.participants,
+        snapshot.viewerId,
+        timerWas.endsAt,
+      );
+    }
+  }
+  const standing = standingNudges(current, snapshot.participants);
   if (standing !== sent) setSent(standing);
   const expiry = nextExpiry(standing);
   useEffect(() => {

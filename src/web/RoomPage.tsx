@@ -88,7 +88,7 @@ function Room({
       }),
     [roomId, sessionToken, name],
   );
-  const { state, notice, nudged } = useSyncExternalStore(
+  const { state, notice, nudged, nudgeReason } = useSyncExternalStore(
     session.subscribe,
     session.getSnapshot,
   );
@@ -137,7 +137,12 @@ function Room({
           },
           timer: {
             on: tools.timer,
-            busy: tools.timer && shown.timer.state !== "idle",
+            // Counting or paused: switching off would hide a timer still
+            // under way. Expired isn't (ADR 0010), so it may go.
+            busy:
+              tools.timer &&
+              (shown.timer.state === "running" ||
+                shown.timer.state === "paused"),
             onChange: (on) => stores.tools.set("timer", on),
           },
           scoring: {
@@ -169,6 +174,7 @@ function Room({
         persistent={identity.persistent}
         tools={tools}
         nudged={nudged}
+        nudgeReason={nudgeReason}
         onAction={(action) => session.send(action)}
       />
     </>

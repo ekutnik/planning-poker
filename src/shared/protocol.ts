@@ -95,10 +95,10 @@ export type ServerMessage =
   | { readonly type: "pong" }
   /**
    * You have been nudged (ADR 0007). Sent to the person nudged and nobody
-   * else, and it carries nothing: not who sent it, nor anything about them.
-   * A client that predates it ignores an unknown type (#20).
+   * else, and it carries nothing about who sent it. `reason: "time"` when
+   * the timer did, as its time ran out (ADR 0010); absent for a person's.
    */
-  | { readonly type: "nudged" };
+  | { readonly type: "nudged"; readonly reason?: "time" };
 
 /**
  * Parse and validate a raw inbound frame. Never throws: malformed JSON or any

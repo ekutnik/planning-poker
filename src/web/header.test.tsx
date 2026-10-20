@@ -221,7 +221,9 @@ describe("the Menu's Session tools (facilitator view)", () => {
   it("describes each tool", () => {
     const html = tools();
     expect(html).toContain("Show what the room is estimating.");
-    expect(html).toContain("Reveal the votes when time runs out.");
+    expect(html).toContain(
+      "Nudge whoever hasn&#x27;t voted when time runs out.",
+    );
   });
 
   it("shows this browser's Ticket name and Timer as switches", () => {
@@ -238,7 +240,9 @@ describe("the Menu's Session tools (facilitator view)", () => {
     const busy = tools({ timer: true, busy: true });
     expect(switchFor(busy, "Timer")).toContain('disabled=""');
     expect(busy).toContain("Available once the timer has stopped.");
-    expect(busy).not.toContain("Reveal the votes when time runs out.");
+    expect(busy).not.toContain(
+      "Nudge whoever hasn&#x27;t voted when time runs out.",
+    );
     const idle = tools({ timer: true });
     expect(switchFor(idle, "Timer")).not.toContain("disabled");
     expect(idle).not.toContain("Available once");

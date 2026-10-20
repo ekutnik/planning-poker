@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ErrorCode } from "../shared/protocol.js";
 import type {
   ConnectionState,
+  NudgeReason,
   RoomAction,
 } from "./connection/room-connection.js";
 import { ERROR_COPY } from "./copy.js";
@@ -16,7 +17,7 @@ class FakeConnection implements SessionConnection {
   readonly sent: RoomAction[] = [];
   private readonly listeners = new Set<() => void>();
   private readonly errorListeners = new Set<(code: ErrorCode) => void>();
-  private readonly nudgeListeners = new Set<() => void>();
+  private readonly nudgeListeners = new Set<(reason: NudgeReason) => void>();
 
   getState = () => this.state;
   subscribe(listener: () => void) {
@@ -27,7 +28,7 @@ class FakeConnection implements SessionConnection {
     this.errorListeners.add(listener);
     return () => this.errorListeners.delete(listener);
   }
-  onNudged(listener: () => void) {
+  onNudged(listener: (reason: NudgeReason) => void) {
     this.nudgeListeners.add(listener);
     return () => this.nudgeListeners.delete(listener);
   }
@@ -58,8 +59,8 @@ class FakeConnection implements SessionConnection {
   error(code: ErrorCode) {
     for (const listener of this.errorListeners) listener(code);
   }
-  nudge() {
-    for (const listener of this.nudgeListeners) listener();
+  nudge(reason: NudgeReason = "person") {
+    for (const listener of this.nudgeListeners) listener(reason);
   }
   listening() {
     return (
@@ -205,7 +206,6 @@ function open(youVoted: boolean, phase: "voting" | "revealed" = "voting") {
               endsAt: null,
               remainingMs: null,
             },
-            revealCause: null,
             participants: participants.map((p) => ({ ...p, vote: null })),
             results: {
               voteCount: 0,
@@ -270,6 +270,19 @@ describe("RoomSession: a nudge (ADR 0007)", () => {
       snapshot: null,
     });
     expect(session.getSnapshot().nudged).toBe(true);
+  });
+
+  it("keeps why it came, which the banner says: the timer's, then a person's (ADR 0010)", () => {
+    const { session, connections } = setup();
+    session.subscribe(() => undefined);
+    connections[0]?.setState(open(false));
+    connections[0]?.nudge("time");
+    expect(session.getSnapshot()).toMatchObject({
+      nudged: true,
+      nudgeReason: "time",
+    });
+    connections[0]?.nudge("person");
+    expect(session.getSnapshot().nudgeReason).toBe("person");
   });
 
   it("does not stand for someone who has already voted", () => {

@@ -143,7 +143,7 @@ describe("tenSecondsWait", () => {
 });
 
 describe("timerAnnouncement: said once when the timer changes", () => {
-  const voting = (timer: TimerView, anyVote: boolean): RoomSnapshot => ({
+  const voting = (timer: TimerView, youVoted: boolean): RoomSnapshot => ({
     phase: "voting",
     roomId: "abcdefghijk",
     version: 1,
@@ -151,9 +151,9 @@ describe("timerAnnouncement: said once when the timer changes", () => {
     ticket: null,
     scores: null,
     timer,
-    yourVote: null,
+    yourVote: youVoted ? "5" : null,
     participants: [
-      { id: "ben", name: "Ben", status: "connected", hasVoted: anyVote },
+      { id: "me", name: "Me", status: "connected", hasVoted: youVoted },
     ],
   });
   const idle: TimerView = { ...running(0), state: "idle", endsAt: null };
@@ -162,6 +162,12 @@ describe("timerAnnouncement: said once when the timer changes", () => {
     state: "paused",
     endsAt: null,
     remainingMs: 5_000,
+  };
+  const expired: TimerView = {
+    ...running(0),
+    state: "expired",
+    endsAt: null,
+    remainingMs: 0,
   };
 
   it.each([
@@ -174,18 +180,33 @@ describe("timerAnnouncement: said once when the timer changes", () => {
     ["it resumes", voting(paused, false), voting(running(1), false), null],
     ["it pauses", voting(running(1), true), voting(paused, true), null],
     [
-      "it runs out with nobody having voted",
-      voting(running(1), false),
-      voting(idle, false),
-      "Time's up. Nobody has voted yet.",
+      "it runs out, to someone who has voted",
+      voting(running(1), true),
+      voting(expired, true),
+      "Time's up.",
     ],
     [
-      "Start next round stops it, clearing votes",
+      "it runs out, to someone who hasn't: the nudge's banner says it instead",
+      voting(running(1), false),
+      voting(expired, false),
+      null,
+    ],
+    [
+      "Start next round stops it",
       voting(running(1), true),
       voting(idle, false),
       null,
     ],
   ] as const)("when %s", (_, before, after, said) => {
     expect(timerAnnouncement(timerSeen(before), after)).toBe(said);
+  });
+
+  it("says it started again when Start or +30 s restarts an expired timer", () => {
+    expect(
+      timerAnnouncement(
+        timerSeen(voting(expired, true)),
+        voting(running(1), true),
+      ),
+    ).toBe("Timer started again.");
   });
 });

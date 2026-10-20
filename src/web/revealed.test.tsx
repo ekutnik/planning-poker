@@ -17,7 +17,6 @@ const snapshot: Revealed = {
   ticket: null,
   scores: null,
   timer: { durationMs: 60_000, state: "idle", endsAt: null, remainingMs: null },
-  revealCause: null,
   participants: [
     { id: "Ada", name: "Ada", status: "connected", vote: "3" },
     { id: "Ben", name: "Ben", status: "connected", vote: "8" },

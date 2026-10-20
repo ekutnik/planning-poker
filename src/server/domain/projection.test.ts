@@ -110,7 +110,6 @@ describe("project — no-leak (key whitelist)", () => {
       "participants",
       "phase",
       "results",
-      "revealCause",
       "roomId",
       "scores",
       "ticket",
@@ -240,13 +239,20 @@ describe("the timer", () => {
     }
   });
 
-  it("says after reveal whether the timer revealed the round", () => {
-    const revealed: Room = {
+  it("shows an expired timer as it is, to everyone: the round still voting", () => {
+    const expired: Room = {
       ...mixedRoom(),
-      phase: "revealed",
-      revealCause: "timer",
+      timer: {
+        durationMs: 30_000,
+        state: "expired",
+        endsAt: null,
+        remainingMs: 0,
+      },
     };
-    const snapshot = project(revealed, "alice");
-    expect(snapshot.phase === "revealed" && snapshot.revealCause).toBe("timer");
+    for (const viewer of ["alice", "bob"]) {
+      const snapshot = project(expired, viewer);
+      expect(snapshot.phase).toBe("voting");
+      expect(snapshot.timer).toEqual(expired.timer);
+    }
   });
 });

@@ -34,6 +34,7 @@ const sentences = [
   COPY_LINK_COPY.failed,
   RUNNING_COPY.note,
   NUDGE_COPY.banner,
+  NUDGE_COPY.timesUpBanner,
   ...resultLines(),
 ];
 

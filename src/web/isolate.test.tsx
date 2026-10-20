@@ -54,7 +54,6 @@ const revealed: Revealed = {
   ticket: null,
   scores: null,
   timer,
-  revealCause: null,
   participants: [
     { id: "p1", name: "Zayd", status: "connected", vote: "5" },
     { id: "p2", name: "Quinn", status: "connected", vote: "5" },
