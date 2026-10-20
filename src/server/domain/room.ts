@@ -44,7 +44,8 @@ export interface Room {
   readonly version: number;
   /**
    * The ticket being estimated, cleaned (shared/rules.ts), or null. It stays
-   * across rounds until someone edits it, and goes with the room.
+   * through the reveal, until someone edits it or Start next round clears it,
+   * and goes with the room.
    */
   readonly ticket: string | null;
   /** Keep score: off until someone turns it on. */
@@ -338,6 +339,12 @@ function pointsAtReveal(room: Room): Partial<Pick<Room, "scores">> {
   return { scores };
 }
 
+/**
+ * Start next round: every vote goes, the timer goes back to idle, and so does
+ * the ticket, since the next round is usually the next ticket. A team that
+ * re-estimates the same one types it again. In the same commit, so the
+ * version goes up once; a reset that changes nothing stays a no-op.
+ */
 function reset(room: Room, cmd: CommandOf<"reset">): Result {
   const participant = room.participants.get(cmd.participantId);
   if (!participant) return fail("UNKNOWN_PARTICIPANT");
@@ -353,6 +360,7 @@ function reset(room: Room, cmd: CommandOf<"reset">): Result {
       participants,
       ...stopTimer(room),
       ...(room.revealCause === null ? {} : { revealCause: null }),
+      ...(room.ticket === null ? {} : { ticket: null }),
     }),
   );
 }
