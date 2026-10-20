@@ -135,7 +135,7 @@
 }
 
 /* A switch's description in the Menu: lines short enough to read at a
-   glance, so "Reveal the votes when time" and "A point when a vote
+   glance, so "Nudge whoever hasn't voted" and "A point when a vote
    matches" end their first lines at the default size. */
 .menu-panel .switch-note {
   max-inline-size: 12rem; /* 192px */
