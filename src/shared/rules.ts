@@ -218,10 +218,11 @@ export function cleanTicket(raw: string): string | null {
 
 /**
  * The timer (ADR 0008). A duration is whole seconds from 10 s to 10 min; the
- * default is a minute, and the presets are what the facilitator's select
- * offers before Custom. +30 s never takes what is left past the maximum.
+ * default is 30 seconds (a minute until v1.1, changed on the team's
+ * feedback), and the presets are what the facilitator's select offers before
+ * Custom. +30 s never takes what is left past the maximum.
  */
-export const TIMER_DEFAULT_MS = 60_000;
+export const TIMER_DEFAULT_MS = 30_000;
 export const TIMER_MIN_MS = 10_000;
 export const TIMER_MAX_MS = 600_000;
 export const TIMER_ADD_MS = 30_000;
