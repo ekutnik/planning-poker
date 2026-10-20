@@ -55,6 +55,11 @@ const reset = (participantId: string): Command => ({
   type: "reset",
   participantId,
 });
+const setTicket = (participantId: string, text: string): Command => ({
+  type: "setTicket",
+  participantId,
+  text,
+});
 const disconnect = (participantId: string): Command => ({
   type: "disconnect",
   participantId,
@@ -373,6 +378,44 @@ describe("reset", () => {
     expect(must(applyCommand(room, reset("alice"), NOW))).toBe(room);
   });
 
+  it("clears the ticket, in the same commit: the version goes up once", () => {
+    const revealed = run(
+      createRoom("r1"),
+      join("alice"),
+      join("bob"),
+      setTicket("alice", "PROJ-1"),
+      castVote("alice", "5"),
+      castVote("bob", "8"),
+      reveal("alice"),
+    );
+    const next = must(applyCommand(revealed, reset("bob"), NOW));
+    expect(next.ticket).toBeNull();
+    expect(next.phase).toBe("voting");
+    expect(next.version).toBe(revealed.version + 1);
+  });
+
+  it("with no ticket, does just what it did: the votes go, the version goes up once", () => {
+    const revealed = run(
+      createRoom("r1"),
+      join("alice"),
+      castVote("alice", "5"),
+      reveal("alice"),
+    );
+    const next = must(applyCommand(revealed, reset("alice"), NOW));
+    expect(next.ticket).toBeNull();
+    expect(next.participants.get("alice")?.vote).toBeNull();
+    expect(next.version).toBe(revealed.version + 1);
+  });
+
+  it("leaves the ticket when it is a no-op: nothing to start again", () => {
+    const room = run(
+      createRoom("r1"),
+      join("alice"),
+      setTicket("alice", "PROJ-1"),
+    );
+    expect(must(applyCommand(room, reset("alice"), NOW))).toBe(room);
+  });
+
   it("rejects reset from an unknown participant", () => {
     const room = run(createRoom("r1"), join("alice"));
     expect(applyCommand(room, reset("ghost"), NOW)).toEqual({
@@ -564,11 +607,6 @@ describe("invariants", () => {
 });
 
 describe("setTicket", () => {
-  const setTicket = (participantId: string, text: string): Command => ({
-    type: "setTicket",
-    participantId,
-    text,
-  });
   const inRoom = () => run(createRoom("r1"), join("alice"), join("bob"));
 
   it("starts with no ticket", () => {
@@ -636,13 +674,14 @@ describe("setTicket", () => {
     });
   });
 
-  it("works in either phase, and stays across a reveal and Start next round", () => {
-    const revealed = run(inRoom(), castVote("alice", "5"), reveal("alice"));
-    const set = run(revealed, setTicket("bob", "PROJ-1"));
+  it("works in either phase, and stays across a reveal", () => {
+    const voting = run(inRoom(), setTicket("bob", "PROJ-1"));
+    const revealed = run(voting, castVote("alice", "5"), reveal("alice"));
+    expect(revealed.phase).toBe("revealed");
+    expect(revealed.ticket).toBe("PROJ-1");
+    const set = run(revealed, setTicket("bob", "PROJ-2"));
     expect(set.phase).toBe("revealed");
-    expect(set.ticket).toBe("PROJ-1");
-    const next = run(set, reset("alice"), castVote("bob", "3"), reveal("bob"));
-    expect(next.ticket).toBe("PROJ-1");
+    expect(set.ticket).toBe("PROJ-2");
   });
 
   it("changes nothing else in the room", () => {
@@ -757,7 +796,8 @@ describe("keeping score", () => {
       text: "PROJ-1",
     };
     const first = round(run(room(true), ticket), { a: "5", b: "5" });
-    const second = round(run(first, reset("a")), { a: "5", b: "5" });
+    // Start next round clears the ticket, so the team types it again.
+    const second = round(run(first, reset("a"), ticket), { a: "5", b: "5" });
     expect(second.ticket).toBe("PROJ-1");
     expect(points(second)).toEqual({ a: 2, b: 2 });
   });

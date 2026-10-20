@@ -68,21 +68,30 @@ test("the facilitator sets a ticket, and everyone sees it", async ({
     ada.page.getByRole("button", { name: "Edit the ticket" }),
   ).toBeFocused();
 
-  // It stays across a reveal and Start next round.
+  // It stays across a reveal.
   await ada.card("5").click();
   await ada.page.getByRole("button", { name: "Reveal votes" }).click();
   await expect(ticketText(ben.page)).toHaveText(
     "PROJ-482 Admins can sign in with SSO",
   );
+
+  // Start next round clears it, for everyone: the next round is usually the
+  // next ticket. Ada gets Add a ticket; Ben no longer sees the slot's label.
   await ada.page.getByRole("button", { name: "Start next round" }).click();
   await expect(ada.heading).toHaveText(
     `Waiting for ${isolate("Ada")} and ${isolate("Ben")}`,
   );
-  await expect(ticketText(ben.page)).toHaveText(
-    "PROJ-482 Admins can sign in with SSO",
-  );
+  await expect(
+    ada.page.getByRole("button", { name: "Add a ticket" }),
+  ).toBeVisible();
+  await expect(ben.heading).toHaveText("0 of 2 have voted");
+  await expect(nowEstimating(ben.page)).toHaveCount(0);
 
   // Cleared with Save on an empty field: gone for Ben, Add a ticket for Ada.
+  await ada.page.getByRole("button", { name: "Add a ticket" }).click();
+  await field.fill("PROJ-483");
+  await field.press("Enter");
+  await expect(ticketText(ben.page)).toHaveText("PROJ-483");
   await ada.page.getByRole("button", { name: "Edit the ticket" }).click();
   await field.fill("");
   await ada.page.getByRole("button", { name: "Save" }).click();
