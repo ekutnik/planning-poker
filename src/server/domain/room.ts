@@ -57,12 +57,11 @@ export interface Room {
    */
   readonly scores: ReadonlyMap<ParticipantId, number>;
   /**
-   * The timer (ADR 0008): idle until someone starts it, back to idle at every
-   * reveal and at Start next round. Its duration stays across rounds.
+   * The timer (ADR 0008): idle until someone starts it, expired when its
+   * time runs out (ADR 0010), back to idle at every reveal and at Start next
+   * round. Its duration stays across rounds.
    */
   readonly timer: TimerView;
-  /** "timer" once the timer has revealed the round; null otherwise. */
-  readonly revealCause: "timer" | null;
 }
 
 export type Command =
@@ -125,7 +124,6 @@ export function createRoom(id: string): Room {
     scoring: false,
     scores: new Map(),
     timer: idleTimer(TIMER_DEFAULT_MS),
-    revealCause: null,
   };
 }
 
@@ -185,13 +183,7 @@ function commit(
   changes: Partial<
     Pick<
       Room,
-      | "phase"
-      | "participants"
-      | "ticket"
-      | "scoring"
-      | "scores"
-      | "timer"
-      | "revealCause"
+      "phase" | "participants" | "ticket" | "scoring" | "scores" | "timer"
     >
   >,
 ): Room {
@@ -293,17 +285,16 @@ function reveal(room: Room, cmd: CommandOf<"reveal">): Result {
 }
 
 /**
- * The one way a round is revealed, by a person or by the timer, so both
- * score the same and both stop the timer. One commit: the version goes up
- * once. Fields that are already as they should be are left alone, so with
- * nothing new switched on a reveal is exactly the reveal it always was.
+ * A round revealed: points scored and the timer stopped, in one commit, so
+ * the version goes up once. Fields that are already as they should be are
+ * left alone, so with nothing new switched on a reveal is exactly the reveal
+ * it always was. Only a person reveals: the timer nudges instead (ADR 0010).
  */
-function revealRound(room: Room, cause: "timer" | null = null): Room {
+function revealRound(room: Room): Room {
   return commit(room, {
     phase: "revealed",
     ...pointsAtReveal(room),
     ...stopTimer(room),
-    ...(cause === room.revealCause ? {} : { revealCause: cause }),
   });
 }
 
@@ -359,7 +350,6 @@ function reset(room: Room, cmd: CommandOf<"reset">): Result {
       phase: "voting",
       participants,
       ...stopTimer(room),
-      ...(room.revealCause === null ? {} : { revealCause: null }),
       ...(room.ticket === null ? {} : { ticket: null }),
     }),
   );
@@ -442,7 +432,10 @@ function timerSetDuration(
   return ok(commit(room, { timer: { ...room.timer, durationMs: cmd.ms } }));
 }
 
-/** While voting and idle: the deadline is now plus the duration. */
+/**
+ * While voting, idle or expired: the deadline is now plus the duration, so
+ * after time ran out, Start gives the whole duration again.
+ */
 function timerStart(
   room: Room,
   cmd: CommandOf<"timerStart">,
@@ -450,7 +443,8 @@ function timerStart(
 ): Result {
   const refused = sender(room, cmd.participantId);
   if (refused) return fail(refused);
-  if (room.timer.state !== "idle") return ok(room); // no-op: already started
+  const { state } = room.timer;
+  if (state !== "idle" && state !== "expired") return ok(room); // no-op: already started
   if (room.phase === "revealed") return fail("VOTING_CLOSED");
   return ok(
     commit(room, {
@@ -508,7 +502,10 @@ function timerResume(
   );
 }
 
-/** Running or paused: 30 s more, never past TIMER_MAX_MS left. */
+/**
+ * Running or paused: 30 s more, never past TIMER_MAX_MS left. Expired: the
+ * timer runs again, for 30 s.
+ */
 function timerAdd(room: Room, cmd: CommandOf<"timerAdd">, now: number): Result {
   const refused = sender(room, cmd.participantId);
   if (refused) return fail(refused);
@@ -523,22 +520,37 @@ function timerAdd(room: Room, cmd: CommandOf<"timerAdd">, now: number): Result {
     if (next <= remainingMs) return ok(room); // no-op: already at the most
     return ok(commit(room, { timer: { ...room.timer, remainingMs: next } }));
   }
+  if (state === "expired" && room.phase === "voting") {
+    return ok(
+      commit(room, {
+        timer: {
+          durationMs: room.timer.durationMs,
+          state: "running",
+          endsAt: now + TIMER_ADD_MS,
+          remainingMs: null,
+        },
+      }),
+    );
+  }
   return ok(room); // no-op: nothing to add to
 }
 
 /**
- * The deadline has passed: reveal, whether or not everyone has voted, by the
- * same revealRound as a person, and record that the timer did it. Checked
- * again here, whatever the caller believes: only a running timer whose
- * deadline is past can reveal. With no votes at all there is nothing to
- * reveal, so the timer only goes back to idle.
+ * The deadline has passed: the timer is expired, and the round goes on. It
+ * is a soft deadline (ADR 0010): nothing is revealed, whether or not anyone
+ * has voted; the room service nudges whoever still hasn't. Checked again
+ * here, whatever the caller believes: only a running timer whose deadline
+ * is past can expire.
  */
 function timeUp(room: Room, now: number): Result {
-  const { state, endsAt } = room.timer;
+  const { state, endsAt, durationMs } = room.timer;
   if (state !== "running" || endsAt === null) return ok(room); // no-op
   if (now < endsAt) return ok(room); // no-op: not yet
-  if (!hasAnyVote(room)) return ok(commit(room, stopTimer(room)));
-  return ok(revealRound(room, "timer"));
+  return ok(
+    commit(room, {
+      timer: { durationMs, state: "expired", endsAt: null, remainingMs: 0 },
+    }),
+  );
 }
 
 /**

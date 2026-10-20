@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { RoomSnapshot } from "../shared/snapshot.js";
+import type { NudgeReason } from "./connection/room-connection.js";
 import { NUDGE_COPY, PRODUCT_NAME } from "./copy.js";
 import { roundStatus } from "./status.js";
 
@@ -31,17 +32,21 @@ export function roomTitle(snapshot: RoomSnapshot): string {
 /**
  * The room's tab title and its nudge banner, decided together so they can
  * never disagree: while a nudge stands, the title asks for your vote and
- * the banner says the room is waiting; otherwise the title carries the
- * round and there is no banner. Both are fixed words chosen by a yes or no,
- * so nothing about who nudged, or anyone else, can reach them.
+ * the banner says the room is waiting, after "Time's up." when the timer
+ * nudged (ADR 0010); otherwise the title carries the round and there is no
+ * banner. Both are fixed words chosen by a yes or no and the reason, so
+ * nothing about who nudged, or anyone else, can reach them.
  */
 export function roomTitleAndBanner(
   round: string,
   nudged: boolean,
+  reason: NudgeReason = "person",
 ): { readonly title: string; readonly banner: string | null } {
-  return nudged
-    ? { title: NUDGE_COPY.title, banner: NUDGE_COPY.banner }
-    : { title: round, banner: null };
+  if (!nudged) return { title: round, banner: null };
+  return {
+    title: NUDGE_COPY.title,
+    banner: reason === "time" ? NUDGE_COPY.timesUpBanner : NUDGE_COPY.banner,
+  };
 }
 
 /** Sets the document title while this screen is shown. */

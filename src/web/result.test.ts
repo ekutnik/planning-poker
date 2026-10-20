@@ -39,7 +39,6 @@ function revealed(
       endsAt: null,
       remainingMs: null,
     },
-    revealCause: null,
     participants,
     results: {
       voteCount: votes.filter((vote) => vote !== null).length,

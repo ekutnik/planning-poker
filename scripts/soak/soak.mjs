@@ -13,7 +13,7 @@
 // end, and the exit code is 1 if anything that should never happen did.
 import { execFile, execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, firefox, webkit } from "playwright";
 import WebSocket from "ws";
 
@@ -56,6 +56,23 @@ if (
   process.exit(2);
 }
 const CONTAINER = process.env.CONTAINER ?? "pp-ab";
+// The bots speak the protocol this checkout's client does, read from the
+// source, so a version bump never leaves them behind: the server closes any
+// other version as an outdated client.
+const PROTOCOL_VERSION = Number(
+  /PROTOCOL_VERSION = (\d+);/.exec(
+    readFileSync(
+      new URL("../../src/shared/socket.ts", import.meta.url),
+      "utf8",
+    ),
+  )?.[1],
+);
+if (!Number.isInteger(PROTOCOL_VERSION)) {
+  console.error(
+    "refusing: no whole-number PROTOCOL_VERSION found in src/shared/socket.ts, so the bots can't say which protocol they speak",
+  );
+  process.exit(2);
+}
 
 const WSS = BASE.replace(/^http/, "ws");
 const RESTART_AT = Number(process.env.RESTART_AT ?? 0) * 60_000;
@@ -91,7 +108,9 @@ class Bot {
   }
   connect() {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`${WSS}/ws/${this.roomId}?v=3`);
+      const ws = new WebSocket(
+        `${WSS}/ws/${this.roomId}?v=${PROTOCOL_VERSION}`,
+      );
       this.ws = ws;
       this.expectedClose = false;
       ws.on("open", () =>

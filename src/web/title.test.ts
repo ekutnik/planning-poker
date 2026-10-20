@@ -68,7 +68,6 @@ describe("document titles (A-03)", () => {
           endsAt: null,
           remainingMs: null,
         },
-        revealCause: null,
         participants: [
           { id: "Ada", name: "Ada", status: "connected", vote: "13" },
         ],

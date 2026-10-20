@@ -810,7 +810,7 @@ describe("keeping score", () => {
     expect(points(after)).toEqual({ a: 1 });
   });
 
-  it("a reveal by the timer (timeUp) awards points the same way", () => {
+  it("time running out awards nothing: only a reveal does (ADR 0010)", () => {
     const start: Command = { type: "timerStart", participantId: "a" };
     const running = run(
       room(true),
@@ -819,9 +819,10 @@ describe("keeping score", () => {
       start,
     );
     const endsAt = running.timer.endsAt ?? 0;
-    const revealed = must(applyCommand(running, { type: "timeUp" }, endsAt));
-    expect(revealed.phase).toBe("revealed");
-    expect(revealed.revealCause).toBe("timer");
+    const expired = must(applyCommand(running, { type: "timeUp" }, endsAt));
+    expect(expired.phase).toBe("voting");
+    expect(points(expired)).toEqual({});
+    const revealed = must(applyCommand(expired, reveal("a"), endsAt + 1_000));
     expect(points(revealed)).toEqual({ a: 1, b: 1 });
   });
 
@@ -914,7 +915,6 @@ describe("the timer", () => {
       endsAt: null,
       remainingMs: null,
     });
-    expect(createRoom("r1").revealCause).toBeNull();
   });
 
   describe("timerStart", () => {
@@ -1052,7 +1052,6 @@ describe("the timer", () => {
         endsAt: null,
         remainingMs: null,
       });
-      expect(r.revealCause).toBeNull();
     });
 
     it("at Start next round, from running or paused", () => {
@@ -1063,15 +1062,43 @@ describe("the timer", () => {
     });
   });
 
-  describe("timeUp", () => {
+  describe("timeUp (ADR 0010: a soft deadline)", () => {
     const voted = () => run(running(), castVote("bob", "8"));
+    const expiredAt = NOW + DURATION;
+    const expired = () => at(expiredAt, voted(), { type: "timeUp" });
+    // A one-minute timer that ran out, for the tests that need the whole
+    // duration to differ from the 30 s that +30 s adds.
+    const expiredMinute = () =>
+      at(
+        NOW + MIN,
+        at(NOW, run(inRoom(), setDuration(MIN)), cmd("timerStart")),
+        { type: "timeUp" },
+      );
 
-    it("at the deadline, reveals whether or not everyone has voted, marked as the timer's", () => {
-      const revealed = at(NOW + DURATION, voted(), { type: "timeUp" });
-      expect(revealed.phase).toBe("revealed");
-      expect(revealed.revealCause).toBe("timer");
-      expect(revealed.timer.state).toBe("idle");
-      expect(revealed.version).toBe(voted().version + 1);
+    it("at the deadline, expires and reveals nothing: the round goes on", () => {
+      const r = expired();
+      expect(r.phase).toBe("voting");
+      expect(r.timer).toEqual({
+        durationMs: DURATION,
+        state: "expired",
+        endsAt: null,
+        remainingMs: 0,
+      });
+      expect(r.participants.get("bob")?.vote).toBe("8");
+      expect(r.version).toBe(voted().version + 1);
+    });
+
+    it("reveals nothing even when everyone has voted", () => {
+      const all = run(running(), castVote("alice", "5"), castVote("bob", "8"));
+      const r = at(NOW + DURATION, all, { type: "timeUp" });
+      expect(r.phase).toBe("voting");
+      expect(r.timer.state).toBe("expired");
+    });
+
+    it("expires the same way with no votes at all", () => {
+      const r = at(NOW + DURATION, running(), { type: "timeUp" });
+      expect(r.phase).toBe("voting");
+      expect(r.timer.state).toBe("expired");
     });
 
     it("before the deadline changes nothing", () => {
@@ -1082,26 +1109,56 @@ describe("the timer", () => {
     it.each([
       ["idle", () => run(inRoom(), castVote("bob", "8"))],
       ["paused", () => run(paused(), castVote("bob", "8"))],
+      ["expired", expired],
     ])(
-      "changes nothing while %s: only a running timer can reveal",
+      "changes nothing while %s: only a running timer can expire",
       (_, timer) => {
         const r = timer();
         expect(at(NOW + 60 * MIN, r, { type: "timeUp" })).toBe(r);
       },
     );
 
-    it("with no votes at all, reveals nothing and goes back to idle", () => {
-      const r = at(NOW + DURATION, running(), { type: "timeUp" });
-      expect(r.phase).toBe("voting");
-      expect(r.timer.state).toBe("idle");
+    it("Start from expired begins the whole duration again", () => {
+      const later = NOW + MIN + 5_000;
+      expect(at(later, expiredMinute(), cmd("timerStart")).timer).toEqual({
+        durationMs: MIN,
+        state: "running",
+        endsAt: later + MIN,
+        remainingMs: null,
+      });
     });
 
-    it("is cleared at Start next round, so the next reveal is a person's", () => {
-      const next = run(
-        at(NOW + DURATION, voted(), { type: "timeUp" }),
-        reset("alice"),
-      );
-      expect(next.revealCause).toBeNull();
+    it("+30 s from expired runs the timer again, for 30 s", () => {
+      const later = NOW + MIN + 5_000;
+      expect(at(later, expiredMinute(), cmd("timerAdd")).timer).toEqual({
+        durationMs: MIN,
+        state: "running",
+        endsAt: later + 30_000,
+        remainingMs: null,
+      });
+    });
+
+    it("Pause and Resume from expired change nothing", () => {
+      const r = expired();
+      expect(at(expiredAt + 1, r, cmd("timerPause"))).toBe(r);
+      expect(at(expiredAt + 1, r, cmd("timerResume"))).toBe(r);
+    });
+
+    it("a reveal from expired returns it to idle, keeping the duration", () => {
+      const r = run(expired(), reveal("alice"));
+      expect(r.phase).toBe("revealed");
+      expect(r.timer).toEqual({
+        durationMs: DURATION,
+        state: "idle",
+        endsAt: null,
+        remainingMs: null,
+      });
+    });
+
+    it("Start next round from expired returns it to idle", () => {
+      const r = run(expired(), reset("alice"));
+      expect(r.phase).toBe("voting");
+      expect(r.timer.state).toBe("idle");
     });
   });
 

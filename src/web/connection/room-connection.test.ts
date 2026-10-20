@@ -410,6 +410,16 @@ describe("RoomConnection — reconnecting", () => {
     expect(nudges).toBe(1);
   });
 
+  it("passes on why: the timer's nudge as time, a person's as person (ADR 0010)", () => {
+    const { connection, latest, joined } = setup();
+    joined(1);
+    const reasons: string[] = [];
+    connection.onNudged((reason) => reasons.push(reason));
+    latest().receive({ type: "nudged", reason: "time" });
+    latest().receive({ type: "nudged" });
+    expect(reasons).toEqual(["time", "person"]);
+  });
+
   it("delivers no nudge once disposed, as after leaving", () => {
     // Disposing detaches the socket, so this holds whatever the listener
     // set does; dispose() also clears the set, only to free memory.

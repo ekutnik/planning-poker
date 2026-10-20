@@ -13,6 +13,13 @@ import type { Tools } from "./tools.js";
  * countdown.test.ts.
  */
 
+const EXPIRED: TimerView = {
+  durationMs: 60_000,
+  state: "expired",
+  endsAt: null,
+  remainingMs: 0,
+};
+
 const IDLE: TimerView = {
   durationMs: 60_000,
   state: "idle",
@@ -84,6 +91,17 @@ describe("the facilitator's timer", () => {
     expect(buttons(html)[0]).toContain('aria-label="Resume the timer"');
   });
 
+  it("expired: 0:00, quiet, with Time's up, then Start (the whole time again) and +30 s", () => {
+    const html = controls(EXPIRED);
+    expect(html).toContain(
+      '<span class="timer-time timer-time--paused">0:00</span><span class="timer-word">Time&#x27;s up</span>',
+    );
+    const [main, add] = buttons(html);
+    expect(main).toContain('aria-label="Start the timer"');
+    expect(add).toContain('aria-label="Add 30 seconds"');
+    expect(html).not.toContain("<select");
+  });
+
   it("is disabled while the room reconnects", () => {
     for (const button of buttons(controls(running(), false))) {
       expect(button).toContain('disabled=""');
@@ -100,10 +118,10 @@ describe("everyone else's block", () => {
     expect(readout(IDLE)).toBe("");
   });
 
-  it("running: the time, then what happens when it ends, with the edge", () => {
+  it("running: the time left, with the edge", () => {
     const html = readout(running());
     expect(html).toContain(
-      '<span class="timer-time">1:24</span> <span class="timer-word">left, then votes are revealed</span>',
+      '<span class="timer-time">1:24</span> <span class="timer-word">left</span>',
     );
     expect(html).toContain('class="timer-edge"');
   });
@@ -114,8 +132,15 @@ describe("everyone else's block", () => {
     );
   });
 
+  it("expired: 0:00, quiet, and Time's up, the round still open (ADR 0010)", () => {
+    expect(readout(EXPIRED)).toContain(
+      '<span class="timer-time timer-time--paused">0:00</span> <span class="timer-word">Time&#x27;s up</span>',
+    );
+  });
+
   it("has no controls", () => {
     expect(readout(running())).not.toContain("<button");
+    expect(readout(EXPIRED)).not.toContain("<button");
   });
 });
 
@@ -186,8 +211,8 @@ describe("the timer in the room", () => {
 });
 
 describe("the reveal, said", () => {
-  it("says Time's up when the timer revealed the round, and not otherwise", () => {
-    const revealed = (revealCause: "timer" | null): RoomSnapshot => ({
+  it("says the result, whoever revealed: the timer never does (ADR 0010)", () => {
+    const revealed: RoomSnapshot = {
       phase: "revealed",
       roomId: "abcdefghijk",
       version: 4,
@@ -195,7 +220,6 @@ describe("the reveal, said", () => {
       ticket: null,
       scores: null,
       timer: IDLE,
-      revealCause,
       participants: [
         { id: "ada", name: "Ada", status: "connected", vote: "5" },
         { id: "ben", name: "Ben", status: "connected", vote: "5" },
@@ -209,13 +233,9 @@ describe("the reveal, said", () => {
         spreadSteps: 0,
         winners: ["5"],
       },
-    });
-    const byTimer = phaseAnnouncement("voting", revealed("timer"));
-    const byPerson = phaseAnnouncement("voting", revealed(null));
-    expect(byTimer?.full).toBe(`Time's up. ${byPerson?.full ?? ""}`);
-    expect(byTimer?.full).toMatch(/^Time's up\. Votes revealed\./);
-    expect(byTimer?.afterHeading).toBe(
-      `Time's up. ${byPerson?.afterHeading ?? ""}`,
-    );
+    };
+    const said = phaseAnnouncement("voting", revealed);
+    expect(said?.full).toMatch(/^Votes revealed\./);
+    expect(said?.full).not.toMatch(/Time's up/);
   });
 });

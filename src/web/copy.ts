@@ -135,7 +135,7 @@ export const TOOLS_COPY = {
   ticket: "Ticket name",
   ticketNote: "Show what the room is estimating.",
   timer: "Timer",
-  timerNote: "Reveal the votes when time runs out.",
+  timerNote: "Nudge whoever hasn't voted when time runs out.",
   /** Instead of the note, while a running or paused timer holds it on. */
   timerBusy: "Available once the timer has stopped.",
 } as const;
@@ -189,13 +189,14 @@ export const TIMER_COPY = {
   /** After the numeral: for a screen reader in the facilitator's block. */
   left: "left",
   paused: "Paused",
-  /** After the numeral, for everyone but the facilitator. */
-  thenRevealed: "left, then votes are revealed",
+  /** After 0:00, for everyone, once time ran out (ADR 0010). */
+  expired: "Time's up",
   /** Said once each. The countdown itself is never said. */
   started: (words: string) => `Timer started: ${words}.`,
+  /** Restarted once its time ran out, by Start or +30 s (ADR 0010). */
+  restarted: "Timer started again.",
   tenLeft: "10 seconds left.",
-  /** The timer ran out with no votes: nothing was revealed. */
-  nobodyVoted: "Time's up. Nobody has voted yet.",
+  /** Said once, as time runs out, to whoever has voted: the rest get the nudge. */
   timesUp: "Time's up.",
 } as const;
 
@@ -247,6 +248,8 @@ export const PREVIEW_COPY = {
  */
 export const NUDGE_COPY = {
   banner: "The room is waiting for your vote.",
+  /** The timer's nudge, as its time ran out (ADR 0010). */
+  timesUpBanner: "Time's up. The room is waiting for your vote.",
   title: "Your vote, please",
   nudge: "Nudge",
   nudged: "Nudged",

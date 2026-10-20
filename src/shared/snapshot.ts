@@ -50,8 +50,6 @@ export type RoomSnapshot =
       readonly ticket: string | null;
       readonly scores: Scores | null;
       readonly timer: TimerView;
-      /** "timer" when the timer revealed this round; null when a person did. */
-      readonly revealCause: "timer" | null;
     };
 
 /**
@@ -63,7 +61,11 @@ export type RoomSnapshot =
  */
 export interface TimerView {
   readonly durationMs: number;
-  readonly state: "idle" | "running" | "paused";
+  /**
+   * "expired" once time ran out (ADR 0010): the round goes on, `endsAt` is
+   * null and `remainingMs` 0, until Start, +30 s, a reveal or the next round.
+   */
+  readonly state: "idle" | "running" | "paused" | "expired";
   readonly endsAt: number | null;
   readonly remainingMs: number | null;
 }

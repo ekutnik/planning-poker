@@ -22,7 +22,7 @@ A team estimates together on a video call, everyone on their own laptop, while t
 - **A result sentence that singles no one out:** the spread, then the winning card or a draw, or why there is none. The deck becomes a scale, with each name above the card it chose.
 - **A facilitator view** for sharing your screen: your own vote stays hidden unless you choose to show it, and the controls stay in one place.
 - **The ticket being estimated,** first in the room for everyone, set in place by the facilitator once they switch Ticket name on in the Menu's Session tools.
-- **A timer, if you want one:** switched on in the same place; the facilitator starts it, everyone sees it count down, and when it ends the server reveals the votes ([ADR 0008](docs/decisions/0008-the-server-holds-the-timer.md)).
+- **A timer, if you want one:** switched on in the same place; the facilitator starts it, everyone sees it count down, and when it ends the server nudges whoever hasn't voted, leaving the reveal to a person ([ADR 0008](docs/decisions/0008-the-server-holds-the-timer.md), [ADR 0010](docs/decisions/0010-the-timer-is-a-soft-deadline.md)).
 - **Keep score, if you like:** a point when your vote matches the result, off until the facilitator turns it on, for the session only.
 - **Nudges:** a quiet, anonymous reminder to someone who hasn't voted ([ADR 0007](docs/decisions/0007-nudges-are-transient-and-anonymous.md)).
 - **It recovers on its own:** pages reconnect after a dropped connection, a laptop that wakes within a minute keeps its seat and its vote, and during a deploy each page says "The server is restarting. Reconnecting…".
@@ -81,7 +81,7 @@ flowchart LR
 
 ### Presence and timeouts
 
-Every timeout runs in one periodic sweep that compares timestamps (no per-connection timers), so each deadline fires up to one sweep interval (5s) late. The room timer is the one exception: its reveal cannot be 5s late, so each running timer has one scheduled callback, checked again before it acts ([ADR 0008](docs/decisions/0008-the-server-holds-the-timer.md)).
+Every timeout runs in one periodic sweep that compares timestamps (no per-connection timers), so each deadline fires up to one sweep interval (5s) late. The room timer is the one exception: its nudge cannot be 5s late, so each running timer has one scheduled callback, checked again before it acts ([ADR 0008](docs/decisions/0008-the-server-holds-the-timer.md)).
 
 | Rule              | Threshold               | In practice                                                               |
 | ----------------- | ----------------------- | ------------------------------------------------------------------------- |
@@ -263,6 +263,7 @@ The architecture decisions, each with its context and consequences:
 - [0007. Nudges are transient and anonymous](docs/decisions/0007-nudges-are-transient-and-anonymous.md)
 - [0008. The server holds the timer](docs/decisions/0008-the-server-holds-the-timer.md)
 - [0009. Limits per client address, sized for a team behind one NAT](docs/decisions/0009-limits-per-client-address.md)
+- [0010. The timer is a soft deadline](docs/decisions/0010-the-timer-is-a-soft-deadline.md)
 
 The visual and interaction design, and the reasoning behind it, is in [docs/design.md](docs/design.md).
 

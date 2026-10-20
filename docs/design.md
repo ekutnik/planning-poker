@@ -158,7 +158,7 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 - **Copy link moves into the Menu in compact,** as its first item, above Facilitate, so the pill and the Menu fit beside the name in one row: a second header row would cost about 72 px where height is scarcest, and Copy link is used once a session, by whoever creates the room. It says "Link copied" there, and the panel stays open to show it. When the browser refuses the copy it says "Couldn't copy. Copy the address from your browser." instead; either message shows for three seconds, and both are announced through the button's own live region, since a focused button whose text changes is not reliably read out. It is rendered in one place or the other, chosen in script at the same 55em breakpoint, never in both with one hidden by CSS, so a screen reader never finds two.
 - **The frame:** the header spans the window with its Rule line underneath; its content, and each screen's content below it, sit in one column of at most 1120 px. At 320 px (400% zoom) the header wraps onto two rows, the controls kept at the right edge so the Menu's panel stays on screen.
 - **Menu** is a disclosure: a button that shows a panel, not an ARIA menu (it holds mixed controls) and not a dialog (a dialog would move and trap focus and make the rest of the page inert, none of which fits a small settings panel). In the facilitator view, two groups:
-  1. **"Session tools"** (12 px, 600, Quiet): **Ticket name**, "Show what the room is estimating."; **Timer**, "Reveal the votes when time runs out."; **Keep score**, "A point when a vote matches the result." Each is a switch (`role="switch"`) with its description. The Menu's descriptions are at most 192 px wide (`12rem`), so they read as short lines: "Reveal the votes when time / runs out.", "A point when a vote matches / the result." at the default size; at other sizes a line may break a word earlier, which is fine.
+  1. **"Session tools"** (12 px, 600, Quiet): **Ticket name**, "Show what the room is estimating."; **Timer**, "Nudge whoever hasn't voted when time runs out."; **Keep score**, "A point when a vote matches the result." Each is a switch (`role="switch"`) with its description. The Menu's descriptions are at most 192 px wide (`12rem`), so they read as short lines: "Nudge whoever hasn't voted / when time runs out.", "A point when a vote matches / the result." at the default size; at other sizes a line may break a word earlier, which is fine.
   2. A divider, then **"Just for you"**: Facilitate, a switch, with "Hides your vote so you can share your screen."; then Theme: System / Light / Dark, a native select.
   3. A divider, then "Leave the room".
 
@@ -227,14 +227,15 @@ What the room is estimating, first in the action row, so nobody has to ask "whic
 
 <table><tr><td width="45%"><img src="design/timer-idle-compact-light.png" alt="The facilitator on a phone: the timer block at the top, set apart by a rule, above the status line, and Reveal votes in the pinned bar, light theme" /></td><td width="45%"><img src="design/timer-idle-compact-dark.png" alt="The facilitator on a phone: the timer block at the top, set apart by a rule, above the status line, and Reveal votes in the pinned bar, dark theme" /></td></tr></table>
 
-A timer for rounds the team wants kept short: the facilitator starts it, everyone sees it, and when it ends the server reveals the votes ([ADR 0008](decisions/0008-the-server-holds-the-timer.md)). Idle until someone starts it.
+A timer for rounds the team wants kept short: the facilitator starts it, everyone sees it, and when it ends the server nudges whoever hasn't voted; the votes stay hidden until someone reveals them ([ADR 0008](decisions/0008-the-server-holds-the-timer.md), [ADR 0010](decisions/0010-the-timer-is-a-soft-deadline.md)). Idle until someone starts it.
 
 - **One 40 px block that sits on the page,** in the action row in wide and at the top on a phone: no outline and no fill, the clock at the content's edge. Only its buttons (Start, Pause and Resume, +30 s) have the small button's surface and edge: what is white can be pressed. The time, "Paused" and the duration's select stay plain. **What is left of the duration is its 2 px underline:** a Rule track, filled in Cobalt.
 - **Facilitator view, with Timer on, while voting.** Idle: a clock icon (16 px, Quiet), the duration as a quiet select ("30 s ▾", named "Timer": 30 s, 1 min, 2 min, 3 min, 5 min, Custom…; a new room starts at 30 s, a minute until v1.1, on the team's feedback), and **Start**, a square 28 px button with a play icon, named "Start the timer". Custom… opens a small m:ss field inside the block, which grows wider, from 0:10 to 10:00. While its text is out of range, Start is disabled, so a timer never starts with a length nobody meant, and once the field is left (or Enter pressed) "Choose a time from 10 seconds to 10 minutes." shows under the action row, in the space above the deck, so it moves nothing, as the field's description. The select shows the room's duration: Custom… whenever it is no preset, whoever set it. Running: the time (17 / 600, tabular numerals; "left" for a screen reader), a square **Pause** button and **+30 s**. Paused: the time turns Quiet, "Paused" appears (13 px, Quiet), and Pause becomes **Resume**. Start, Pause and Resume are one button in one place, so focus stays on it as its job changes; they are named "Start the timer", "Pause the timer" and "Resume the timer", and +30 s "Add 30 seconds". All are the app's small buttons (28 px, the square ones with a 14 px icon), so the block keeps its 40 px when Start becomes Pause, and Reveal votes stays the one strong control.
-- **Everyone else, whatever their own settings:** the same block without any buttons, while the timer runs or is paused: "1:24 left, then votes are revealed", or the time, Quiet, and "Paused". Nothing at all while idle.
+- **When time runs out** (ADR 0010, on the team's feedback of 2026-10-19), the round goes on. The block shows 0:00, Quiet, and "Time's up", for everyone. In the facilitator view it has **Start**, which runs the whole duration again, and **+30 s**, which runs it for 30 s. Everyone connected who hasn't voted is nudged once, with the banner "Time's up. The room is waiting for your vote." and the nudge's sound ([Nudges](#nudges)), and their nudge cooldown restarts. So the facilitator's Nudge buttons for them read "Nudged" for the same 30 s. Timer may be switched off in the Menu again, since it's no longer counting.
+- **Everyone else, whatever their own settings:** the same block without any buttons, while the timer runs, is paused or has run out: "1:24 left", or the time, Quiet, and "Paused", or 0:00, Quiet, and "Time's up". Nothing at all while idle.
 - **The duration** is the room's, sent the moment it is chosen, and stays across rounds; a running timer keeps its deadline, and a new length applies from the next start. The server accepts 10 s to 10 minutes in whole seconds.
-- **Back to idle by itself** at every reveal (a person's or the timer's) and at Start next round.
-- **Said once each,** through the room's polite live region: "Timer started: 30 seconds."; "10 seconds left." (only if more than 10 seconds were left when it started or resumed, so it never talks over "Timer started"); when the timer reveals, "Time's up." before the result; and when it runs out with nobody having voted, so nothing is revealed, "Time's up. Nobody has voted yet." The countdown itself is never said, and the edge is hidden from screen readers: the time says it.
+- **Back to idle by itself** at every reveal and at Start next round, whether it was running, paused or out of time.
+- **Said once each,** through the room's polite live region: "Timer started: 30 seconds."; "10 seconds left." (only if more than 10 seconds were left when it started or resumed, so it never talks over "Timer started"); as time runs out, "Time's up." to whoever has voted, while whoever hasn't hears the nudge's banner instead, so nobody hears it twice; and "Timer started again." when Start or +30 s restarts it after that. The countdown itself is never said, and the edge is hidden from screen readers: the time says it.
 - **The time** is in tabular numerals, rounded up, so 0:00 shows only at the end. Each browser counts down from the server's deadline, moved into its own clock on arrival, so a laptop whose clock is off still shows the same time as everyone else. With reduced motion the edge jumps rather than slides.
 
 ### Keeping score
@@ -417,37 +418,37 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 - One name per thing: it is a room, not a game; you choose a card, not pick one; "Create a room" everywhere; "Start next round", never "new round"; and anyone can reveal, so nothing says "until everyone reveals".
 - The result names no one.
 
-| Moment                | Copy                                                                                                                 |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Product name          | "Planning Poker Session"                                                                                             |
-| Landing               | "Estimate together"; "Create a room"; "You'll get a link to share with your team."                                   |
-| Switch                | "I'm running this session" / "Hides your vote so you can share your screen."                                         |
-| Room link, no name    | "Join the room"; "Everyone in the room sees your name."; "Join"                                                      |
-| Not a room            | "There's no room at this link."; "Create a room"                                                                     |
-| Menu                  | "Session tools"; "Just for you"; "Facilitate", "Theme", "Leave the room"                                             |
-| Session tools         | "Ticket name" / "Show what the room is estimating."; "Timer" / "Reveal the votes when time runs out."                |
-| Timer, held on        | "Available once the timer has stopped."                                                                              |
-| Header pill           | "Facilitating"                                                                                                       |
-| Pills                 | "Voted", "Not yet", "Away", "You've voted"; after reveal, "No vote"                                                  |
-| Own row               | "(you)"                                                                                                              |
-| Status (participant)  | "4 of 5 have voted", or "Everyone has voted"                                                                         |
-| Status (facilitator)  | "Waiting for Ben and Cy. Fay is away.", or "Everyone has voted. Fay is away."                                        |
-| Primary actions       | "Reveal votes" → "Votes revealed"; "Start next round"                                                                |
-| Own vote, facilitator | "Clear my vote"; "Show my vote" / "Hide my vote"; "You've voted" / "Your vote: 8"                                    |
-| Ticket                | "Now estimating"; "Add a ticket", "Edit the ticket" (the pencil's name and tooltip), "Save", "Cancel"                |
-| Ticket (spoken)       | "Now estimating: PROJ-482 …", when someone else changes it                                                           |
-| Ticket too long       | "That ticket is too long. Keep it to 120 characters."                                                                |
-| Keep score            | "Keep score" / "A point when a vote matches the result."                                                             |
-| Points                | "3 pts", "1 pt" (spoken "3 points", "1 point")                                                                       |
-| Timer                 | "Timer"; "Start the timer"; "1:24" / "Paused"; "+30 s"; "Custom…"                                                    |
-| Timer, others         | "1:24 left, then votes are revealed"; "1:24" "Paused"                                                                |
-| Timer (spoken)        | "Timer started: 30 seconds."; "10 seconds left."; "Time's up." before the result; "Time's up. Nobody has voted yet." |
-| Timer, bad duration   | "Choose a time from 10 seconds to 10 minutes."                                                                       |
-| Nudge                 | "Nudge" (accessible name "Nudge Cy"), "Nudged"; "The room is waiting for your vote."                                 |
-| Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8."                               |
-| Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."                                 |
-| Preview               | "Pause preview" / "Play preview"                                                                                     |
-| Next round (spoken)   | "Next round started."                                                                                                |
+| Moment                | Copy                                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Product name          | "Planning Poker Session"                                                                                                              |
+| Landing               | "Estimate together"; "Create a room"; "You'll get a link to share with your team."                                                    |
+| Switch                | "I'm running this session" / "Hides your vote so you can share your screen."                                                          |
+| Room link, no name    | "Join the room"; "Everyone in the room sees your name."; "Join"                                                                       |
+| Not a room            | "There's no room at this link."; "Create a room"                                                                                      |
+| Menu                  | "Session tools"; "Just for you"; "Facilitate", "Theme", "Leave the room"                                                              |
+| Session tools         | "Ticket name" / "Show what the room is estimating."; "Timer" / "Nudge whoever hasn't voted when time runs out."                       |
+| Timer, held on        | "Available once the timer has stopped."                                                                                               |
+| Header pill           | "Facilitating"                                                                                                                        |
+| Pills                 | "Voted", "Not yet", "Away", "You've voted"; after reveal, "No vote"                                                                   |
+| Own row               | "(you)"                                                                                                                               |
+| Status (participant)  | "4 of 5 have voted", or "Everyone has voted"                                                                                          |
+| Status (facilitator)  | "Waiting for Ben and Cy. Fay is away.", or "Everyone has voted. Fay is away."                                                         |
+| Primary actions       | "Reveal votes" → "Votes revealed"; "Start next round"                                                                                 |
+| Own vote, facilitator | "Clear my vote"; "Show my vote" / "Hide my vote"; "You've voted" / "Your vote: 8"                                                     |
+| Ticket                | "Now estimating"; "Add a ticket", "Edit the ticket" (the pencil's name and tooltip), "Save", "Cancel"                                 |
+| Ticket (spoken)       | "Now estimating: PROJ-482 …", when someone else changes it                                                                            |
+| Ticket too long       | "That ticket is too long. Keep it to 120 characters."                                                                                 |
+| Keep score            | "Keep score" / "A point when a vote matches the result."                                                                              |
+| Points                | "3 pts", "1 pt" (spoken "3 points", "1 point")                                                                                        |
+| Timer                 | "Timer"; "Start the timer"; "1:24" / "Paused"; "+30 s"; "Custom…"                                                                     |
+| Timer, others         | "1:24 left"; "1:24" "Paused"; "0:00" "Time's up"                                                                                      |
+| Timer (spoken)        | "Timer started: 30 seconds."; "10 seconds left."; "Time's up." (to whoever has voted); "Timer started again."                         |
+| Timer, bad duration   | "Choose a time from 10 seconds to 10 minutes."                                                                                        |
+| Nudge                 | "Nudge" (accessible name "Nudge Cy"), "Nudged"; "The room is waiting for your vote."; "Time's up. The room is waiting for your vote." |
+| Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8."                                                |
+| Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."                                                  |
+| Preview               | "Pause preview" / "Play preview"                                                                                                      |
+| Next round (spoken)   | "Next round started."                                                                                                                 |
 
 Removed in the revision: "Your first name is enough.", "Your vote (hidden)", "Vote recorded", "Not a card on the deck", "Close: 3 and 5.", "All numbers agree: 5.", "Only Ada voted: 8.", "Only Ada chose a number: 8.", every "…, talk through your estimates." and "Cy voted ?".
 

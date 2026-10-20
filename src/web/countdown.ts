@@ -78,26 +78,20 @@ export function tenSecondsWait(endsAt: number, now: number): number | null {
 /** What the timer's announcements need to remember from one snapshot to the next. */
 export interface TimerSeen {
   readonly state: TimerView["state"];
-  /** While voting, whether anyone had voted. */
-  readonly anyVote: boolean;
 }
 
 export function timerSeen(snapshot: RoomSnapshot): TimerSeen {
-  return {
-    state: snapshot.timer.state,
-    anyVote:
-      snapshot.phase === "voting" &&
-      snapshot.participants.some((p) => p.hasVoted),
-  };
+  return { state: snapshot.timer.state };
 }
 
 /**
- * What to say when the timer changes, once: "Timer started: …" when it
- * starts (not on Resume), and "Time's up. Nobody has voted yet." when it
- * ran out with no votes, so nothing was revealed. That is the one way a
- * running timer goes idle while the round goes on with nobody having voted:
- * Start next round stops it only when there are votes to clear, and a
- * reveal changes the phase. null means say nothing.
+ * What to say when the timer changes, once, or null for nothing:
+ * - "Timer started: …" when it starts, with its duration; "Timer started
+ *   again." when Start or +30 s restarts it once its time ran out, since
+ *   which of the two, and so how long, the snapshot doesn't say. Not on
+ *   Resume;
+ * - "Time's up." as time runs out (ADR 0010), to whoever has voted. Whoever
+ *   hasn't is nudged, and hears the banner instead: one thing said, not two.
  */
 export function timerAnnouncement(
   before: TimerSeen,
@@ -107,13 +101,16 @@ export function timerAnnouncement(
   if (before.state === "idle" && state === "running") {
     return TIMER_COPY.started(durationWords(durationMs));
   }
+  if (before.state === "expired" && state === "running") {
+    return TIMER_COPY.restarted;
+  }
   if (
     before.state === "running" &&
-    state === "idle" &&
+    state === "expired" &&
     snapshot.phase === "voting" &&
-    !before.anyVote
+    snapshot.yourVote !== null
   ) {
-    return TIMER_COPY.nobodyVoted;
+    return TIMER_COPY.timesUp;
   }
   return null;
 }

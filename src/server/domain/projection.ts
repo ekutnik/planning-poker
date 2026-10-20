@@ -41,7 +41,6 @@ export function project(room: Room, viewerId: ParticipantId): RoomSnapshot {
       ticket: room.ticket,
       scores: scoresFor(room),
       timer: timerView(room),
-      revealCause: room.revealCause,
     };
   }
 
