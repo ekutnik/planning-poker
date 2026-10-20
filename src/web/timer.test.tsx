@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { TIMER_DEFAULT_MS } from "../shared/rules.js";
 import type { RoomSnapshot, TimerView } from "../shared/snapshot.js";
 import { phaseAnnouncement } from "./announce.js";
 import { RoomView } from "./RoomView.js";
@@ -33,14 +34,15 @@ const buttons = (html: string) =>
   [...html.matchAll(/<button[^>]*>/g)].map((m) => m[0]);
 
 describe("the facilitator's timer", () => {
-  it("idle: one block, a clock, the duration (one minute by default) and Start", () => {
-    const html = controls(IDLE);
+  it("idle: one block, a clock, the duration (30 s by default) and Start", () => {
+    // A new room's timer, as the server sends it.
+    const html = controls({ ...IDLE, durationMs: TIMER_DEFAULT_MS });
     expect(html).toMatch(/^<div class="timer"><div class="timer-block"><svg/);
     // The select is named Timer; Start is a square play button that names
     // itself.
     expect(html).toMatch(/<select aria-label="Timer"/);
-    expect(html).toMatch(/<option value="60000" selected="">1 min<\/option>/);
-    for (const label of ["30 s", "2 min", "3 min", "5 min", "Custom…"]) {
+    expect(html).toMatch(/<option value="30000" selected="">30 s<\/option>/);
+    for (const label of ["1 min", "2 min", "3 min", "5 min", "Custom…"]) {
       expect(html).toContain(`>${label}</option>`);
     }
     expect(buttons(html)).toEqual([

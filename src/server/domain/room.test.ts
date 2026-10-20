@@ -10,6 +10,7 @@ import {
   type Room,
 } from "./room.js";
 import type { Card } from "../../shared/deck.js";
+import { TIMER_DEFAULT_MS } from "../../shared/rules.js";
 import { computeResults } from "./results.js";
 
 const NOW = 1_000;
@@ -851,6 +852,8 @@ describe("keeping score", () => {
 
 describe("the timer", () => {
   const MIN = 60_000;
+  // A new room's duration, which the tests below start from.
+  const DURATION = TIMER_DEFAULT_MS;
   const cmd = (type: string, participantId = "alice"): Command =>
     ({ type, participantId }) as Command;
   const setDuration = (ms: number): Command => ({
@@ -864,9 +867,9 @@ describe("the timer", () => {
   const running = () => at(NOW, inRoom(), cmd("timerStart"));
   const paused = () => at(NOW + 20_000, running(), cmd("timerPause"));
 
-  it("is idle in a new room, for a minute, with no deadline", () => {
+  it("is idle in a new room, for 30 seconds, with no deadline", () => {
     expect(createRoom("r1").timer).toEqual({
-      durationMs: MIN,
+      durationMs: 30_000,
       state: "idle",
       endsAt: null,
       remainingMs: null,
@@ -877,9 +880,9 @@ describe("the timer", () => {
   describe("timerStart", () => {
     it("while voting and idle: the deadline is now plus the duration", () => {
       expect(running().timer).toEqual({
-        durationMs: MIN,
+        durationMs: DURATION,
         state: "running",
-        endsAt: NOW + MIN,
+        endsAt: NOW + DURATION,
         remainingMs: null,
       });
     });
@@ -904,23 +907,24 @@ describe("the timer", () => {
   describe("timerPause and timerResume", () => {
     it("pause keeps what is left; resume sets a new deadline from it", () => {
       expect(paused().timer).toEqual({
-        durationMs: MIN,
+        durationMs: DURATION,
         state: "paused",
         endsAt: null,
-        remainingMs: 40_000,
+        remainingMs: DURATION - 20_000, // paused 20 s in
       });
       const resumed = at(NOW + 90_000, paused(), cmd("timerResume"));
       expect(resumed.timer).toEqual({
-        durationMs: MIN,
+        durationMs: DURATION,
         state: "running",
-        endsAt: NOW + 90_000 + 40_000,
+        endsAt: NOW + 90_000 + DURATION - 20_000,
         remainingMs: null,
       });
     });
 
     it("a pause that arrives after the deadline keeps 0, not a negative time", () => {
       expect(
-        at(NOW + MIN + 500, running(), cmd("timerPause")).timer.remainingMs,
+        at(NOW + DURATION + 500, running(), cmd("timerPause")).timer
+          .remainingMs,
       ).toBe(0);
     });
 
@@ -941,14 +945,14 @@ describe("the timer", () => {
   describe("timerAdd", () => {
     it("adds 30 s to a running timer's deadline", () => {
       expect(at(NOW + 1_000, running(), cmd("timerAdd")).timer.endsAt).toBe(
-        NOW + MIN + 30_000,
+        NOW + DURATION + 30_000,
       );
     });
 
     it("adds 30 s to what a paused timer has left", () => {
       expect(
         at(NOW + 25_000, paused(), cmd("timerAdd")).timer.remainingMs,
-      ).toBe(70_000);
+      ).toBe(DURATION - 20_000 + 30_000);
     });
 
     it("never takes what is left past 10 minutes, and is a no-op at the cap", () => {
@@ -986,7 +990,7 @@ describe("the timer", () => {
 
     it("is a no-op for the same duration", () => {
       const r = inRoom();
-      expect(at(NOW, r, setDuration(MIN))).toBe(r);
+      expect(at(NOW, r, setDuration(DURATION))).toBe(r);
     });
 
     it("leaves a running timer's deadline alone: the new length is for the next start", () => {
@@ -994,7 +998,7 @@ describe("the timer", () => {
       expect(changed.timer).toMatchObject({
         durationMs: 2 * MIN,
         state: "running",
-        endsAt: NOW + MIN,
+        endsAt: NOW + DURATION,
       });
     });
   });
@@ -1003,7 +1007,7 @@ describe("the timer", () => {
     it("at a reveal by a person, keeping the duration", () => {
       const r = run(running(), castVote("bob", "3"), reveal("alice"));
       expect(r.timer).toEqual({
-        durationMs: MIN,
+        durationMs: DURATION,
         state: "idle",
         endsAt: null,
         remainingMs: null,
@@ -1023,7 +1027,7 @@ describe("the timer", () => {
     const voted = () => run(running(), castVote("bob", "8"));
 
     it("at the deadline, reveals whether or not everyone has voted, marked as the timer's", () => {
-      const revealed = at(NOW + MIN, voted(), { type: "timeUp" });
+      const revealed = at(NOW + DURATION, voted(), { type: "timeUp" });
       expect(revealed.phase).toBe("revealed");
       expect(revealed.revealCause).toBe("timer");
       expect(revealed.timer.state).toBe("idle");
@@ -1032,7 +1036,7 @@ describe("the timer", () => {
 
     it("before the deadline changes nothing", () => {
       const r = voted();
-      expect(at(NOW + MIN - 1, r, { type: "timeUp" })).toBe(r);
+      expect(at(NOW + DURATION - 1, r, { type: "timeUp" })).toBe(r);
     });
 
     it.each([
@@ -1047,14 +1051,14 @@ describe("the timer", () => {
     );
 
     it("with no votes at all, reveals nothing and goes back to idle", () => {
-      const r = at(NOW + MIN, running(), { type: "timeUp" });
+      const r = at(NOW + DURATION, running(), { type: "timeUp" });
       expect(r.phase).toBe("voting");
       expect(r.timer.state).toBe("idle");
     });
 
     it("is cleared at Start next round, so the next reveal is a person's", () => {
       const next = run(
-        at(NOW + MIN, voted(), { type: "timeUp" }),
+        at(NOW + DURATION, voted(), { type: "timeUp" }),
         reset("alice"),
       );
       expect(next.revealCause).toBeNull();

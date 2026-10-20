@@ -108,6 +108,8 @@ function setup() {
 /** Ada starts a one-minute timer, and Ben votes. */
 function runningWithAVote() {
   const t = setup();
+  // A minute, whatever a new room's default is: the arithmetic below is for it.
+  t.send(t.ada, { type: "timerSetDuration", ms: MIN });
   t.send(t.ada, { type: "timerStart" });
   t.send(t.ben, { type: "castVote", card: "5" });
   return t;

@@ -30,7 +30,8 @@ test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers
   await expect(ben.heading).toHaveText("0 of 2 have voted");
   await expect(line(ben.page)).toHaveCount(0);
   const select = page.getByRole("combobox", { name: "Timer" });
-  await expect(select).toHaveValue("60000");
+  // A new room's timer: 30 s.
+  await expect(select).toHaveValue("30000");
 
   // Custom 0:10, then Start from the keyboard: focus stays on the button,
   // which is now Pause.
@@ -98,9 +99,9 @@ test("+30 s adds to what is left", async ({ people, baseURL }) => {
   });
   const page = ada.page;
   await page.getByRole("button", { name: "Start the timer" }).click();
-  await expect(page.locator(".timer-time")).toHaveText(/^(1:00|0:59)$/);
+  await expect(page.locator(".timer-time")).toHaveText(/^(0:30|0:29)$/);
   await page.getByRole("button", { name: "Add 30 seconds" }).click();
-  await expect(page.locator(".timer-time")).toHaveText(/^(1:30|1:29)$/);
+  await expect(page.locator(".timer-time")).toHaveText(/^(1:00|0:59)$/);
 });
 
 test("axe: the timer idle, running and paused, and a participant's block", async ({
