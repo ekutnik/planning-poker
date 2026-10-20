@@ -77,6 +77,7 @@ test("the facilitator sets a ticket, and everyone sees it", async ({
 
   // Start next round clears it, for everyone: the next round is usually the
   // next ticket. Ada gets Add a ticket; Ben no longer sees the slot's label.
+  const heardBefore = (await spoken(ben.page)).length;
   await ada.page.getByRole("button", { name: "Start next round" }).click();
   await expect(ada.heading).toHaveText(
     `Waiting for ${isolate("Ada")} and ${isolate("Ben")}`,
@@ -86,6 +87,11 @@ test("the facilitator sets a ticket, and everyone sees it", async ({
   ).toBeVisible();
   await expect(ben.heading).toHaveText("0 of 2 have voted");
   await expect(nowEstimating(ben.page)).toHaveCount(0);
+  // Ben hears the new round, once, and nothing about the ticket going: the
+  // region holds one text, so a second announcement would have replaced it.
+  await expect
+    .poll(async () => (await spoken(ben.page)).slice(heardBefore))
+    .toEqual(["Next round started."]);
 
   // Cleared with Save on an empty field: gone for Ben, Add a ticket for Ada.
   await ada.page.getByRole("button", { name: "Add a ticket" }).click();
