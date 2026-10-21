@@ -1,4 +1,11 @@
-import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { DECK, type Card } from "../shared/deck.js";
 import type { ParticipantId } from "../shared/ids.js";
 import type {
@@ -7,7 +14,9 @@ import type {
 } from "../shared/snapshot.js";
 import { CardText } from "./CardText.js";
 import { STACK_COPY } from "./copy.js";
+import { moveFocus } from "./deck-keys.js";
 import { useDisclosure } from "./disclosure.js";
+import { useWide } from "./layout.js";
 import { spokenCard } from "./result.js";
 import { hiddenCount, panelStillOpen, STACK_CAP } from "./stack.js";
 
@@ -29,9 +38,11 @@ interface OpenPanel {
  *
  * In the DOM each step is the card, then its names in join order, so a
  * screen reader hears "5: Ben, Dee"; CSS draws the names above the card,
- * the first to join nearest it. Cards nobody chose are hidden from screen
- * readers (#44, heard with VoiceOver): on screen the gaps show the spread,
- * but read aloud they are only a list of numbers between the votes.
+ * the first to join nearest it. In the landing's preview, cards nobody
+ * chose are hidden from screen readers (#44, heard with VoiceOver): on
+ * screen the gaps show the spread, but read aloud they are only a list of
+ * numbers between the votes. In the room they're buttons, something to act
+ * on, so they're back (below).
  *
  * In wide, a stack shows five names, then "+n more" (stack.ts): the names
  * past five stay in the list for a screen reader, hidden on screen, and the
@@ -40,8 +51,25 @@ interface OpenPanel {
  * The list can take focus from script, not from Tab: if a focused "+n more"
  * goes, because its card is down to five, focus lands here, where it was,
  * not on the page, as with a Nudge button in the people list.
+ *
+ * With `onChoose`, a vote can change after the reveal (ADR 0011): each card
+ * on screen is a toggle button, as on the deck, one Tab stop with the arrow
+ * keys between the cards, on your own card or else the first. In wide that
+ * is every card, so the cards nobody chose are back for a screen reader,
+ * named by their number; in compact, only the cards that got votes are on
+ * screen, so only those. Pressing your own card does nothing: clearing a
+ * vote is refused after the reveal. Without `onChoose` (the landing's
+ * preview), the cards are only cards.
  */
-export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
+export function Scale({
+  snapshot,
+  live = true,
+  onChoose,
+}: {
+  readonly snapshot: Revealed;
+  readonly live?: boolean;
+  readonly onChoose?: (card: Card) => void;
+}) {
   const { participants, results } = snapshot;
   const winners: ReadonlySet<Card> = new Set(results.winners);
   const highlight = results.winners.length > 1 ? "draw" : "win";
@@ -52,6 +80,34 @@ export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
         ? `scale-step scale-step--${highlight}`
         : "scale-step";
   const votersOf = (card: Card) => participants.filter((p) => p.vote === card);
+  const yours =
+    participants.find((p) => p.id === snapshot.viewerId)?.vote ?? null;
+  // The cards on screen, the ones the keyboard moves between.
+  const wide = useWide();
+  const onScreen = DECK.filter((card) => wide || votersOf(card).length > 0);
+  const cards = useRef(new Map<Card, HTMLButtonElement>());
+  // Where focus is while the keyboard moves through the cards; null
+  // otherwise, so the Tab stop goes back to your card once focus leaves.
+  const [active, setActive] = useState<Card | null>(null);
+  if (active !== null && !onScreen.includes(active)) setActive(null);
+  const stop =
+    active ??
+    (yours !== null && onScreen.includes(yours) ? yours : onScreen[0]);
+
+  const onKeyDown = (event: KeyboardEvent<HTMLOListElement>) => {
+    // Only from a card: "+n more" and its panel keep their own keys.
+    const from = onScreen.findIndex(
+      (card) => cards.current.get(card) === event.target,
+    );
+    if (from === -1) return;
+    const next = moveFocus(from, event.key, onScreen.length);
+    if (next === null) return;
+    const card = onScreen[next];
+    if (card === undefined) return;
+    event.preventDefault();
+    setActive(card);
+    cards.current.get(card)?.focus();
+  };
 
   // The room changed shape under an open panel: close it, rather than show
   // a list that is no longer true (React's "adjust state when a prop
@@ -76,6 +132,10 @@ export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
       className="scale"
       aria-label="Votes on the deck"
       tabIndex={-1}
+      onKeyDown={onChoose ? onKeyDown : undefined}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setActive(null);
+      }}
     >
       {DECK.map((card) => {
         const voters = votersOf(card);
@@ -83,11 +143,35 @@ export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
           <li
             key={card}
             className={stepClass(card, voters.length)}
-            aria-hidden={voters.length === 0 ? true : undefined}
+            aria-hidden={
+              voters.length === 0 && onChoose === undefined ? true : undefined
+            }
           >
-            <span className="scale-card">
-              <CardText card={card} />
-            </span>
+            {onChoose ? (
+              <button
+                ref={(element) => {
+                  if (element) cards.current.set(card, element);
+                  else cards.current.delete(card);
+                }}
+                type="button"
+                className="scale-card"
+                aria-pressed={card === yours}
+                tabIndex={card === stop ? 0 : -1}
+                disabled={!live}
+                onClick={() => {
+                  setActive(card);
+                  // Your own card: nothing to send, since a revealed room
+                  // refuses clearing a vote (ADR 0011).
+                  if (card !== yours) onChoose(card);
+                }}
+              >
+                <CardText card={card} />
+              </button>
+            ) : (
+              <span className="scale-card">
+                <CardText card={card} />
+              </span>
+            )}
             {voters.length > 0 && (
               <ul className="scale-names">
                 {voters.map((p, index) => (

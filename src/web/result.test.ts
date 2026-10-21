@@ -24,7 +24,14 @@ function revealed(
 ): Revealed {
   const participants = votes.map((vote, i) => {
     const name = NAMES[i] ?? `P${String(i)}`;
-    return { id: name, name, status: "connected" as const, vote };
+    return {
+      id: name,
+      name,
+      status: "connected" as const,
+      vote,
+      voteAtReveal: vote,
+      changedAfterReveal: false,
+    };
   });
   return {
     phase: "revealed",

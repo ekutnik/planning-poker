@@ -214,11 +214,13 @@ describe("RoomService", () => {
     join(alice, ALICE, "Alice");
     join(bob, BOB, "Bob");
     service.message(alice, JSON.stringify({ type: "castVote", card: "5" }));
+    service.message(bob, JSON.stringify({ type: "castVote", card: "8" }));
     service.message(alice, JSON.stringify({ type: "reveal" }));
     const aliceBefore = alice.sent.length;
     const bobBefore = bob.sent.length;
 
-    service.message(bob, JSON.stringify({ type: "castVote", card: "8" }));
+    // A revealed room never loses a vote (ADR 0011).
+    service.message(bob, JSON.stringify({ type: "clearVote" }));
 
     expect(bob.sent.at(-1)).toEqual({ type: "error", code: "VOTING_CLOSED" });
     expect(alice.sent.length).toBe(aliceBefore);

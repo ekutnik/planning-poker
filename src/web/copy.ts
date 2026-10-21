@@ -16,7 +16,9 @@ export const ERROR_COPY: Readonly<Record<ErrorCode, string | null>> = {
   NOT_CONNECTED: null, // shown as reconnecting
   NOT_JOINED: null, // the client sends room actions only once joined
   ALREADY_JOINED: null, // the client joins once per socket
-  VOTING_CLOSED: "Votes are revealed. Start the next round to vote again.",
+  // After the reveal a vote can change but not go (ADR 0011): reached when
+  // Clear my vote races someone's reveal.
+  VOTING_CLOSED: "Votes are revealed. Choose another card to change your vote.",
   NO_VOTES_CAST: "Nobody has voted yet. Choose a card before revealing.",
   UNKNOWN_PARTICIPANT: "This tab lost its seat. Reload the page to rejoin.",
   INVALID_MESSAGE:
@@ -162,6 +164,15 @@ export const PEOPLE_COPY = {
   hideVote: "Hide my vote",
   /** Followed by the card, as CardText gives it. */
   yourVote: "Your vote:",
+  /**
+   * After a vote changed after the reveal (ADR 0011), for a screen reader,
+   * after the new card: "3, changed from 13 after the reveal". The screen
+   * shows "~~13~~ → 3" instead, which a screen reader wouldn't read.
+   */
+  changedFrom: (spokenCard: string) =>
+    `changed from ${spokenCard} after the reveal`,
+  /** The same, for someone who had no vote at the reveal. */
+  votedAfter: "voted after the reveal",
 } as const;
 
 /** Keep score, in the Menu (facilitator view), and each person's points. */

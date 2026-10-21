@@ -15,6 +15,10 @@ type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
  * left column, the scale where the deck was, the next action where Reveal
  * votes was. So nothing moves at the reveal but what it adds: the cards go
  * down by the names stacked above them.
+ *
+ * The cards can be chosen again (ADR 0011): a vote changed now moves the
+ * result, never the points. Nothing on screen invites a change: it's for
+ * the exceptional case, such as settling a draw.
  */
 export function RevealedView({
   snapshot,
@@ -48,7 +52,11 @@ export function RevealedView({
       {/* The scale's own container, so it lays all ten steps across only
           when each has room for a name (docs/design.md). */}
       <div className="scale-area">
-        <Scale snapshot={snapshot} />
+        <Scale
+          snapshot={snapshot}
+          live={live}
+          onChoose={(card) => onAction({ type: "castVote", card })}
+        />
       </div>
       <p className="result">{copy.summary}</p>
       <div className="controls">

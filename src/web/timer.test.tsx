@@ -221,8 +221,22 @@ describe("the reveal, said", () => {
       scores: null,
       timer: IDLE,
       participants: [
-        { id: "ada", name: "Ada", status: "connected", vote: "5" },
-        { id: "ben", name: "Ben", status: "connected", vote: "5" },
+        {
+          id: "ada",
+          name: "Ada",
+          status: "connected",
+          vote: "5",
+          voteAtReveal: "5",
+          changedAfterReveal: false,
+        },
+        {
+          id: "ben",
+          name: "Ben",
+          status: "connected",
+          vote: "5",
+          voteAtReveal: "5",
+          changedAfterReveal: false,
+        },
       ],
       results: {
         voteCount: 2,

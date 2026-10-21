@@ -273,7 +273,7 @@ for (const touch of [false, true]) {
  * Three heights and no others: 44 for the round's one action and the
  * header's buttons, 40 for your own vote's buttons, the timer block and the
  * ticket field, 28 for the small tools. Deck cards are the deck, not
- * controls of a height.
+ * controls of a height, and so are the scale's, buttons since ADR 0011.
  */
 const HEIGHTS: readonly [string, number][] = [
   ["Reveal votes", 44],
@@ -294,7 +294,7 @@ const HEIGHTS: readonly [string, number][] = [
   ["Add 30 seconds", 28],
 ];
 
-/** Every control on screen, outside the deck and the Menu's panel. */
+/** Every control on screen, outside the deck, the scale's cards and the Menu's panel. */
 async function controlHeights(page: Page) {
   return page.evaluate(() =>
     [
@@ -305,6 +305,7 @@ async function controlHeights(page: Page) {
       .filter(
         (element) =>
           !element.closest(".deck, .menu-panel") &&
+          !element.classList.contains("scale-card") &&
           element.getBoundingClientRect().height > 0,
       )
       .map((element) => ({

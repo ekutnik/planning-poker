@@ -10,6 +10,7 @@ import { NOT_SAVED_COPY, TICKET_COPY, TIMER_COPY } from "./copy.js";
 import { tenSecondsWait, timerAnnouncement, timerSeen } from "./countdown.js";
 import { roomTitle, roomTitleAndBanner, useDocumentTitle } from "./title.js";
 import type { NudgeReason, RoomAction } from "./connection/room-connection.js";
+import { resultCopy } from "./result.js";
 import { RevealedView } from "./RevealedView.js";
 import { Ticket } from "./Ticket.js";
 import { TimerControls, TimerReadout } from "./Timer.js";
@@ -80,6 +81,19 @@ export function RoomView({
     setSaved(undefined);
     if (snapshot.ticket !== null && snapshot.ticket !== saved) {
       setSpeech({ pending: null, text: TICKET_COPY.announce(snapshot.ticket) });
+    }
+  }
+  // The result, said once through the same region when it changes while
+  // revealed: a vote changed after the reveal can move it (ADR 0011). The
+  // reveal itself says it already, so only a change between two revealed
+  // snapshots counts.
+  const result =
+    snapshot.phase === "revealed" ? resultCopy(snapshot).summary : null;
+  const [resultWas, setResultWas] = useState(result);
+  if (result !== resultWas) {
+    setResultWas(result);
+    if (result !== null && resultWas !== null) {
+      setSpeech({ pending: null, text: result });
     }
   }
   // The timer, said once each through the same region: when it starts,

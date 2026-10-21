@@ -119,10 +119,12 @@ describe("project — no-leak (key whitelist)", () => {
     ]);
     for (const view of snapshot.participants) {
       expect(Object.keys(view).sort()).toEqual([
+        "changedAfterReveal",
         "id",
         "name",
         "status",
         "vote",
+        "voteAtReveal",
       ]);
     }
     expect(snapshot.results.voteCount).toBe(3);
@@ -254,5 +256,55 @@ describe("the timer", () => {
       expect(snapshot.phase).toBe("voting");
       expect(snapshot.timer).toEqual(expired.timer);
     }
+  });
+});
+
+describe("project — a vote changed after the reveal (ADR 0011)", () => {
+  // design.md's draw: 2, 3, 3, 5, 5, 13 is a draw between 3 and 5.
+  const votes: [string, Card][] = [
+    ["a", "2"],
+    ["b", "3"],
+    ["c", "3"],
+    ["d", "5"],
+    ["e", "5"],
+    ["f", "13"],
+  ];
+  const revealed = () =>
+    run(
+      createRoom("r1"),
+      ...votes.map(([id]) => join(id)),
+      ...votes.map(([id, card]) => castVote(id, card)),
+      reveal("a"),
+    );
+  const snapshotOf = (room: Room) => {
+    const snapshot = project(room, "a");
+    if (snapshot.phase !== "revealed") throw new Error("not revealed");
+    return snapshot;
+  };
+
+  it("sends the result of the votes as they are now, not as they were", () => {
+    expect(snapshotOf(revealed()).results.winners).toEqual(["3", "5"]);
+    // The one on 13 moves onto 3, which breaks the draw.
+    const after = snapshotOf(run(revealed(), castVote("f", "3")));
+    expect(after.results.winners).toEqual(["3"]);
+    expect(after.results.max).toBe("5");
+  });
+
+  it("marks only the vote that changed, and unmarks it when it changes back", () => {
+    const changed = snapshotOf(run(revealed(), castVote("f", "3")));
+    expect(
+      changed.participants.map((p) => [p.id, p.vote, p.changedAfterReveal]),
+    ).toEqual([
+      ["a", "2", false],
+      ["b", "3", false],
+      ["c", "3", false],
+      ["d", "5", false],
+      ["e", "5", false],
+      ["f", "3", true],
+    ]);
+    const back = snapshotOf(
+      run(revealed(), castVote("f", "3"), castVote("f", "13")),
+    );
+    expect(back.participants.every((p) => !p.changedAfterReveal)).toBe(true);
   });
 });

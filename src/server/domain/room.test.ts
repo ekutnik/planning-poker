@@ -11,6 +11,7 @@ import {
 } from "./room.js";
 import type { Card } from "../../shared/deck.js";
 import { TIMER_DEFAULT_MS } from "../../shared/rules.js";
+import { project } from "./projection.js";
 import { computeResults } from "./results.js";
 
 const NOW = 1_000;
@@ -81,6 +82,7 @@ describe("join", () => {
       id: "alice",
       name: "alice",
       vote: null,
+      voteAtReveal: null,
       status: "connected",
       disconnectedAt: null,
     });
@@ -203,17 +205,20 @@ describe("castVote", () => {
     });
   });
 
-  it("rejects a different vote that arrives after reveal", () => {
+  it("accepts a different vote after the reveal (ADR 0011), and keeps the one at the reveal", () => {
     const room = run(
       createRoom("r1"),
       join("alice"),
       castVote("alice", "5"),
       reveal("alice"),
     );
-    expect(applyCommand(room, castVote("alice", "8"), NOW)).toEqual({
-      ok: false,
-      error: "VOTING_CLOSED",
+    const changed = must(applyCommand(room, castVote("alice", "8"), NOW));
+    expect(changed.participants.get("alice")).toMatchObject({
+      vote: "8",
+      voteAtReveal: "5",
     });
+    expect(changed.phase).toBe("revealed");
+    expect(changed.version).toBe(room.version + 1);
   });
 });
 
@@ -547,7 +552,10 @@ describe("invariants", () => {
     { command: castVote("bob", "8"), outcome: "change" },
     { command: reveal("alice"), outcome: "change" },
     { command: reveal("bob"), outcome: "noop" },
-    { command: castVote("alice", "3"), outcome: "reject" },
+    // After the reveal a vote can change (ADR 0011), but not go.
+    { command: castVote("alice", "3"), outcome: "change" },
+    { command: castVote("alice", "3"), outcome: "noop" },
+    { command: clearVote("alice"), outcome: "reject" },
     { command: reset("alice"), outcome: "change" },
     { command: reset("alice"), outcome: "noop" },
     { command: disconnect("bob"), outcome: "change" },
@@ -762,12 +770,20 @@ describe("keeping score", () => {
   it("with scoring off, a reveal is exactly the reveal it was before scores existed", () => {
     const before = run(room(false), castVote("a", "5"), castVote("b", "5"));
     const after = must(applyCommand(before, reveal("a"), NOW));
-    // Field by field: only the phase and the version change, as in v0.2.1;
-    // the new fields are left as they were, the scores the very same map.
+    // Field by field: only the phase and the version change, as in v0.2.1,
+    // and each vote is kept as it was at the reveal (ADR 0011); the other
+    // new fields are left as they were, the scores the very same map.
+    const atReveal = new Map(
+      [...before.participants].map(([id, p]) => [
+        id,
+        { ...p, voteAtReveal: p.vote },
+      ]),
+    );
     expect(after).toEqual({
       ...before,
       phase: "revealed",
       version: before.version + 1,
+      participants: atReveal,
     });
     expect(after.scores).toBe(before.scores);
     expect(after.scoring).toBe(false);
@@ -824,6 +840,103 @@ describe("keeping score", () => {
     expect(points(expired)).toEqual({});
     const revealed = must(applyCommand(expired, reveal("a"), endsAt + 1_000));
     expect(points(revealed)).toEqual({ a: 1, b: 1 });
+  });
+
+  describe("votes after the reveal (ADR 0011)", () => {
+    /** Who the projection marks as changed after the reveal. */
+    const marked = (r: Room) =>
+      Object.fromEntries(
+        (
+          project(r, "a") as Extract<
+            ReturnType<typeof project>,
+            { phase: "revealed" }
+          >
+        ).participants.map((p) => [p.id, p.changedAfterReveal]),
+      );
+    // design.md's draw: 2, 3, 3, 5, 5, 13 is a draw between 3 and 5, once
+    // one vote at each end is dropped. Nobody scores at the reveal.
+    const draw = () =>
+      round(room(true), { a: "2", b: "3", c: "3", d: "5", e: "5", f: "13" });
+
+    it("changes the vote, marks it, and leaves the points: one version bump", () => {
+      const start = round(room(true), { a: "5", b: "5", c: "8" });
+      expect(points(start)).toEqual({ a: 1, b: 1 });
+      const changed = must(applyCommand(start, castVote("c", "5"), NOW));
+      expect(changed.participants.get("c")?.vote).toBe("5");
+      expect(marked(changed)).toMatchObject({ a: false, b: false, c: true });
+      expect(points(changed)).toEqual({ a: 1, b: 1 });
+      expect(changed.version).toBe(start.version + 1);
+    });
+
+    it("clears the mark when the vote changes back", () => {
+      const back = run(
+        round(room(true), { a: "5", b: "8" }),
+        castVote("b", "5"),
+        castVote("b", "8"),
+      );
+      expect(marked(back)).toMatchObject({ a: false, b: false });
+    });
+
+    it("recalculates the result: a change breaks a draw, and nobody's points change", () => {
+      const start = draw();
+      expect(computeResults(start).winners).toEqual(["3", "5"]);
+      expect(points(start)).toEqual({});
+      // The one far off, on 13, moves onto 3: 2, 3, 3, 3, 5, 5 less one vote
+      // at each end leaves 3, 3, 3, 5, so 3 wins.
+      const broken = run(start, castVote("f", "3"));
+      expect(computeResults(broken).winners).toEqual(["3"]);
+      expect(points(broken)).toEqual({});
+    });
+
+    it("never gives or takes a point for a change, whoever wins after it", () => {
+      const start = round(room(true), {
+        a: "5",
+        b: "5",
+        c: "8",
+        d: "8",
+        e: "8",
+      });
+      expect(points(start)).toEqual({ c: 1, d: 1, e: 1 });
+      // Two move to 5: 5 now wins, but the points stay as the reveal set them.
+      const moved = run(start, castVote("d", "5"), castVote("e", "5"));
+      expect(computeResults(moved).winners).toEqual(["5"]);
+      expect(points(moved)).toEqual({ c: 1, d: 1, e: 1 });
+    });
+
+    it("refuses clearVote: a revealed room never loses a vote", () => {
+      const start = draw();
+      expect(applyCommand(start, clearVote("a"), NOW)).toEqual({
+        ok: false,
+        error: "VOTING_CLOSED",
+      });
+    });
+
+    it("counts and marks a vote from someone who hadn't voted", () => {
+      const start = round(room(true), { a: "5", b: "5" });
+      const late = run(start, castVote("f", "5"));
+      expect(computeResults(late).voteCount).toBe(3);
+      expect(marked(late)).toMatchObject({ f: true, a: false });
+      expect(points(late)).toEqual({ a: 1, b: 1 });
+    });
+
+    it("forgets the votes at the reveal at Start next round", () => {
+      const next = run(
+        round(room(true), { a: "5", b: "8" }),
+        castVote("b", "5"),
+        reset("a"),
+      );
+      for (const p of next.participants.values()) {
+        expect(p.voteAtReveal).toBeNull();
+      }
+    });
+
+    it("still refuses a vote from someone away, before anything else", () => {
+      const start = run(draw(), disconnect("b"));
+      expect(applyCommand(start, castVote("b", "5"), NOW)).toEqual({
+        ok: false,
+        error: "NOT_CONNECTED",
+      });
+    });
   });
 
   describe("seats", () => {

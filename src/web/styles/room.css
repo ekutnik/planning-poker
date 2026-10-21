@@ -220,8 +220,25 @@ button:disabled {
 /* The pill sits at the end of the row, however long the name; after the
    reveal the card's chip takes its place. */
 .person > .pill,
-.person > .chip {
+.person > .chip,
+.person > .person-changed {
   margin-inline-start: auto;
+}
+
+/* A vote changed after the reveal (ADR 0011): the vote at the reveal
+   struck through, in Quiet, an arrow, then the chip. */
+.person-changed {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--quiet);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.person-changed .chip {
+  color: var(--ink);
 }
 
 /* The facilitator's Nudge button, before the pill: it takes the auto margin
@@ -457,6 +474,34 @@ button:disabled {
 .scale-step--empty .scale-card {
   border-color: var(--rule);
   background: transparent;
+}
+
+/* In the room the scale's cards are buttons (ADR 0011): the room's button
+   rule must not size them. Your own card keeps its fill, so a winning card
+   stays green, with a 2px Cobalt ring 2px off it (a Paper gap, then the
+   ring). Focus goes outside the ring, so a focused card of yours shows
+   both, as on the deck. */
+button.scale-card {
+  min-height: 0;
+  padding: 0;
+}
+
+.scale-card[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 4px var(--cobalt);
+}
+
+.scale-card[aria-pressed="true"]:focus-visible {
+  outline-offset: 5px;
+}
+
+/* Hover, only where a pointer hovers, as on the deck; never a lift, which
+   would move a card at the moment it's read. */
+@media (hover: hover) {
+  button.scale-card:hover:not(:disabled):not([aria-pressed="true"]) {
+    border-color: var(--ink);
+  }
 }
 
 .scale-names {

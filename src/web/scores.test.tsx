@@ -28,6 +28,8 @@ const revealed = (id: string): RevealedParticipantView => ({
   name: id,
   status: "connected",
   vote: "5",
+  voteAtReveal: "5",
+  changedAfterReveal: false,
 });
 const JOIN_ORDER = ["Ada", "Ben", "Cy", "Dee"];
 
