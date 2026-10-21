@@ -69,7 +69,13 @@ describe("document titles (A-03)", () => {
           remainingMs: null,
         },
         participants: [
-          { id: "Ada", name: "Ada", status: "connected", vote: "13" },
+          {
+            id: "Ada",
+            name: "Ada",
+            status: "connected",
+            vote: "13",
+            changedAfterReveal: false,
+          },
         ],
         results: {
           voteCount: 1,

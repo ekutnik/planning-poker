@@ -33,6 +33,12 @@ export interface Participant {
   readonly id: ParticipantId;
   readonly name: string;
   readonly vote: Card | null;
+  /**
+   * The vote as it was at the reveal (ADR 0011), so a vote changed after it
+   * can be marked; null for someone with no vote then, and in voting. Start
+   * next round clears it with the votes.
+   */
+  readonly voteAtReveal: Card | null;
   readonly status: "connected" | "disconnected";
   readonly disconnectedAt: number | null;
 }
@@ -242,23 +248,28 @@ function join(room: Room, cmd: CommandOf<"join">): Result {
     id: cmd.participantId,
     name,
     vote: null,
+    voteAtReveal: null,
     status: "connected",
     disconnectedAt: null,
   };
   return ok(commit(room, { participants: withParticipant(room, joined) }));
 }
 
+/**
+ * A vote, in either phase (ADR 0011): after the reveal it changes the vote
+ * in place, and the result follows it, since the projection computes it from
+ * the votes as they are. Points don't: they were settled at the reveal
+ * (pointsAtReveal), so nobody gains or loses one by a change after it.
+ * Anyone in the room may, including someone who hadn't voted.
+ */
 function castVote(room: Room, cmd: CommandOf<"castVote">): Result {
   const participant = room.participants.get(cmd.participantId);
   if (!participant) return fail("UNKNOWN_PARTICIPANT");
   if (participant.status !== "connected") return fail("NOT_CONNECTED");
   // Principle: a command whose requested end state already holds is a no-op,
-  // regardless of phase. Re-sending the card you already hold changes nothing, so
-  // it succeeds silently even after reveal; a *different* card asks for a change
-  // the phase forbids, so it's rejected. This lets a reconnecting client safely
-  // retry its last unacknowledged vote instead of getting an error.
+  // regardless of phase. Re-sending the card you already hold changes nothing,
+  // so a reconnecting client can safely retry its last unacknowledged vote.
   if (participant.vote === cmd.card) return ok(room); // no-op: same card already cast
-  if (room.phase === "revealed") return fail("VOTING_CLOSED");
   const voted: Participant = { ...participant, vote: cmd.card };
   return ok(commit(room, { participants: withParticipant(room, voted) }));
 }
@@ -268,6 +279,7 @@ function clearVote(room: Room, cmd: CommandOf<"clearVote">): Result {
   if (!participant) return fail("UNKNOWN_PARTICIPANT");
   if (participant.status !== "connected") return fail("NOT_CONNECTED");
   if (participant.vote === null) return ok(room); // no-op: nothing to clear
+  // A revealed room never loses a vote: a vote can change, not go (ADR 0011).
   if (room.phase === "revealed") return fail("VOTING_CLOSED");
   const cleared: Participant = { ...participant, vote: null };
   return ok(commit(room, { participants: withParticipant(room, cleared) }));
@@ -285,17 +297,30 @@ function reveal(room: Room, cmd: CommandOf<"reveal">): Result {
 }
 
 /**
- * A round revealed: points scored and the timer stopped, in one commit, so
- * the version goes up once. Fields that are already as they should be are
+ * A round revealed: points scored, each vote kept as it was at the reveal
+ * (ADR 0011), and the timer stopped, in one commit, so the version goes up
+ * once. Fields that are already as they should be are
  * left alone, so with nothing new switched on a reveal is exactly the reveal
  * it always was. Only a person reveals: the timer nudges instead (ADR 0010).
  */
 function revealRound(room: Room): Room {
   return commit(room, {
     phase: "revealed",
+    ...votesAtReveal(room),
     ...pointsAtReveal(room),
     ...stopTimer(room),
   });
+}
+
+/** Each vote as it is now, the one a change after the reveal is marked against. */
+function votesAtReveal(room: Room): Partial<Pick<Room, "participants">> {
+  let participants: Map<ParticipantId, Participant> | null = null;
+  for (const [id, p] of room.participants) {
+    if (p.voteAtReveal === p.vote) continue;
+    participants ??= new Map(room.participants);
+    participants.set(id, { ...p, voteAtReveal: p.vote });
+  }
+  return participants === null ? {} : { participants };
 }
 
 function idleTimer(durationMs: number): TimerView {
@@ -343,7 +368,9 @@ function reset(room: Room, cmd: CommandOf<"reset">): Result {
   if (room.phase === "voting" && !hasAnyVote(room)) return ok(room); // no-op: already clean
   const participants = new Map(room.participants);
   for (const [id, p] of participants) {
-    if (p.vote !== null) participants.set(id, { ...p, vote: null });
+    if (p.vote !== null || p.voteAtReveal !== null) {
+      participants.set(id, { ...p, vote: null, voteAtReveal: null });
+    }
   }
   return ok(
     commit(room, {

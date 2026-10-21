@@ -19,6 +19,11 @@ export interface RevealedParticipantView {
   readonly name: string;
   readonly status: "connected" | "disconnected";
   readonly vote: Card | null;
+  /**
+   * The vote differs from the one at the reveal (ADR 0011): changed, or
+   * cast after it by someone who hadn't voted. Changing back clears it.
+   */
+  readonly changedAfterReveal: boolean;
 }
 
 /**

@@ -18,12 +18,48 @@ const snapshot: Revealed = {
   scores: null,
   timer: { durationMs: 60_000, state: "idle", endsAt: null, remainingMs: null },
   participants: [
-    { id: "Ada", name: "Ada", status: "connected", vote: "3" },
-    { id: "Ben", name: "Ben", status: "connected", vote: "8" },
-    { id: "Cy", name: "Cy", status: "connected", vote: "?" },
-    { id: "Dee", name: "Dee", status: "connected", vote: "8" },
-    { id: "Eli", name: "Eli", status: "connected", vote: "13" },
-    { id: "Fay", name: "Fay", status: "disconnected", vote: null },
+    {
+      id: "Ada",
+      name: "Ada",
+      status: "connected",
+      vote: "3",
+      changedAfterReveal: false,
+    },
+    {
+      id: "Ben",
+      name: "Ben",
+      status: "connected",
+      vote: "8",
+      changedAfterReveal: false,
+    },
+    {
+      id: "Cy",
+      name: "Cy",
+      status: "connected",
+      vote: "?",
+      changedAfterReveal: false,
+    },
+    {
+      id: "Dee",
+      name: "Dee",
+      status: "connected",
+      vote: "8",
+      changedAfterReveal: false,
+    },
+    {
+      id: "Eli",
+      name: "Eli",
+      status: "connected",
+      vote: "13",
+      changedAfterReveal: false,
+    },
+    {
+      id: "Fay",
+      name: "Fay",
+      status: "disconnected",
+      vote: null,
+      changedAfterReveal: false,
+    },
   ],
   results: {
     voteCount: 5,
@@ -162,6 +198,7 @@ describe("a stack past five names (v1.1)", () => {
       name,
       status: "connected",
       vote: i < 12 ? "5" : "?",
+      changedAfterReveal: false,
     })),
   };
   const html = render(true, crowd);
@@ -263,7 +300,13 @@ describe("the revealed people list", () => {
       ...snapshot,
       participants: [
         ...snapshot.participants,
-        { id: "Gus", name: "Gus", status: "connected", vote: null },
+        {
+          id: "Gus",
+          name: "Gus",
+          status: "connected",
+          vote: null,
+          changedAfterReveal: false,
+        },
       ],
     };
     expect(people(render(true, quiet))).toContain(

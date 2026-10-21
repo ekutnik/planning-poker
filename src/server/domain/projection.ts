@@ -29,6 +29,7 @@ export function project(room: Room, viewerId: ParticipantId): RoomSnapshot {
         name: p.name,
         status: p.status,
         vote: p.vote,
+        changedAfterReveal: p.vote !== p.voteAtReveal,
       });
     }
     return {
