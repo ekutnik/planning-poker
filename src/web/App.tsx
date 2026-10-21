@@ -7,6 +7,7 @@ import type { Identity } from "./identity.js";
 import { RoomPage } from "./RoomPage.js";
 import { roomPath, type Router } from "./router.js";
 import { ScreenHeading } from "./ScreenHeading.js";
+import type { SoundStore } from "./sound.js";
 import type { ThemeStore } from "./theme.js";
 import type { ToolsStore } from "./tools.js";
 import { titleOf, useDocumentTitle } from "./title.js";
@@ -17,12 +18,16 @@ export function App({
   theme,
   facilitate,
   tools,
+  sound,
+  nudgeSound,
 }: {
   readonly router: Router;
   readonly identity: Identity;
   readonly theme: ThemeStore;
   readonly facilitate: FacilitateStore;
   readonly tools: ToolsStore;
+  readonly sound: SoundStore;
+  readonly nudgeSound: () => void;
 }) {
   const route = useSyncExternalStore(router.subscribe, router.getRoute);
   const home = () => router.navigate("/");
@@ -44,7 +49,7 @@ export function App({
           key={route.roomId}
           roomId={route.roomId}
           identity={identity}
-          stores={{ theme, facilitate, tools }}
+          stores={{ theme, facilitate, tools, sound, nudgeSound }}
           onHome={home}
         />
       );

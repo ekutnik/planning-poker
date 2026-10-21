@@ -6,6 +6,8 @@ import { FacilitateSwitch } from "./FacilitateSwitch.js";
 import { HeaderMenu } from "./HeaderMenu.js";
 import { useWide } from "./layout.js";
 import { Mark } from "./Mark.js";
+import type { SoundStore } from "./sound.js";
+import { SoundSwitch } from "./SoundSwitch.js";
 import { SwitchRow } from "./SwitchRow.js";
 import type { ThemeStore } from "./theme.js";
 import { ThemeMenu } from "./ThemeMenu.js";
@@ -13,6 +15,8 @@ import { ThemeMenu } from "./ThemeMenu.js";
 /** What the header adds inside a room. */
 export interface RoomHeader {
   readonly facilitate: FacilitateStore;
+  /** Whether a nudge plays its chime, in this browser (v1.1). */
+  readonly sound: SoundStore;
   /** The room's own link, copied but never shown: it is the credential. */
   readonly link: string;
   readonly onLeave: () => void;
@@ -127,12 +131,14 @@ export function Header({
               <hr className="menu-divider" />
               <MenuGroup heading={HEADER_COPY.justForYou}>
                 <FacilitateSwitch store={room.facilitate} />
+                <SoundSwitch store={room.sound} />
                 <ThemeMenu store={theme} />
               </MenuGroup>
             </>
           ) : (
             <>
               {room && <FacilitateSwitch store={room.facilitate} />}
+              {room && <SoundSwitch store={room.sound} />}
               <ThemeMenu store={theme} />
             </>
           )}

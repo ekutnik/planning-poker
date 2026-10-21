@@ -123,6 +123,8 @@ export const HEADER_COPY = {
   facilitate: "Facilitate",
   facilitateNote: "Hides your vote so you can share your screen.",
   facilitating: "Facilitating",
+  sound: "Sound",
+  soundNote: "A short chime when someone nudges you.",
   theme: "Theme",
   leave: "Leave the room",
   /** The Menu's two groups: the room's tools (facilitator view), then yours. */

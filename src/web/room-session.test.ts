@@ -69,10 +69,11 @@ class FakeConnection implements SessionConnection {
   }
 }
 
-function setup() {
+function setup(onNudged?: () => void) {
   const connections: FakeConnection[] = [];
   let watching = 0;
   const session = new RoomSession({
+    onNudged,
     connect: () => {
       const connection = new FakeConnection();
       connections.push(connection);
@@ -291,6 +292,28 @@ describe("RoomSession: a nudge (ADR 0007)", () => {
     connections[0]?.setState(open(true));
     connections[0]?.nudge();
     expect(session.getSnapshot().nudged).toBe(false);
+  });
+
+  it("plays its sound once for each nudge that arrives (v1.1)", () => {
+    let sounds = 0;
+    const { session, connections } = setup(() => (sounds += 1));
+    session.subscribe(() => undefined);
+    connections[0]?.setState(open(false));
+    connections[0]?.nudge();
+    expect(sounds).toBe(1);
+    // A second nudge while the first still stands: a second sound.
+    connections[0]?.nudge();
+    expect(sounds).toBe(2);
+  });
+
+  it("plays the same sound for the timer's nudge at time's up (ADR 0010)", () => {
+    let sounds = 0;
+    const { session, connections } = setup(() => (sounds += 1));
+    session.subscribe(() => undefined);
+    connections[0]?.setState(open(false));
+    connections[0]?.nudge("time");
+    expect(sounds).toBe(1);
+    expect(session.getSnapshot().nudgeReason).toBe("time");
   });
 
   it("ends with the session: leaving drops it", () => {
