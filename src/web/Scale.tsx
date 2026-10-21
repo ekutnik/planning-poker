@@ -119,9 +119,10 @@ export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
 /**
  * "+7 more" and its panel: everyone on the card, in join order, in two
  * columns, under the line "12 chose 5". It opens and closes as the Menu
- * does (disclosure.ts), over the cards, so nothing moves. Its name says
- * what it shows, "Show all 12 who chose 5"; the list before it already
- * holds every name, so a screen reader loses nothing while it is closed.
+ * does (disclosure.ts), over the cards, so nothing moves. Its name starts
+ * with its words and says what it shows, "+7 more: show all 12 who chose
+ * 5"; the list before it already holds every name, so a screen reader loses
+ * nothing while it is closed.
  */
 function MoreNames({
   card,
@@ -142,7 +143,11 @@ function MoreNames({
         ref={button}
         type="button"
         className="small-button scale-more-button"
-        aria-label={STACK_COPY.showAll(voters.length, spokenCard(card))}
+        aria-label={STACK_COPY.name(
+          hiddenCount(voters.length),
+          voters.length,
+          spokenCard(card),
+        )}
         aria-expanded={open}
         aria-controls={panelId}
         onClick={toggle}

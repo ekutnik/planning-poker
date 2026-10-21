@@ -469,11 +469,11 @@ button:disabled {
   list-style: none;
 }
 
-/* Each name is a pill, and a name too long for its column wraps inside it,
-   never cut and never shrunk: the stack grows to fit. The pill is what
-   keeps a wrapped name one person (A-04 cut names to one line instead,
-   before names had pills). A name wraps between words. Only a single word
-   that cannot fit a line on its own breaks inside, through overflow-wrap.
+/* Each name is a pill. In compact, where a name has the row beside its
+   card, one too long for it wraps inside the pill, never shrunk: the pill
+   keeps a wrapped name one person. A name wraps between words. Only a
+   single word that cannot fit a line on its own breaks inside, through
+   overflow-wrap. In wide, a stack's 68px column cuts it instead (below).
 
    No hyphens: auto, here or anywhere it could be inherited. It hyphenates
    in ordinary wrapping, before overflow-wrap is needed ("Oppen-heimer"); an
@@ -702,10 +702,14 @@ button:disabled {
     }
   }
 
+  /* Stretched, so the names' list is the column's width, never its
+     longest name's: that is what cuts a long name rather than widening the
+     stack past its card. */
   .scale-step,
   .scale-step--empty {
     display: flex;
     flex-direction: column-reverse;
+    align-items: stretch;
     gap: var(--space-8);
   }
 
@@ -719,6 +723,16 @@ button:disabled {
     flex-wrap: nowrap;
     align-items: center;
     gap: var(--space-4);
+  }
+
+  /* One line a name, cut with "…" when it is too long for its column, so
+     every row of a stack is 24px and its height depends only on how many
+     names it shows (v1.1). The whole name is still in the page, for a
+     screen reader, and in the people list and the panel. */
+  .scale-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Past the cap: still in the list a screen reader hears, off screen. */

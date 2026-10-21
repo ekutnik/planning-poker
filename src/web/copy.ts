@@ -240,15 +240,17 @@ export const RESULT_COPY = {
 /** The landing preview's one control, and its revealed frame's status. */
 /**
  * A capped name stack on the scale, in wide (docs/design.md, The revealed
- * room): "+7 more", the panel's line "12 chose 5", and the button's name for
- * a screen reader, "Show all 12 who chose 5". The card is given as it is
- * said ("question mark", "coffee").
+ * room): "+7 more", the panel's line "12 chose 5", and the button's name,
+ * "+7 more: show all 12 who chose 5". The name starts with the words on the
+ * button (WCAG 2.5.3, Label in Name), so "click +7 more" works by voice;
+ * the rest is the context a screen reader would otherwise lack. The card is
+ * given as it is said ("question mark", "coffee").
  */
 export const STACK_COPY = {
   more: (hidden: number) => `+${String(hidden)} more`,
   chose: (count: number) => `${String(count)} chose`,
-  showAll: (count: number, spokenCard: string) =>
-    `Show all ${String(count)} who chose ${spokenCard}`,
+  name: (hidden: number, count: number, spokenCard: string) =>
+    `${STACK_COPY.more(hidden)}: show all ${String(count)} who chose ${spokenCard}`,
 } as const;
 
 export const PREVIEW_COPY = {

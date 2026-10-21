@@ -7,12 +7,21 @@ const css = readStyles();
 describe("names on the scale (A-04 revisited)", () => {
   const scaleName = declarations(css, ".scale-name");
 
-  it("wraps a long name inside its pill, never cuts it", () => {
+  it("wraps a long name inside its pill in compact, never cuts it", () => {
     // A-04 cut names to one line, when a wrapped name read as two people.
     // Each name is a pill now, which keeps its lines one name.
-    expect(scaleName).not.toMatch(/white-space:\s*nowrap/);
-    expect(scaleName).not.toMatch(/text-overflow|overflow:\s*hidden/);
-    expect(scaleName).toMatch(/overflow-wrap:\s*anywhere/);
+    const compact = declarations(split(css, WIDE_QUERY).outside, ".scale-name");
+    expect(compact).not.toMatch(/white-space:\s*nowrap/);
+    expect(compact).not.toMatch(/text-overflow|overflow:\s*hidden/);
+    expect(compact).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(compact).toMatch(/max-inline-size:\s*100%/);
+  });
+
+  it("cuts a long name with an ellipsis on one line in wide, so every row is one line (v1.1)", () => {
+    const wide = declarations(split(css, WIDE_QUERY).inside, ".scale-name");
+    expect(wide).toMatch(/white-space:\s*nowrap/);
+    expect(wide).toMatch(/overflow:\s*hidden/);
+    expect(wide).toMatch(/text-overflow:\s*ellipsis/);
     expect(scaleName).toMatch(/max-inline-size:\s*100%/);
   });
 

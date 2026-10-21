@@ -193,16 +193,31 @@ describe("a stack past five names (v1.1)", () => {
   it("ends the stack with +7 more, named for what it shows, closed", () => {
     const step = stepOf("5");
     expect(step).toMatch(
-      /<button type="button" class="small-button scale-more-button" aria-label="Show all 12 who chose 5" aria-expanded="false" aria-controls="[^"]+">\+7 more<\/button>/,
+      /<button type="button" class="small-button scale-more-button" aria-label="\+7 more: show all 12 who chose 5" aria-expanded="false" aria-controls="[^"]+">\+7 more<\/button>/,
     );
     expect(step).toMatch(/<div id="[^"]+" class="scale-more-panel" hidden="">/);
   });
 
-  it("says the card as it is said: Show all 6 who chose question mark", () => {
+  it("says the card as it is said: +1 more: show all 6 who chose question mark", () => {
     expect(stepOf("?")).toContain(
-      'aria-label="Show all 6 who chose question mark"',
+      'aria-label="+1 more: show all 6 who chose question mark"',
     );
     expect(stepOf("?")).toContain(">+1 more</button>");
+  });
+
+  it("names each button with its own words first (WCAG 2.5.3, Label in Name)", () => {
+    // axe doesn't check this. Voice control matches what is on screen, so
+    // "click +7 more" must find the button by its name.
+    const buttons = [
+      ...html.matchAll(
+        /<button[^>]*class="small-button scale-more-button"[^>]*aria-label="([^"]*)"[^>]*>([^<]*)<\/button>/g,
+      ),
+    ];
+    expect(buttons).toHaveLength(2);
+    for (const [, name = "", text = ""] of buttons) {
+      expect(text).not.toBe("");
+      expect(name.startsWith(text)).toBe(true);
+    }
   });
 
   it("lists everyone on the card in its panel, in join order", () => {

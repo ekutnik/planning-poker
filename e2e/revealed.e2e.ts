@@ -223,7 +223,10 @@ test("a stack of 12 shows five names and +7 more; its panel lists all 12 over th
 
   // The cap: five names you can see, the first five to join nearest the
   // card, then "+7 more"; all 12 in the list a screen reader hears.
-  const more = page.getByRole("button", { name: "Show all 12 who chose 5" });
+  const more = page.getByRole("button", {
+    name: "+7 more: show all 12 who chose 5",
+    exact: true,
+  });
   await expect(more).toHaveText("+7 more"); // the scale is on screen
   const five = step(page, "5");
   const fiveNames = NAMES.slice(0, 12);
@@ -233,7 +236,10 @@ test("a stack of 12 shows five names and +7 more; its panel lists all 12 over th
   );
 
   await expect(more).toHaveAttribute("aria-expanded", "false");
-  const eight = page.getByRole("button", { name: "Show all 6 who chose 8" });
+  const eight = page.getByRole("button", {
+    name: "+1 more: show all 6 who chose 8",
+    exact: true,
+  });
   await expect(eight).toHaveText("+1 more");
 
   // Open: everyone on the card, in join order, over the cards: nothing moves.
@@ -277,7 +283,10 @@ test("a stack of 12 shows five names and +7 more; its panel lists all 12 over th
   await more.click();
   await expect(panel).toBeVisible();
   onFive[11]?.send({ type: "leave" });
-  const eleven = page.getByRole("button", { name: "Show all 11 who chose 5" });
+  const eleven = page.getByRole("button", {
+    name: "+6 more: show all 11 who chose 5",
+    exact: true,
+  });
   await expect(eleven).toHaveText("+6 more");
   await expect(five.locator(".scale-more-panel")).toBeHidden();
 
@@ -293,7 +302,55 @@ test("a stack of 12 shows five names and +7 more; its panel lists all 12 over th
   onFive.pop();
   await vote5and8();
   await expect(
-    page.getByRole("button", { name: "Show all 11 who chose 5" }),
+    page.getByRole("button", {
+      name: "+6 more: show all 11 who chose 5",
+      exact: true,
+    }),
   ).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator(".scale-more-panel:visible")).toHaveCount(0);
+});
+
+test("a name too long for its column is cut with an ellipsis on one line, and stays whole for a screen reader", async ({
+  people,
+  bots,
+  baseURL,
+}) => {
+  const roomId = await newRoom(baseURL ?? "");
+  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const page = ada.page;
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const crowd = await joinAll(bots, roomId, [
+    "Alexandra Oppenheimer",
+    "Bartholomew",
+    "Cy",
+  ]);
+  vote(crowd, "5");
+  await seenVoting(page, crowd);
+  crowd[0]?.send({ type: "reveal" });
+  const stack = step(page, "5");
+  await expect(stack.locator(".scale-name")).toHaveText([
+    "Alexandra Oppenheimer",
+    "Bartholomew",
+    "Cy",
+  ]);
+  // Every row of the stack is one 24 px line; the long ones are cut short.
+  const rows = () =>
+    stack.locator(".scale-name").evaluateAll((names) =>
+      names.map((name) => ({
+        height: name.getBoundingClientRect().height,
+        cut: name.scrollWidth > name.clientWidth,
+      })),
+    );
+  await expect.poll(rows).toEqual([
+    { height: 24, cut: true },
+    { height: 24, cut: true },
+    { height: 24, cut: false },
+  ]);
+  // In full in the list a screen reader hears, and in the people list.
+  await expect(stack.locator(".scale-names").getByRole("listitem")).toHaveText([
+    "Alexandra Oppenheimer",
+    "Bartholomew",
+    "Cy",
+  ]);
+  await expect(row(page, "Alexandra Oppenheimer")).toBeVisible();
 });
