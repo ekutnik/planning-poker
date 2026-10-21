@@ -295,7 +295,7 @@ function newThrottle(now: number, key: string): Throttle {
  * Transport-agnostic room registry. Sockets are a Connection; Fastify is just
  * one adapter. Time comes only from the injected clock, and every time-based
  * rule runs in sweep(), so tests use fake time. The one exception is the room
- * timer, whose reveal cannot wait up to a sweep interval: it has one timer
+ * timer, whose time's up cannot wait up to a sweep interval: it has one timer
  * per room with a running timer, from the injected scheduler (ADR 0008).
  */
 export class RoomService {
@@ -488,7 +488,7 @@ export class RoomService {
    */
   shutdown(): void {
     this.stopping = true;
-    // No timer may reveal a round while the process goes, or keep it alive.
+    // No timer may fire while the process goes, or keep it alive.
     for (const { handle } of this.timers.values()) this.scheduler.clear(handle);
     this.timers.clear();
     const everyone = [...this.pending.keys(), ...this.bindings.keys()];
