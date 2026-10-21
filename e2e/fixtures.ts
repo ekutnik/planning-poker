@@ -16,6 +16,8 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
+import { randomBytes } from "node:crypto";
+import { PROTOCOL_VERSION } from "../src/shared/socket.js";
 
 declare global {
   interface Window {
@@ -224,7 +226,27 @@ export function spoken(page: Page): Promise<string[]> {
   return page.evaluate(() => window.__e2eSpoken ?? []);
 }
 
-export const test = base.extend<{ problems: string[]; people: People }>({
+/**
+ * Someone in the room without a browser: a socket that speaks the protocol,
+ * as the simulation's bots do. For a crowd the test needs in the room but
+ * never looks through, such as a dozen votes on one card.
+ */
+export interface Bot {
+  readonly name: string;
+  /** Any client message, as the page would send it. */
+  send(message: Record<string, unknown>): void;
+}
+
+export interface Bots {
+  /** Joins the room as `name`, and resolves once its first snapshot came. */
+  join(roomId: string, name: string): Promise<Bot>;
+}
+
+export const test = base.extend<{
+  problems: string[];
+  people: People;
+  bots: Bots;
+}>({
   // Collected across every page of the test, and checked when it ends.
   // eslint-disable-next-line no-empty-pattern -- Playwright requires the pattern
   problems: async ({}, use) => {
@@ -267,6 +289,38 @@ export const test = base.extend<{ problems: string[]; people: People }>({
       },
     });
     for (const context of contexts) await context.close();
+  },
+  bots: async ({ baseURL }, use) => {
+    const sockets: WebSocket[] = [];
+    const ws = (baseURL ?? "").replace(/^http/, "ws");
+    await use({
+      join: async (roomId, name) => {
+        const socket = new WebSocket(
+          `${ws}/ws/${roomId}?v=${String(PROTOCOL_VERSION)}`,
+        );
+        sockets.push(socket);
+        await new Promise((resolve, reject) => {
+          socket.addEventListener("open", resolve, { once: true });
+          socket.addEventListener("error", reject, { once: true });
+        });
+        const joined = new Promise((resolve) => {
+          socket.addEventListener("message", resolve, { once: true });
+        });
+        socket.send(
+          JSON.stringify({
+            type: "join",
+            sessionToken: randomBytes(24).toString("base64url"),
+            name,
+          }),
+        );
+        await joined;
+        return {
+          name,
+          send: (message) => socket.send(JSON.stringify(message)),
+        };
+      },
+    });
+    for (const socket of sockets) socket.close();
   },
 });
 

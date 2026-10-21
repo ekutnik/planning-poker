@@ -152,6 +152,91 @@ describe("the deck as the scale", () => {
   });
 });
 
+describe("a stack past five names (v1.1)", () => {
+  // Twelve on 5, six on ?: one stack well past the cap, one just past it.
+  const names = Array.from({ length: 18 }, (_, i) => `P${String(i + 1)}`);
+  const crowd: Revealed = {
+    ...snapshot,
+    participants: names.map((name, i) => ({
+      id: name,
+      name,
+      status: "connected",
+      vote: i < 12 ? "5" : "?",
+    })),
+  };
+  const html = render(true, crowd);
+  const stepOf = (card: string) =>
+    html
+      .split(/<li class="scale-step[^"]*"[^>]*>/)
+      .find(
+        (step) =>
+          step.startsWith(`<span class="scale-card">${card}<`) ||
+          step.startsWith(
+            `<span class="scale-card"><span aria-hidden="true">${card}<`,
+          ),
+      ) ?? "";
+
+  it("shows five names, nearest the card, and keeps all 12 in the list", () => {
+    const step = stepOf("5");
+    const shown = [
+      ...step.matchAll(/<li class="scale-name" dir="auto">([^<]*)</g),
+    ].map(([, name]) => name);
+    const over = [
+      ...step.matchAll(
+        /<li class="scale-name scale-name--over" dir="auto">([^<]*)</g,
+      ),
+    ].map(([, name]) => name);
+    expect(shown).toEqual(names.slice(0, 5));
+    expect(over).toEqual(names.slice(5, 12));
+  });
+
+  it("ends the stack with +7 more, named for what it shows, closed", () => {
+    const step = stepOf("5");
+    expect(step).toMatch(
+      /<button type="button" class="small-button scale-more-button" aria-label="\+7 more: show all 12 who chose 5" aria-expanded="false" aria-controls="[^"]+">\+7 more<\/button>/,
+    );
+    expect(step).toMatch(/<div id="[^"]+" class="scale-more-panel" hidden="">/);
+  });
+
+  it("says the card as it is said: +1 more: show all 6 who chose question mark", () => {
+    expect(stepOf("?")).toContain(
+      'aria-label="+1 more: show all 6 who chose question mark"',
+    );
+    expect(stepOf("?")).toContain(">+1 more</button>");
+  });
+
+  it("names each button with its own words first (WCAG 2.5.3, Label in Name)", () => {
+    // axe doesn't check this. Voice control matches what is on screen, so
+    // "click +7 more" must find the button by its name.
+    const buttons = [
+      ...html.matchAll(
+        /<button[^>]*class="small-button scale-more-button"[^>]*aria-label="([^"]*)"[^>]*>([^<]*)<\/button>/g,
+      ),
+    ];
+    expect(buttons).toHaveLength(2);
+    for (const [, name = "", text = ""] of buttons) {
+      expect(text).not.toBe("");
+      expect(name.startsWith(text)).toBe(true);
+    }
+  });
+
+  it("lists everyone on the card in its panel, in join order", () => {
+    const panel =
+      /class="scale-more-panel" hidden="">([\s\S]*?)<\/div>/.exec(
+        stepOf("5"),
+      )?.[1] ?? "";
+    expect(panel).toContain("12 chose 5");
+    expect(
+      [...panel.matchAll(/<li dir="auto">([^<]*)<\/li>/g)].map(([, n]) => n),
+    ).toEqual(names.slice(0, 12));
+  });
+
+  it("has no +n more up to five names", () => {
+    expect(render()).not.toContain("scale-more");
+    expect(render()).not.toContain("scale-name--over");
+  });
+});
+
 describe("the revealed people list", () => {
   const people = (html: string) =>
     /<ul class="people people--revealed"[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
