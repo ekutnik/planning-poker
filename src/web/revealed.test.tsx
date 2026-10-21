@@ -335,9 +335,11 @@ describe("a vote changed after the reveal (ADR 0011)", () => {
     );
   });
 
-  it("says ? and ☕ in words there too", () => {
-    expect(rowOf(render(true, changed), "Cy")).toContain(
-      ", changed from question mark after the reveal",
+  it("says ? and ☕ in words there too, and shows them as the chip does (CardText)", () => {
+    const row = rowOf(render(true, changed), "Cy");
+    expect(row).toContain(", changed from question mark after the reveal");
+    expect(row).toContain(
+      '<s class="person-was" aria-hidden="true"><span aria-hidden="true">?</span><span class="visually-hidden">question mark</span></s>',
     );
   });
 
@@ -369,11 +371,13 @@ describe("a vote changed after the reveal (ADR 0011)", () => {
     );
   });
 
-  it("says, under the sentence, that a vote can change and earns nothing", () => {
-    expect(render()).toContain(
-      '<p class="result-hint">Changed your mind? Choose another card. A change after the reveal doesn&#x27;t earn a point.</p>',
-    );
-    expect(render(false)).toContain('class="result-hint"');
+  it("doesn't invite anyone to change their vote: the sentence is the last line (decided in #111's review)", () => {
+    for (const html of [render(true, changed), render(false, changed)]) {
+      expect(html).not.toMatch(/Changed your mind|Choose another card/);
+      expect(html).toMatch(
+        /<p class="result">[^<]*<\/p><div class="controls">/,
+      );
+    }
   });
 });
 

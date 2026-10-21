@@ -246,9 +246,6 @@ export const RESULT_COPY = {
     endsSetAside
       ? "No result: no card has two votes once the lowest and highest vote are set aside."
       : "No result: no card has two votes.",
-  /** Under the sentence, for everyone in the revealed room (ADR 0011). */
-  changeHint:
-    "Changed your mind? Choose another card. A change after the reveal doesn't earn a point.",
 } as const;
 
 /**

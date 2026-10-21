@@ -156,10 +156,9 @@ for (const { width, touch } of [
         ).toBeLessThanOrEqual(0.5);
       }
 
-      // Nothing on the right below the sentence and the line under it
-      // (ADR 0011): the people are on the left.
+      // Nothing on the right below the sentence: the people are on the left.
       const below = await page.evaluate(() => {
-        const result = document.querySelector(".result-area");
+        const result = document.querySelector(".result");
         if (result === null) return ["no sentence"];
         const bottom = result.getBoundingClientRect().bottom;
         return [...document.querySelectorAll(".round *")]

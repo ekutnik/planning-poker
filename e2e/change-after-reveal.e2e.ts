@@ -74,11 +74,6 @@ test("a vote changed after the reveal breaks a draw: both see the new result and
 }) => {
   const { ada, ben } = await draw(people, bots, baseURL ?? "");
   for (const page of [ada.page, ben.page]) await recordSpeech(page);
-  for (const page of [ada.page, ben.page]) {
-    await expect(page.locator(".result-hint")).toHaveText(
-      "Changed your mind? Choose another card. A change after the reveal doesn't earn a point.",
-    );
-  }
 
   await scaleCard(ben.page, "3").click();
   for (const page of [ada.page, ben.page]) {

@@ -579,24 +579,9 @@ button.scale-card {
   }
 }
 
-/* The sentence, then the line that says a vote can still change (ADR
-   0011), 8px under it: one item of the grid, so the round's 28px row gap
-   doesn't come between them. */
-.result-area {
-  grid-area: result;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.result-hint {
-  margin: 0;
-  color: var(--quiet);
-  font-size: var(--text-small);
-}
-
 /* The sentence, in Ink at regular weight: the colour is on the scale. */
 .result {
+  grid-area: result;
   margin: 0;
   font-size: var(--text-result);
   line-height: 1.5;

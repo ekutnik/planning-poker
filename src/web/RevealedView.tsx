@@ -1,7 +1,6 @@
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { People } from "./People.js";
-import { RESULT_COPY } from "./copy.js";
 import { resultCopy } from "./result.js";
 import { Scale } from "./Scale.js";
 import { ScreenHeading } from "./ScreenHeading.js";
@@ -18,7 +17,8 @@ type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
  * down by the names stacked above them.
  *
  * The cards can be chosen again (ADR 0011): a vote changed now moves the
- * result, never the points, and the line under the sentence says so.
+ * result, never the points. Nothing on screen invites a change: it's for
+ * the exceptional case, such as settling a draw.
  */
 export function RevealedView({
   snapshot,
@@ -58,12 +58,7 @@ export function RevealedView({
           onChoose={(card) => onAction({ type: "castVote", card })}
         />
       </div>
-      {/* The sentence, then a line for everyone, facilitators too: a vote
-          can change after the reveal, and earns nothing (ADR 0011). */}
-      <div className="result-area">
-        <p className="result">{copy.summary}</p>
-        <p className="result-hint">{RESULT_COPY.changeHint}</p>
-      </div>
+      <p className="result">{copy.summary}</p>
       <div className="controls">
         <button
           type="button"

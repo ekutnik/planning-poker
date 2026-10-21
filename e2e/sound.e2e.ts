@@ -183,8 +183,21 @@ test("Sound turned off in another tab applies here too, as Theme does", async ({
   // the room over, turns Sound off; Ben's room tab never opens its Menu.
   const other = await ben.page.context().newPage();
   await other.goto("/");
+  // The storage event reaches Ben's tab in its own time: wait for it, or a
+  // nudge could beat it. The app's listener was added at load, before this
+  // one, so it has run by the time this one hears it.
+  await ben.page.evaluate(() => {
+    window.addEventListener("storage", (event) => {
+      if (event.key === "planning-poker:sound") {
+        document.documentElement.dataset.e2eSoundHeard = "yes";
+      }
+    });
+  });
   await other.evaluate(() =>
     window.localStorage.setItem("planning-poker:sound", "off"),
+  );
+  await expect(ben.page.locator("html[data-e2e-sound-heard=yes]")).toHaveCount(
+    1,
   );
   await other.close();
 

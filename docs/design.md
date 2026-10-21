@@ -223,7 +223,7 @@ Sizes are px, set in `rem`, so browser zoom scales them. A test checks every rol
 
 #### Changing a vote after the reveal
 
-<table><tr><td><img src="design/reveal-changed-wide-light.png" alt="A draw settled after the reveal, light theme: Ben's row reads 13 struck through, an arrow, then 3; the scale has 3 tinted green with Ben's name on it and a Cobalt ring around the viewer's own card; the sentence Spread from 2 to 5. Result: 3., and under it in grey, Changed your mind? Choose another card. A change after the reveal doesn't earn a point." /></td><td><img src="design/reveal-changed-wide-dark.png" alt="The same settled draw in the dark theme: 13 struck through, then 3, in Ben's row; 3 green on the scale, the viewer's own card ringed, and the line under the sentence" /></td></tr></table>
+<table><tr><td><img src="design/reveal-changed-wide-light.png" alt="A draw settled after the reveal, light theme: Ben's row reads 13 struck through, an arrow, then 3; the scale has 3 tinted green with Ben's name on it and a Cobalt ring around the viewer's own card; and the sentence Spread from 2 to 5. Result: 3." /></td><td><img src="design/reveal-changed-wide-dark.png" alt="The same settled draw in the dark theme: 13 struck through, then 3, in Ben's row; 3 green on the scale, and the viewer's own card ringed" /></td></tr></table>
 
 Since v1.1 a vote can change after the reveal, and the points can't ([ADR 0011](decisions/0011-votes-can-change-after-the-reveal.md)), on the team's feedback of 2026-10-19: "allow changing the vote after votes are revealed, but if you change to the winning card afterwards, you don't get a point." The case: a draw, and one person far off moving to one of the two cards to settle it.
 
@@ -231,7 +231,7 @@ Since v1.1 a vote can change after the reveal, and the points can't ([ADR 0011](
 - **Pressing your own card does nothing:** the app sends nothing, since a revealed room refuses clearing a vote. It stays pressed, and no error shows.
 - **Anyone may change, facilitators included,** and so may someone who hadn't voted. The result, the sentence and the scale's tint follow the votes as they are, for everyone; the points stay as the reveal set them. When the result changes, the room's polite live region says the new sentence once.
 - **A changed vote is marked** in the person's row: the vote at the reveal struck through (`<s>`), in Quiet, an arrow, then the new vote in its chip: "~~13~~ → 3". A screen reader doesn't read a strikethrough or an arrow, so both are hidden from it, and it hears "3, changed from 13 after the reveal". Someone who had no vote at the reveal shows "~~No vote~~ → 3", heard as "3, voted after the reveal". Changing back removes the mark. The vote at the reveal is in the snapshot (`voteAtReveal`), so a tab that joins afterwards shows the same mark.
-- **A line under the sentence,** in Quiet, for everyone in the revealed room: "Changed your mind? Choose another card. A change after the reveal doesn't earn a point."
+- **Nothing invites a change.** A change after the reveal is for the exceptional case, such as settling a draw, so the room doesn't prompt anyone to make one: the sentence is still the last line on the right. (A line under it, "Changed your mind? Choose another card…", was dropped in #111's review, 2026-10-21.)
 - **A known limitation, on a phone:** compact shows only the cards that got votes, so there you can move only to a card someone chose. That covers the team's case, settling a draw, since both tied cards are on screen; showing all ten would cost a phone a lot of height for something rarely needed. Revisit if anyone asks.
 
 ### The ticket
@@ -478,7 +478,6 @@ Each action keeps one name through the whole flow. The rules, checked by `copy.t
 | Result                | See [highlight and sentence](#highlight-and-sentence); the winner line is "Result: 8."                                                |
 | Name stack            | "+7 more" (accessible name "+7 more: show all 12 who chose 5"); its panel, "12 chose 5"                                               |
 | Changed vote          | "~~13~~ → 3" (spoken "3, changed from 13 after the reveal"; "voted after the reveal" without a vote at it)                            |
-| Under the result      | "Changed your mind? Choose another card. A change after the reveal doesn't earn a point."                                             |
 | Link                  | "Copy link" → "Link copied", or "Couldn't copy. Copy the address from your browser."                                                  |
 | Preview               | "Pause preview" / "Play preview"                                                                                                      |
 | Next round (spoken)   | "Next round started."                                                                                                                 |

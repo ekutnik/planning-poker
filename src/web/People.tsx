@@ -274,7 +274,7 @@ function Changed({
   return (
     <span className="person-changed">
       <s className="person-was" aria-hidden="true">
-        {was ?? PEOPLE_COPY.noVote}
+        {was === null ? PEOPLE_COPY.noVote : <CardText card={was} />}
       </s>
       <span className="person-arrow" aria-hidden="true">
         →

@@ -35,7 +35,6 @@ const sentences = [
   RUNNING_COPY.note,
   NUDGE_COPY.banner,
   NUDGE_COPY.timesUpBanner,
-  RESULT_COPY.changeHint,
   ...resultLines(),
 ];
 
