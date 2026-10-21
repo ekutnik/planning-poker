@@ -23,6 +23,7 @@ A team estimates together on a video call, everyone on their own laptop, while t
 - **A facilitator view** for sharing your screen: your own vote stays hidden unless you choose to show it, and the controls stay in one place.
 - **The ticket being estimated,** first in the room for everyone, set in place by the facilitator once they switch Ticket name on in the Menu's Session tools.
 - **A timer, if you want one:** switched on in the same place; the facilitator starts it, everyone sees it count down, and when it ends the server nudges whoever hasn't voted, leaving the reveal to a person ([ADR 0008](docs/decisions/0008-the-server-holds-the-timer.md), [ADR 0010](docs/decisions/0010-the-timer-is-a-soft-deadline.md)).
+- **Change your vote after the reveal,** to settle a draw: the result follows, a change is marked for everyone, and points stay as the reveal set them ([ADR 0011](docs/decisions/0011-votes-can-change-after-the-reveal.md)).
 - **Keep score, if you like:** a point when your vote matches the result, off until the facilitator turns it on, for the session only.
 - **Nudges:** a quiet, anonymous reminder to someone who hasn't voted ([ADR 0007](docs/decisions/0007-nudges-are-transient-and-anonymous.md)).
 - **It recovers on its own:** pages reconnect after a dropped connection, a laptop that wakes within a minute keeps its seat and its vote, and during a deploy each page says "The server is restarting. Reconnecting…".

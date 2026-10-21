@@ -226,6 +226,7 @@ describe("the reveal, said", () => {
           name: "Ada",
           status: "connected",
           vote: "5",
+          voteAtReveal: "5",
           changedAfterReveal: false,
         },
         {
@@ -233,6 +234,7 @@ describe("the reveal, said", () => {
           name: "Ben",
           status: "connected",
           vote: "5",
+          voteAtReveal: "5",
           changedAfterReveal: false,
         },
       ],

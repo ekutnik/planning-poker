@@ -13,7 +13,7 @@ Keep score (2026-10-01) awards a point to everyone on the winning card at each r
 
 `castVote` is accepted after the reveal. The result follows the votes; the points don't.
 
-- **The same command, in either phase,** with the reducer's usual order of checks: unknown participant, not connected, no-op (the same card again), then the effect. Anyone in the room may change their vote, including someone who hadn't voted before the reveal.
+- **The same command, in either phase,** with the reducer's usual order of checks: unknown participant, not connected, no-op (the same card again), rules, then the effect. After the reveal `castVote` has no rule of its own left: the one it had, `VOTING_CLOSED`, is the one this removes. A card that isn't in the deck never reaches the reducer: the protocol refuses it first (`INVALID_MESSAGE`), as before. Anyone in the room may change their vote, including someone who hadn't voted before the reveal.
 - **`clearVote` stays refused after the reveal** (`VOTING_CLOSED`): a revealed room can see a vote change, but never lose one.
 - **The result is recalculated from the votes as they are.** It always was computed from the room at each projection (`computeResults`), so a late change can break a draw, and the result sentence and the scale update for everyone.
 - **Points are settled at the reveal and never change afterwards.** Nobody gains or loses a point because of a change after it: not the person who changed, and not anyone else, even when the winning card changes. It's the simplest rule that meets "you don't get a point", and it can't flip-flop as votes move.

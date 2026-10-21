@@ -60,6 +60,7 @@ const revealed: Revealed = {
       name: "Zayd",
       status: "connected",
       vote: "5",
+      voteAtReveal: "5",
       changedAfterReveal: false,
     },
     {
@@ -67,6 +68,7 @@ const revealed: Revealed = {
       name: "Quinn",
       status: "connected",
       vote: "5",
+      voteAtReveal: "5",
       changedAfterReveal: false,
     },
     {
@@ -74,6 +76,7 @@ const revealed: Revealed = {
       name: ALI,
       status: "connected",
       vote: "8",
+      voteAtReveal: "8",
       changedAfterReveal: false,
     },
     {
@@ -81,6 +84,7 @@ const revealed: Revealed = {
       name: "Xia",
       status: "connected",
       vote: "?",
+      voteAtReveal: "?",
       changedAfterReveal: false,
     },
     {
@@ -88,6 +92,7 @@ const revealed: Revealed = {
       name: "Yusuf",
       status: "disconnected",
       vote: null,
+      voteAtReveal: null,
       changedAfterReveal: false,
     },
   ],

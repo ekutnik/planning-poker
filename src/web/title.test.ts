@@ -74,6 +74,7 @@ describe("document titles (A-03)", () => {
             name: "Ada",
             status: "connected",
             vote: "13",
+            voteAtReveal: "13",
             changedAfterReveal: false,
           },
         ],

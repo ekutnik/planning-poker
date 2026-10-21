@@ -4,6 +4,7 @@ import { DECK } from "../shared/deck.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import { RevealedView } from "./RevealedView.js";
 import { RoomView } from "./RoomView.js";
+import { Scale } from "./Scale.js";
 
 type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
 
@@ -23,6 +24,7 @@ const snapshot: Revealed = {
       name: "Ada",
       status: "connected",
       vote: "3",
+      voteAtReveal: "3",
       changedAfterReveal: false,
     },
     {
@@ -30,6 +32,7 @@ const snapshot: Revealed = {
       name: "Ben",
       status: "connected",
       vote: "8",
+      voteAtReveal: "8",
       changedAfterReveal: false,
     },
     {
@@ -37,6 +40,7 @@ const snapshot: Revealed = {
       name: "Cy",
       status: "connected",
       vote: "?",
+      voteAtReveal: "?",
       changedAfterReveal: false,
     },
     {
@@ -44,6 +48,7 @@ const snapshot: Revealed = {
       name: "Dee",
       status: "connected",
       vote: "8",
+      voteAtReveal: "8",
       changedAfterReveal: false,
     },
     {
@@ -51,6 +56,7 @@ const snapshot: Revealed = {
       name: "Eli",
       status: "connected",
       vote: "13",
+      voteAtReveal: "13",
       changedAfterReveal: false,
     },
     {
@@ -58,6 +64,7 @@ const snapshot: Revealed = {
       name: "Fay",
       status: "disconnected",
       vote: null,
+      voteAtReveal: null,
       changedAfterReveal: false,
     },
   ],
@@ -124,7 +131,7 @@ describe("the deck as the scale", () => {
   it("puts the card before its names, so a screen reader hears the card first", () => {
     const html = render();
     expect(html).toMatch(
-      /<span class="scale-card">8<\/span><ul class="scale-names"><li[^>]*>Ben<\/li><li[^>]*>Dee<\/li>/,
+      /class="scale-card"[^>]*>8<\/button><ul class="scale-names"><li[^>]*>Ben<\/li><li[^>]*>Dee<\/li>/,
     );
   });
 
@@ -133,10 +140,42 @@ describe("the deck as the scale", () => {
     expect(html.match(/class="scale-step scale-step--empty"/g)).toHaveLength(6);
   });
 
-  it("hides the cards nobody chose from screen readers, and only those (#44)", () => {
-    const steps = [
-      ...render().matchAll(/<li class="(scale-step[^"]*)"([^>]*)>/g),
-    ];
+  it("makes every card a toggle button in the room, none hidden from screen readers (ADR 0011)", () => {
+    const html = render();
+    // A button under aria-hidden would be focusable but unheard.
+    expect(html).not.toContain('aria-hidden="true"><button');
+    const steps = [...html.matchAll(/<li class="(scale-step[^"]*)"([^>]*)>/g)];
+    expect(steps).toHaveLength(DECK.length);
+    for (const [, className = "", attributes = ""] of steps) {
+      expect(attributes, className).not.toContain("aria-hidden");
+    }
+    const cards = [
+      ...html.matchAll(
+        /<button type="button" class="scale-card" aria-pressed="(true|false)" tabindex="(-?\d)">/g,
+      ),
+    ].map(([, pressed, tab]) => [pressed, tab]);
+    expect(cards).toHaveLength(DECK.length);
+    // Ada voted 3: her card is pressed, and it is the one Tab stop.
+    expect(cards[DECK.indexOf("3")]).toEqual(["true", "0"]);
+    expect(cards.filter(([pressed]) => pressed === "true")).toHaveLength(1);
+    expect(cards.filter(([, tab]) => tab === "0")).toHaveLength(1);
+  });
+
+  it("puts the Tab stop on the first card for someone with no vote", () => {
+    const html = render(true, { ...snapshot, viewerId: "Fay" });
+    const tabs = [
+      ...html.matchAll(
+        /class="scale-card" aria-pressed="false" tabindex="(-?\d)"/g,
+      ),
+    ].map(([, tab]) => tab);
+    expect(tabs[0]).toBe("0");
+    expect(tabs.slice(1).every((tab) => tab === "-1")).toBe(true);
+  });
+
+  it("keeps the preview's cards plain, and its empty ones hidden from screen readers (#44)", () => {
+    const html = renderToStaticMarkup(<Scale snapshot={snapshot} />);
+    expect(html).not.toContain("<button");
+    const steps = [...html.matchAll(/<li class="(scale-step[^"]*)"([^>]*)>/g)];
     expect(steps).toHaveLength(DECK.length);
     for (const [, className = "", attributes = ""] of steps) {
       expect(attributes.includes('aria-hidden="true"'), className).toBe(
@@ -149,7 +188,7 @@ describe("the deck as the scale", () => {
     const html = render();
     expect(html.match(/scale-step--win/g)).toHaveLength(1);
     expect(html).toMatch(
-      /<li class="scale-step scale-step--win"><span class="scale-card">8<\/span>/,
+      /<li class="scale-step scale-step--win"><button type="button" class="scale-card"[^>]*>8<\/button>/,
     );
     expect(html).not.toContain("scale-step--draw");
   });
@@ -162,7 +201,7 @@ describe("the deck as the scale", () => {
     const html = render(true, draw);
     const tinted = [
       ...html.matchAll(
-        /<li class="scale-step scale-step--draw"><span class="scale-card">([^<]*)</g,
+        /<li class="scale-step scale-step--draw"><button type="button" class="scale-card"[^>]*>([^<]*)</g,
       ),
     ].map(([, card]) => card);
     expect(tinted).toEqual(["3", "8"]);
@@ -198,6 +237,7 @@ describe("a stack past five names (v1.1)", () => {
       name,
       status: "connected",
       vote: i < 12 ? "5" : "?",
+      voteAtReveal: i < 12 ? "5" : "?",
       changedAfterReveal: false,
     })),
   };
@@ -205,12 +245,10 @@ describe("a stack past five names (v1.1)", () => {
   const stepOf = (card: string) =>
     html
       .split(/<li class="scale-step[^"]*"[^>]*>/)
-      .find(
-        (step) =>
-          step.startsWith(`<span class="scale-card">${card}<`) ||
-          step.startsWith(
-            `<span class="scale-card"><span aria-hidden="true">${card}<`,
-          ),
+      .find((step) =>
+        new RegExp(
+          `^<button type="button" class="scale-card"[^>]*>(?:<span aria-hidden="true">)?${card.replace(/[?]/g, "\\?")}<`,
+        ).test(step),
       ) ?? "";
 
   it("shows five names, nearest the card, and keeps all 12 in the list", () => {
@@ -274,6 +312,71 @@ describe("a stack past five names (v1.1)", () => {
   });
 });
 
+describe("a vote changed after the reveal (ADR 0011)", () => {
+  const changed: Revealed = {
+    ...snapshot,
+    participants: snapshot.participants.map((p) =>
+      p.id === "Eli"
+        ? { ...p, vote: "3", voteAtReveal: "13", changedAfterReveal: true }
+        : p.id === "Cy"
+          ? { ...p, vote: "5", voteAtReveal: "?", changedAfterReveal: true }
+          : p,
+    ),
+  };
+  const rowOf = (html: string, name: string) =>
+    new RegExp(
+      `<li class="person"><span class="person-name" dir="auto">${name}</span>([\\s\\S]*?)</li>`,
+    ).exec(html)?.[1] ?? "";
+
+  it("strikes the vote at the reveal through, then an arrow, then the new card, and says it in words", () => {
+    const row = rowOf(render(true, changed), "Eli");
+    expect(row).toBe(
+      ' <span class="person-changed"><s class="person-was" aria-hidden="true">13</s><span class="person-arrow" aria-hidden="true">→</span><span class="chip">3</span><span class="visually-hidden">, changed from 13 after the reveal</span></span>',
+    );
+  });
+
+  it("says ? and ☕ in words there too", () => {
+    expect(rowOf(render(true, changed), "Cy")).toContain(
+      ", changed from question mark after the reveal",
+    );
+  });
+
+  it("marks a vote from someone who had none at the reveal", () => {
+    const late: Revealed = {
+      ...snapshot,
+      participants: snapshot.participants.map((p) =>
+        p.id === "Fay"
+          ? {
+              ...p,
+              status: "connected",
+              vote: "8",
+              voteAtReveal: null,
+              changedAfterReveal: true,
+            }
+          : p,
+      ),
+    };
+    const row = rowOf(render(true, late), "Fay");
+    expect(row).toContain(
+      '<s class="person-was" aria-hidden="true">No vote</s>',
+    );
+    expect(row).toContain(", voted after the reveal");
+  });
+
+  it("leaves an unchanged vote as it was: just its chip", () => {
+    expect(rowOf(render(true, changed), "Ben")).toBe(
+      ' <span class="chip">8</span>',
+    );
+  });
+
+  it("says, under the sentence, that a vote can change and earns nothing", () => {
+    expect(render()).toContain(
+      '<p class="result-hint">Changed your mind? Choose another card. A change after the reveal doesn&#x27;t earn a point.</p>',
+    );
+    expect(render(false)).toContain('class="result-hint"');
+  });
+});
+
 describe("the revealed people list", () => {
   const people = (html: string) =>
     /<ul class="people people--revealed"[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
@@ -305,6 +408,7 @@ describe("the revealed people list", () => {
           name: "Gus",
           status: "connected",
           vote: null,
+          voteAtReveal: null,
           changedAfterReveal: false,
         },
       ],
@@ -327,7 +431,9 @@ describe("the revealed round", () => {
 
   it("offers exactly one next action, last in the DOM", () => {
     const html = render();
-    expect(html.match(/<button/g)).toHaveLength(1);
+    // The scale's cards are buttons too (ADR 0011); the round's action is
+    // the one other.
+    expect(html.match(/<button(?![^>]*scale-card)/g)).toHaveLength(1);
     expect(html).toMatch(
       /<div class="controls"><button type="button" class="primary">Start next round<\/button><\/div>$/,
     );

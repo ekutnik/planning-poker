@@ -210,6 +210,7 @@ function open(youVoted: boolean, phase: "voting" | "revealed" = "voting") {
             participants: participants.map((p) => ({
               ...p,
               vote: null,
+              voteAtReveal: null,
               changedAfterReveal: false,
             })),
             results: {

@@ -124,6 +124,7 @@ describe("project — no-leak (key whitelist)", () => {
         "name",
         "status",
         "vote",
+        "voteAtReveal",
       ]);
     }
     expect(snapshot.results.voteCount).toBe(3);

@@ -20,8 +20,15 @@ export interface RevealedParticipantView {
   readonly status: "connected" | "disconnected";
   readonly vote: Card | null;
   /**
-   * The vote differs from the one at the reveal (ADR 0011): changed, or
-   * cast after it by someone who hadn't voted. Changing back clears it.
+   * The vote as it was at the reveal (ADR 0011), null for someone who had
+   * none: what a changed vote is shown against ("~~13~~ → 3"). It's in the
+   * snapshot, not remembered by the client, so a tab that joins after the
+   * change shows the same mark.
+   */
+  readonly voteAtReveal: Card | null;
+  /**
+   * The vote differs from the one at the reveal: changed, or cast after it
+   * by someone who hadn't voted. Changing back clears it.
    */
   readonly changedAfterReveal: boolean;
 }

@@ -29,6 +29,7 @@ function revealed(
       name,
       status: "connected" as const,
       vote,
+      voteAtReveal: vote,
       changedAfterReveal: false,
     };
   });
