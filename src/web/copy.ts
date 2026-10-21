@@ -238,6 +238,19 @@ export const RESULT_COPY = {
 } as const;
 
 /** The landing preview's one control, and its revealed frame's status. */
+/**
+ * A capped name stack on the scale, in wide (docs/design.md, The revealed
+ * room): "+7 more", the panel's line "12 chose 5", and the button's name for
+ * a screen reader, "Show all 12 who chose 5". The card is given as it is
+ * said ("question mark", "coffee").
+ */
+export const STACK_COPY = {
+  more: (hidden: number) => `+${String(hidden)} more`,
+  chose: (count: number) => `${String(count)} chose`,
+  showAll: (count: number, spokenCard: string) =>
+    `Show all ${String(count)} who chose ${spokenCard}`,
+} as const;
+
 export const PREVIEW_COPY = {
   pause: "Pause preview",
   play: "Play preview",

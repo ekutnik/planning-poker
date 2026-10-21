@@ -3,6 +3,7 @@ import { expectAccessible } from "./axe.js";
 import {
   expect,
   newRoom,
+  row,
   test,
   type People,
   type PersonOptions,
@@ -12,7 +13,8 @@ import {
  * The room's fixed slots (docs/design.md, The room's layout): in wide, the
  * deck, the round's action and the people never move when a tool is
  * switched on or used; every control is one of three heights; and the
- * status line lines up with the action row.
+ * status line's top is the action row's. What moves at the reveal is in
+ * revealed.e2e.ts.
  */
 
 const WIDE = { width: 1280, height: 800 };
@@ -194,7 +196,7 @@ for (const touch of [false, true]) {
 }
 
 for (const touch of [false, true]) {
-  test(`lines the status line up with the action row${withTouch(touch)}`, async ({
+  test(`lines the status line's top up with the action row's, voting and revealed${withTouch(touch)}`, async ({
     people,
     baseURL,
   }) => {
@@ -207,19 +209,63 @@ for (const touch of [false, true]) {
       sizeFor(touch),
     );
     const ben = await join(people, roomId, "Ben", { touch }, sizeFor(touch));
+    const top = async (locator: Locator) =>
+      (await locator.boundingBox())?.y ?? Number.NaN;
     const centre = async (locator: Locator) => {
       const box = await locator.boundingBox();
       return (box?.y ?? Number.NaN) + (box?.height ?? Number.NaN) / 2;
     };
-    for (const page of [ada.page, ben.page]) {
-      const status = page.getByRole("heading", { level: 1 });
-      const row = await centre(page.locator(".ticket"));
-      expect(Math.abs((await centre(status)) - row)).toBeLessThanOrEqual(1);
-      expect(
-        Math.abs((await centre(page.locator(".controls button"))) - row),
-      ).toBeLessThanOrEqual(1);
-      expect((await page.locator(".ticket").boundingBox())?.height).toBe(56);
-    }
+    // v1.1: the status line sits at the top of the action row, not at its
+    // centre (on the team's feedback), and the action row's own parts are
+    // still centred on it.
+    const check = async (step: string) => {
+      for (const page of [ada.page, ben.page]) {
+        const status = page.getByRole("heading", { level: 1 });
+        const ticket = page.locator(".ticket");
+        expect(
+          Math.abs((await top(status)) - (await top(ticket))),
+          `${step}: the status line's top`,
+        ).toBeLessThanOrEqual(1);
+        expect(
+          Math.abs(
+            (await centre(page.locator(".controls button"))) -
+              (await centre(ticket)),
+          ),
+          `${step}: the action`,
+        ).toBeLessThanOrEqual(1);
+        expect((await ticket.boundingBox())?.height).toBe(56);
+        // And no box of its own around it, as the 56 px one it was centred
+        // in until v1.1: the heading is as tall as its lines, so its text
+        // starts at its top.
+        const fit = await status.evaluate((heading) => {
+          const range = document.createRange();
+          range.selectNodeContents(heading);
+          const tops = [...range.getClientRects()].map((rect) =>
+            Math.round(rect.top),
+          );
+          return {
+            height: heading.getBoundingClientRect().height,
+            lines: new Set(tops).size,
+            lineHeight: Number.parseFloat(getComputedStyle(heading).lineHeight),
+          };
+        });
+        expect(
+          Math.abs(fit.height - fit.lines * fit.lineHeight),
+          `${step}: the status line is as tall as its lines`,
+        ).toBeLessThanOrEqual(1);
+      }
+    };
+    await check("voting");
+    await ben.card("5").click();
+    await expect(row(ada.page, "Ben").getByText("Voted")).toBeVisible();
+    await ada.page.getByRole("button", { name: "Reveal votes" }).click();
+    await expect(
+      ben.page.getByRole("button", { name: "Start next round" }),
+    ).toBeVisible();
+    await expect(
+      ada.page.getByRole("button", { name: "Start next round" }),
+    ).toBeVisible();
+    await check("revealed");
   });
 }
 
