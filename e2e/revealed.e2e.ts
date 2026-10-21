@@ -354,3 +354,30 @@ test("a name too long for its column is cut with an ellipsis on one line, and st
   ]);
   await expect(row(page, "Alexandra Oppenheimer")).toBeVisible();
 });
+
+test("when a focused +n more goes, as its card drops to five, focus moves to the scale, not the page", async ({
+  people,
+  bots,
+  baseURL,
+}) => {
+  const roomId = await newRoom(baseURL ?? "");
+  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const page = ada.page;
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const crowd = await joinAll(bots, roomId, NAMES.slice(0, 6));
+  vote(crowd, "8");
+  await seenVoting(page, crowd);
+  crowd[0]?.send({ type: "reveal" });
+  const more = page.getByRole("button", {
+    name: "+1 more: show all 6 who chose 8",
+    exact: true,
+  });
+  await more.focus();
+  await expect(more).toBeFocused();
+
+  crowd[5]?.send({ type: "leave" });
+  await expect(more).toHaveCount(0);
+  await expect(
+    page.getByRole("list", { name: "Votes on the deck" }),
+  ).toBeFocused();
+});

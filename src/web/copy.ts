@@ -237,7 +237,6 @@ export const RESULT_COPY = {
       : "No result: no card has two votes.",
 } as const;
 
-/** The landing preview's one control, and its revealed frame's status. */
 /**
  * A capped name stack on the scale, in wide (docs/design.md, The revealed
  * room): "+7 more", the panel's line "12 chose 5", and the button's name,
@@ -253,6 +252,7 @@ export const STACK_COPY = {
     `${STACK_COPY.more(hidden)}: show all ${String(count)} who chose ${spokenCard}`,
 } as const;
 
+/** The landing preview's one control, and its revealed frame's status. */
 export const PREVIEW_COPY = {
   pause: "Pause preview",
   play: "Play preview",

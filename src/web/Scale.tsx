@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { DECK, type Card } from "../shared/deck.js";
 import type { ParticipantId } from "../shared/ids.js";
 import type {
@@ -36,6 +36,10 @@ interface OpenPanel {
  * In wide, a stack shows five names, then "+n more" (stack.ts): the names
  * past five stay in the list for a screen reader, hidden on screen, and the
  * button opens a panel with all of them. One panel is open at a time.
+ *
+ * The list can take focus from script, not from Tab: if a focused "+n more"
+ * goes, because its card is down to five, focus lands here, where it was,
+ * not on the page, as with a Nudge button in the people list.
  */
 export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
   const { participants, results } = snapshot;
@@ -53,6 +57,9 @@ export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
   // a list that is no longer true (React's "adjust state when a prop
   // changes" pattern).
   const [open, setOpen] = useState<OpenPanel | null>(null);
+  const list = useRef<HTMLOListElement>(null);
+  // Stable, so a button's cleanup runs when it goes, not every render.
+  const keepFocus = useCallback(() => list.current?.focus(), []);
   if (
     open !== null &&
     !panelStillOpen(
@@ -64,7 +71,12 @@ export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
   }
 
   return (
-    <ol className="scale" aria-label="Votes on the deck">
+    <ol
+      ref={list}
+      className="scale"
+      aria-label="Votes on the deck"
+      tabIndex={-1}
+    >
       {DECK.map((card) => {
         const voters = votersOf(card);
         return (
@@ -98,6 +110,7 @@ export function Scale({ snapshot }: { readonly snapshot: Revealed }) {
                 card={card}
                 voters={voters}
                 open={open?.card === card}
+                onGone={keepFocus}
                 onOpenChange={(next) =>
                   setOpen((current) =>
                     next
@@ -128,15 +141,29 @@ function MoreNames({
   card,
   voters,
   open,
+  onGone,
   onOpenChange,
 }: {
   readonly card: Card;
   readonly voters: readonly RevealedParticipantView[];
   readonly open: boolean;
+  /** Called as the button goes, if it had focus. */
+  readonly onGone: () => void;
   readonly onOpenChange: (open: boolean) => void;
 }) {
   const panelId = `${useId()}-names`;
   const { wrapper, button, toggle, onBlur } = useDisclosure(open, onOpenChange);
+  useLayoutEffect(() => {
+    const element = button.current;
+    // As the button goes, if it had focus, hand focus to the scale rather
+    // than let it fall to the page. React runs this cleanup before it takes
+    // the button out. When the whole scale goes instead (Start next round),
+    // its ref is already detached, so this does nothing and the new
+    // screen's heading takes focus (focus.ts), as for a Nudge button.
+    return () => {
+      if (element !== null && element === document.activeElement) onGone();
+    };
+  }, [button, onGone]);
   return (
     <div ref={wrapper} className="scale-more" onBlur={onBlur}>
       <button
