@@ -156,9 +156,10 @@ for (const { width, touch } of [
         ).toBeLessThanOrEqual(0.5);
       }
 
-      // Nothing on the right below the sentence: the people are on the left.
+      // Nothing on the right below the sentence, or below the line on points
+      // when it shows: the people are on the left.
       const below = await page.evaluate(() => {
-        const result = document.querySelector(".result");
+        const result = document.querySelector(".result-area");
         if (result === null) return ["no sentence"];
         const bottom = result.getBoundingClientRect().bottom;
         return [...document.querySelectorAll(".round *")]

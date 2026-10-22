@@ -43,6 +43,7 @@ async function draw(
   },
   bots: Bots,
   baseURL: string,
+  scoring = true,
 ) {
   const roomId = await newRoom(baseURL);
   const ada = await people.join(roomId, "Ada", { facilitate: true });
@@ -51,7 +52,7 @@ async function draw(
     await page.setViewportSize({ width: 1280, height: 900 });
   }
   const crowd = await joinAll(bots, roomId, ["Cy", "Dee", "Eli", "Fay", "Gus"]);
-  crowd[0]?.send({ type: "setScoring", on: true });
+  if (scoring) crowd[0]?.send({ type: "setScoring", on: true });
   const votes = ["2", "3", "3", "5", "5"] as const;
   crowd.forEach((bot, i) => bot.send({ type: "castVote", card: votes[i] }));
   await ben.card("13").click();
@@ -74,6 +75,10 @@ test("a vote changed after the reveal breaks a draw: both see the new result and
 }) => {
   const { ada, ben } = await draw(people, bots, baseURL ?? "");
   for (const page of [ada.page, ben.page]) await recordSpeech(page);
+  // No change yet: nothing follows the sentence.
+  for (const page of [ada.page, ben.page]) {
+    await expect(page.locator(".result-note")).toHaveCount(0);
+  }
 
   await scaleCard(ben.page, "3").click();
   for (const page of [ada.page, ben.page]) {
@@ -85,6 +90,10 @@ test("a vote changed after the reveal breaks a draw: both see the new result and
     await expect(benRow.locator("s")).toHaveText("13");
     await expect(benRow.locator(".chip")).toHaveText("3");
     await expect(benRow).toContainText("3, changed from 13 after the reveal");
+    // Keep score is on and a vote changed: the line on points shows.
+    await expect(page.locator(".result-note")).toHaveText(
+      "A change after the reveal doesn't earn a point.",
+    );
     // Settled at the reveal: a draw scored nobody, and the change doesn't.
     await expect(page.getByText("0 pts")).toHaveCount(7);
     await expect(
@@ -114,6 +123,31 @@ test("a vote changed after the reveal breaks a draw: both see the new result and
     "Spread from 2 to 13. Draw between 3 and 5.",
   );
   await expect(row(ada.page, "Ben").locator("s")).toHaveCount(0);
+  // Every changed vote is back: the line goes, in both browsers.
+  for (const page of [ada.page, ben.page]) {
+    await expect(page.locator(".result-note")).toHaveCount(0);
+  }
+});
+
+test("with Keep score off, a vote changed after the reveal shows no line on points", async ({
+  people,
+  bots,
+  baseURL,
+}) => {
+  const { ada, ben } = await draw(people, bots, baseURL ?? "", false);
+  await scaleCard(ben.page, "3").click();
+  for (const page of [ada.page, ben.page]) {
+    await expect(page.locator(".result")).toHaveText(
+      "Spread from 2 to 5. Result: 3.",
+    );
+    await expect(row(page, "Ben").locator("s")).toHaveText("13");
+    await expect(page.locator(".result-note")).toHaveCount(0);
+  }
+  await scaleCard(ben.page, "13").click();
+  await expect(ada.page.locator(".result")).toHaveText(
+    "Spread from 2 to 13. Draw between 3 and 5.",
+  );
+  await expect(ada.page.locator(".result-note")).toHaveCount(0);
 });
 
 test("pressing your own card after the reveal sends nothing and shows no error", async ({
@@ -198,6 +232,9 @@ test("axe: the revealed room with its card buttons, a vote changed, in both them
   const { ada, ben } = await draw(people, bots, baseURL ?? "");
   await scaleCard(ben.page, "3").click();
   await expect(row(ada.page, "Ben").locator("s")).toHaveText("13");
+  // With the line on points showing (Keep score is on).
+  await expect(ada.page.locator(".result-note")).toBeVisible();
+  await expect(ben.page.locator(".result-note")).toBeVisible();
   await expectAccessible(ada.page, "revealed, a vote changed (facilitator)");
   await expectAccessible(ben.page, "revealed, a vote changed (participant)");
 });

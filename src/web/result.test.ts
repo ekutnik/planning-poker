@@ -7,7 +7,7 @@ import {
   NEXT_ROUND,
   phaseAnnouncement,
 } from "./announce.js";
-import { resultCopy, spokenCard } from "./result.js";
+import { pointsNoteShown, resultCopy, spokenCard } from "./result.js";
 
 type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
 
@@ -275,5 +275,44 @@ describe("freshAnnouncement", () => {
     expect(second).not.toBe(first);
     expect(second.trim()).toBe("Vote recorded");
     expect(third).not.toBe(second);
+  });
+});
+
+describe("the line on points (pointsNoteShown, 2026-10-22)", () => {
+  const room = (
+    scores: Revealed["scores"],
+    changed: readonly boolean[],
+  ): Revealed => {
+    const base = revealed({}, ["3", "8", "8"]);
+    return {
+      ...base,
+      scores,
+      participants: base.participants.map((p, i) => ({
+        ...p,
+        changedAfterReveal: changed[i] ?? false,
+      })),
+    };
+  };
+
+  it("shows with Keep score on and one vote changed", () => {
+    expect(pointsNoteShown(room({ Ada: 0 }, [false, true, false]))).toBe(true);
+  });
+
+  it("doesn't with Keep score on and no change", () => {
+    expect(pointsNoteShown(room({ Ada: 0 }, [false, false, false]))).toBe(
+      false,
+    );
+  });
+
+  it("doesn't with Keep score off, whatever changed", () => {
+    expect(pointsNoteShown(room(null, [true, true, false]))).toBe(false);
+  });
+
+  it("goes once the changed vote is back", () => {
+    // Back to its card at the reveal, the projection clears the mark.
+    const changed = room({ Ada: 0 }, [false, true, false]);
+    const back = room({ Ada: 0 }, [false, false, false]);
+    expect(pointsNoteShown(changed)).toBe(true);
+    expect(pointsNoteShown(back)).toBe(false);
   });
 });
