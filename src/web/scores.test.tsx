@@ -28,6 +28,8 @@ const revealed = (id: string): RevealedParticipantView => ({
   name: id,
   status: "connected",
   vote: "5",
+  voteAtReveal: "5",
+  changedAfterReveal: false,
 });
 const JOIN_ORDER = ["Ada", "Ben", "Cy", "Dee"];
 
@@ -114,6 +116,11 @@ describe("Keep score in the Menu", () => {
         layout="wide"
         room={{
           facilitate,
+          sound: {
+            isOn: () => true,
+            subscribe: () => () => undefined,
+            set: () => undefined,
+          },
           link: "http://localhost/r/abcdefghijk",
           onLeave: () => undefined,
           scoring: scoring && { ...scoring, onChange: () => undefined },

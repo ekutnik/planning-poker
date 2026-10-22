@@ -10,6 +10,7 @@ import {
   nextExpiry,
   nudgeControl,
   standingNudges,
+  withTimeUpNudges,
   type SentNudges,
 } from "./nudges.js";
 import { People } from "./People.js";
@@ -44,6 +45,27 @@ describe("nudgeControl: whom the facilitator can nudge", () => {
     expect(nudgeControl(person("Cy"), "Ada", new Map([["Cy", 0]]))).toBe(
       "nudged",
     );
+  });
+});
+
+describe("the timer's nudges, as its time runs out (ADR 0010)", () => {
+  it("count as sent, at the deadline, to whoever the server nudged: others connected without a vote", () => {
+    const sent = withTimeUpNudges(none, people, "Ada", 90_000);
+    // Not you, not Ben (voted), not Fay (away): Cy alone.
+    expect(sent).toEqual(new Map([["Cy", 90_000]]));
+    expect(nudgeControl(person("Cy"), "Ada", sent)).toBe("nudged");
+  });
+
+  it("restart a cooldown already running, as the server's does", () => {
+    const sent: SentNudges = new Map([["Cy", 70_000]]);
+    expect(withTimeUpNudges(sent, people, "Ada", 90_000)).toEqual(
+      new Map([["Cy", 90_000]]),
+    );
+  });
+
+  it("are the same map when nobody was nudged", () => {
+    const voted = [person("Ada"), person("Ben", true)];
+    expect(withTimeUpNudges(none, voted, "Ada", 90_000)).toBe(none);
   });
 });
 

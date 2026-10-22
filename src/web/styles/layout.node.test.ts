@@ -7,12 +7,21 @@ const css = readStyles();
 describe("names on the scale (A-04 revisited)", () => {
   const scaleName = declarations(css, ".scale-name");
 
-  it("wraps a long name inside its pill, never cuts it", () => {
+  it("wraps a long name inside its pill in compact, never cuts it", () => {
     // A-04 cut names to one line, when a wrapped name read as two people.
     // Each name is a pill now, which keeps its lines one name.
-    expect(scaleName).not.toMatch(/white-space:\s*nowrap/);
-    expect(scaleName).not.toMatch(/text-overflow|overflow:\s*hidden/);
-    expect(scaleName).toMatch(/overflow-wrap:\s*anywhere/);
+    const compact = declarations(split(css, WIDE_QUERY).outside, ".scale-name");
+    expect(compact).not.toMatch(/white-space:\s*nowrap/);
+    expect(compact).not.toMatch(/text-overflow|overflow:\s*hidden/);
+    expect(compact).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(compact).toMatch(/max-inline-size:\s*100%/);
+  });
+
+  it("cuts a long name with an ellipsis on one line in wide, so every row is one line (v1.1)", () => {
+    const wide = declarations(split(css, WIDE_QUERY).inside, ".scale-name");
+    expect(wide).toMatch(/white-space:\s*nowrap/);
+    expect(wide).toMatch(/overflow:\s*hidden/);
+    expect(wide).toMatch(/text-overflow:\s*ellipsis/);
     expect(scaleName).toMatch(/max-inline-size:\s*100%/);
   });
 
@@ -26,33 +35,60 @@ describe("names on the scale (A-04 revisited)", () => {
   it("lets the stack grow to fit: no height is fixed on it", () => {
     const sizing =
       /\.scale-(?:step|names?|card)[^{]*\{[^}]*(?<![\w-])(?:max-)?(?:height|block-size)\s*:/;
-    expect(css).not.toMatch(sizing);
+    // Names past the cap are 1px and off screen, out of the stack's flow.
+    const shown = css.replace(/\.scale-name--over\s*\{[^}]*\}/g, "");
+    expect(shown).not.toMatch(sizing);
   });
 
-  it("lays all ten steps across only when each has room for a long word", () => {
-    // The switch is derived, not written down: ten columns as wide as a
-    // name needs, and the nine gaps between them, as the scale declares.
-    const across =
-      /@container scale \(min-width: ([\d.]+)rem\) \{([\s\S]*?)\n\}/.exec(css);
-    const body = across?.[2] ?? "";
-    const column = Number(
-      /repeat\(10, minmax\(([\d.]+)rem, 1fr\)\)/.exec(body)?.[1],
-    );
-    const gapToken = /column-gap:\s*var\((--space-\d+)\)/.exec(body)?.[1] ?? "";
-    const gap = Number(
-      new RegExp(`${gapToken}:\\s*([\\d.]+)rem`).exec(css)?.[1],
-    );
-    expect(column * 16).toBe(100);
-    expect(Number(across?.[1])).toBe(10 * column + 9 * gap);
-    expect(body).toMatch(/\.scale-step--empty\s*\{[^}]*display:\s*flex/);
+  it("is the deck's grid in wide: its columns, its gap, ten across at its width", () => {
+    // Each card sits exactly where it was while voting (docs/design.md, The
+    // revealed room), so the scale repeats the deck's grid, read from both.
+    const { inside, outside } = split(css, WIDE_QUERY);
+    const columns = (source: string, selector: string) =>
+      /grid-template-columns:\s*([^;]+);/.exec(
+        declarations(source, selector),
+      )?.[1];
+    const tenAcross = (source: string, name: string) =>
+      new RegExp(
+        `@container ${name} \\(min-width: ([\\d.]+)rem\\) \\{\\s*\\.${name} \\{\\s*grid-template-columns:\\s*([^;]+);`,
+      ).exec(source);
+    expect(columns(inside, ".scale")).toBe(columns(outside, ".deck"));
+    expect(declarations(inside, ".scale")).toMatch(/gap:\s*var\(--space-12\)/);
+    expect(declarations(outside, ".deck")).toMatch(/gap:\s*var\(--space-12\)/);
+    const deck = tenAcross(outside, "deck");
+    const scale = tenAcross(inside, "scale");
+    expect(deck).not.toBeNull();
+    expect(scale?.slice(1)).toEqual(deck?.slice(1));
+    expect(declarations(inside, ".scale-card")).toMatch(/inline-size:\s*100%/);
+    expect(inside).toMatch(/\.scale-step--empty\s*\{[^}]*display:\s*flex/);
   });
 
   it("otherwise shows only the cards that got votes, as always in compact", () => {
-    const outside = css.replace(/@container scale[\s\S]*?\n\}/, "");
+    const { outside } = split(css, WIDE_QUERY);
     expect(declarations(outside, ".scale-step--empty")).toMatch(
       /display:\s*none/,
     );
     expect(outside).not.toMatch(/\.scale-step--empty\s*\{[^}]*display:\s*flex/);
+  });
+
+  it("caps a stack in wide only: compact shows every name, and no +n more", () => {
+    const { inside, outside } = split(css, WIDE_QUERY);
+    expect(outside).not.toMatch(/\.scale-name--over/);
+    expect(declarations(outside, ".scale-more")).toMatch(/display:\s*none/);
+    // Past the cap, off screen but in the list a screen reader hears.
+    const over = declarations(inside, ".scale-name--over");
+    expect(over).toMatch(/position:\s*absolute/);
+    expect(over).toMatch(/clip-path:\s*inset\(50%\)/);
+    expect(over).toMatch(/padding:\s*0/);
+    expect(over).not.toMatch(/display:\s*none|visibility/);
+  });
+
+  it("lays the +n more panel over the cards: out of the flow, so nothing moves", () => {
+    const { inside } = split(css, WIDE_QUERY);
+    expect(declarations(inside, ".scale-more-panel")).toMatch(
+      /position:\s*absolute/,
+    );
+    expect(declarations(inside, ".scale-more")).toMatch(/position:\s*relative/);
   });
 });
 
@@ -68,16 +104,27 @@ describe("the revealed round", () => {
     );
   });
 
-  it("gives the scale the full width in wide, the people below the sentence", () => {
-    const areas =
-      /\.round--revealed,\s*\.round--tooled\.round--revealed\s*\{\s*grid-template-areas:([^;]*);/.exec(
-        inside,
-      )?.[1];
-    expect(areas?.match(/"[^"]*"/g)).toEqual([
-      '"status . ticket timer controls"',
-      '"scale scale scale scale scale"',
-      '"result result result result result"',
-      '"people people people people people"',
+  it("keeps the room's columns in wide: the people on the left, nothing below the sentence", () => {
+    // Wide, then the narrower wide window (@container room).
+    const areas = [
+      ...css.matchAll(
+        /\.round--revealed,\s*\.round--tooled\.round--revealed\s*\{\s*grid-template-areas:([^;]*);/g,
+      ),
+    ].map((match) => match[1]?.match(/"[^"]*"/g));
+    expect(areas).toEqual([
+      [
+        '"side . ticket timer controls"',
+        '"side . scale scale scale"',
+        '"side . result result result"',
+        '"side . . . ."',
+      ],
+      [
+        '"side . ticket ticket ticket"',
+        '"side . . timer controls"',
+        '"side . scale scale scale"',
+        '"side . result result result"',
+        '"side . . . ."',
+      ],
     ]);
   });
 });
@@ -223,5 +270,10 @@ describe("the room's status line", () => {
     const status = declarations(css, ".status");
     expect(status).toMatch(/color:\s*var\(--quiet\)/);
     expect(status).toMatch(/font-weight:\s*var\(--weight-regular\)/);
+  });
+
+  it("sits at the top of the action row in wide, not centred in a box of its own (v1.1)", () => {
+    const status = declarations(split(css, WIDE_QUERY).inside, ".status");
+    expect(status).not.toMatch(/align-items|min-block-size|min-height/);
   });
 });

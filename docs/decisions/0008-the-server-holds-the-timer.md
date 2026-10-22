@@ -1,6 +1,6 @@
 # 0008. The server holds the timer
 
-- Status: Accepted
+- Status: Superseded in part by [ADR 0010](0010-the-timer-is-a-soft-deadline.md): what happens when time runs out, and the default duration.
 - Date: 2026-10-01
 
 ## Context

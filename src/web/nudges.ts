@@ -40,6 +40,27 @@ export function standingNudges(
   return new Map([...sent].filter(([id]) => stands(id)));
 }
 
+/**
+ * The timer's nudges, as its time ran out at `at` (ADR 0010): the server
+ * nudged everyone it could and restarted their cooldowns, so their rows
+ * show "Nudged" too, for the same 30 s. Otherwise the Nudge buttons on
+ * screen would be nudges the server drops.
+ */
+export function withTimeUpNudges(
+  sent: SentNudges,
+  participants: readonly VotingParticipantView[],
+  viewerId: ParticipantId,
+  at: number,
+): SentNudges {
+  const nudged = participants.filter(
+    (p) => nudgeControl(p, viewerId, new Map()) === "nudge",
+  );
+  if (nudged.length === 0) return sent;
+  const next = new Map(sent);
+  for (const p of nudged) next.set(p.id, at);
+  return next;
+}
+
 /** Drops the nudges whose cooldown has passed at `now`; the same map if none. */
 export function expireNudges(sent: SentNudges, now: number): SentNudges {
   const live = [...sent].filter(([, at]) => now - at < NUDGE_COOLDOWN_MS);

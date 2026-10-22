@@ -9,7 +9,8 @@ import { cleanTicket } from "../shared/rules.js";
 import { NOT_SAVED_COPY, TICKET_COPY, TIMER_COPY } from "./copy.js";
 import { tenSecondsWait, timerAnnouncement, timerSeen } from "./countdown.js";
 import { roomTitle, roomTitleAndBanner, useDocumentTitle } from "./title.js";
-import type { RoomAction } from "./connection/room-connection.js";
+import type { NudgeReason, RoomAction } from "./connection/room-connection.js";
+import { resultCopy } from "./result.js";
 import { RevealedView } from "./RevealedView.js";
 import { Ticket } from "./Ticket.js";
 import { TimerControls, TimerReadout } from "./Timer.js";
@@ -33,6 +34,7 @@ export function RoomView({
   persistent,
   tools = NO_TOOLS,
   nudged = false,
+  nudgeReason = "person",
   onAction,
 }: {
   readonly snapshot: RoomSnapshot;
@@ -45,11 +47,14 @@ export function RoomView({
   readonly tools?: Tools;
   /** Someone nudged you, and it still stands (RoomSession). */
   readonly nudged?: boolean;
+  /** Why: a person's nudge, or the timer's as its time ran out (ADR 0010). */
+  readonly nudgeReason?: NudgeReason;
   readonly onAction: (action: RoomAction) => void;
 }) {
   const { title, banner: nudgeBanner } = roomTitleAndBanner(
     roomTitle(snapshot),
     nudged,
+    nudgeReason,
   );
   useDocumentTitle(title);
 
@@ -78,11 +83,25 @@ export function RoomView({
       setSpeech({ pending: null, text: TICKET_COPY.announce(snapshot.ticket) });
     }
   }
-  // The timer, said once each through the same region: when it starts, and
-  // when 10 seconds are left. The countdown itself is never said.
+  // The result, said once through the same region when it changes while
+  // revealed: a vote changed after the reveal can move it (ADR 0011). The
+  // reveal itself says it already, so only a change between two revealed
+  // snapshots counts.
+  const result =
+    snapshot.phase === "revealed" ? resultCopy(snapshot).summary : null;
+  const [resultWas, setResultWas] = useState(result);
+  if (result !== resultWas) {
+    setResultWas(result);
+    if (result !== null && resultWas !== null) {
+      setSpeech({ pending: null, text: result });
+    }
+  }
+  // The timer, said once each through the same region: when it starts,
+  // when 10 seconds are left, and as time runs out. The countdown itself is
+  // never said.
   const [seen, setSeen] = useState(() => timerSeen(snapshot));
   const now = timerSeen(snapshot);
-  if (now.state !== seen.state || now.anyVote !== seen.anyVote) {
+  if (now.state !== seen.state) {
     setSeen(now);
     const text = timerAnnouncement(seen, snapshot);
     if (text !== null) setSpeech({ pending: null, text });

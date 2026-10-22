@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ServerMessage } from "../shared/protocol.js";
+import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import type { Connection, Scheduler } from "./room-service.js";
 import {
@@ -8,10 +9,12 @@ import {
   RoomService,
   SWEEP_INTERVAL_MS,
 } from "./room-service.js";
+import { derivePublicId } from "./identity.js";
 
 /**
  * The room timer's scheduling (ADR 0008), with a fake clock and a fake
- * scheduler: the reveal lands exactly at the deadline, every path that stops
+ * scheduler: time's up lands exactly at the deadline (ADR 0010: it expires
+ * the timer and nudges, never reveals), every path that stops
  * the timer clears its callback, and a stale callback never reveals.
  */
 
@@ -108,39 +111,43 @@ function setup() {
 /** Ada starts a one-minute timer, and Ben votes. */
 function runningWithAVote() {
   const t = setup();
+  // A minute, whatever a new room's default is: the arithmetic below is for it.
+  t.send(t.ada, { type: "timerSetDuration", ms: MIN });
   t.send(t.ada, { type: "timerStart" });
   t.send(t.ben, { type: "castVote", card: "5" });
   return t;
 }
 
 describe("the room timer's scheduling", () => {
-  it("reveals exactly at the deadline, for everyone, marked as the timer's", () => {
+  it("expires exactly at the deadline, for everyone, and reveals nothing (ADR 0010)", () => {
     const t = runningWithAVote();
     expect(t.service.bookkeeping().timers).toBe(1);
     t.advance(MIN - 1);
     t.scheduler.runDue();
-    expect(t.last(t.ben).phase).toBe("voting");
+    expect(t.last(t.ben).timer.state).toBe("running");
     t.advance(1);
     t.scheduler.runDue();
     for (const conn of [t.ada, t.ben]) {
       const snapshot = t.last(conn);
-      expect(snapshot.phase).toBe("revealed");
-      if (snapshot.phase === "revealed")
-        expect(snapshot.revealCause).toBe("timer");
+      expect(snapshot.phase).toBe("voting");
+      expect(snapshot.timer).toMatchObject({
+        state: "expired",
+        remainingMs: 0,
+      });
     }
     expect(t.service.bookkeeping().timers).toBe(0);
   });
 
-  it("schedules again, and reveals nothing, if the callback fires early", () => {
+  it("schedules again, and expires nothing, if the callback fires early", () => {
     const t = runningWithAVote();
     const [early] = t.scheduler.callbacks();
     t.advance(MIN - 5_000);
     early?.(); // a timer that went off 5 s too soon
-    expect(t.last(t.ben).phase).toBe("voting");
+    expect(t.last(t.ben).timer.state).toBe("running");
     expect(t.service.bookkeeping().timers).toBe(1);
     t.advance(5_000);
     t.scheduler.runDue();
-    expect(t.last(t.ben).phase).toBe("revealed");
+    expect(t.last(t.ben).timer.state).toBe("expired");
   });
 
   it("pausing clears the callback; resuming schedules it again from what was left", () => {
@@ -151,26 +158,38 @@ describe("the room timer's scheduling", () => {
     expect(t.scheduler.pending.size).toBe(0);
     t.advance(10 * MIN);
     t.scheduler.runDue();
-    expect(t.last(t.ben).phase).toBe("voting");
+    expect(t.last(t.ben).timer.state).toBe("paused");
     t.send(t.ada, { type: "timerResume" });
     t.advance(40_000 - 1);
     t.scheduler.runDue();
-    expect(t.last(t.ben).phase).toBe("voting");
+    expect(t.last(t.ben).timer.state).toBe("running");
     t.advance(1);
     t.scheduler.runDue();
-    expect(t.last(t.ben).phase).toBe("revealed");
+    expect(t.last(t.ben).timer.state).toBe("expired");
   });
 
-  it("+30 s moves the callback: nothing at the old deadline, the reveal at the new one", () => {
+  it("+30 s moves the callback: nothing at the old deadline, time's up at the new one", () => {
     const t = runningWithAVote();
     t.send(t.ada, { type: "timerAdd" });
     expect(t.scheduler.pending.size).toBe(1);
     t.advance(MIN);
     t.scheduler.runDue();
-    expect(t.last(t.ben).phase).toBe("voting");
+    expect(t.last(t.ben).timer.state).toBe("running");
     t.advance(30_000);
     t.scheduler.runDue();
-    expect(t.last(t.ben).phase).toBe("revealed");
+    expect(t.last(t.ben).timer.state).toBe("expired");
+  });
+
+  it("Start or +30 s from expired schedules a new deadline", () => {
+    for (const message of [{ type: "timerStart" }, { type: "timerAdd" }]) {
+      const t = runningWithAVote();
+      t.advance(MIN);
+      t.scheduler.runDue();
+      expect(t.service.bookkeeping().timers).toBe(0);
+      t.send(t.ada, message);
+      expect(t.last(t.ben).timer.state).toBe("running");
+      expect(t.service.bookkeeping().timers).toBe(1);
+    }
   });
 
   it.each([
@@ -196,14 +215,14 @@ describe("the room timer's scheduling", () => {
     expect(t.scheduler.pending.size).toBe(0);
   });
 
-  describe("a stale callback never reveals", () => {
+  describe("a stale callback never expires the timer", () => {
     it("after +30 s moved the deadline", () => {
       const t = runningWithAVote();
       const [old] = t.scheduler.callbacks();
       t.send(t.ada, { type: "timerAdd" });
       t.advance(MIN);
       old?.();
-      expect(t.last(t.ben).phase).toBe("voting");
+      expect(t.last(t.ben).timer.state).not.toBe("expired");
     });
 
     it("after a pause", () => {
@@ -213,7 +232,7 @@ describe("the room timer's scheduling", () => {
       t.send(t.ada, { type: "timerPause" });
       t.advance(2 * MIN);
       old?.();
-      expect(t.last(t.ben).phase).toBe("voting");
+      expect(t.last(t.ben).timer.state).not.toBe("expired");
     });
 
     it("after a person revealed and the next round started a new timer", () => {
@@ -226,7 +245,7 @@ describe("the room timer's scheduling", () => {
       t.send(t.ben, { type: "castVote", card: "8" });
       t.advance(MIN - 10_000); // the old deadline: the new round must go on
       old?.();
-      expect(t.last(t.ben).phase).toBe("voting");
+      expect(t.last(t.ben).timer.state).not.toBe("expired");
       expect(t.service.bookkeeping().timers).toBe(1);
     });
   });
@@ -261,5 +280,75 @@ describe("the room timer's scheduling", () => {
     const t = runningWithAVote();
     const message = t.ada.sent.filter((m) => m.type === "snapshot").at(-1);
     expect(message).toMatchObject({ serverNow: t.now() });
+  });
+});
+
+describe("time's up nudges whoever hasn't voted (ADR 0010)", () => {
+  const nudges = (conn: FakeConnection) =>
+    conn.sent.filter((message) => message.type === "nudged");
+  const tokenOf = (name: string) =>
+    `SESSIONTOKEN_${name.toUpperCase()}_000000000`;
+  const atDeadline = (t: ReturnType<typeof setup>) => {
+    t.advance(MIN);
+    t.scheduler.runDue();
+  };
+
+  it("nudges each one connected without a vote, once, with reason time, and nobody else", () => {
+    const t = runningWithAVote(); // Ben has voted; Ada hasn't
+    atDeadline(t);
+    expect(nudges(t.ada)).toEqual([{ type: "nudged", reason: "time" }]);
+    expect(nudges(t.ben)).toEqual([]);
+  });
+
+  it("nudges nobody when everyone has voted", () => {
+    const t = runningWithAVote();
+    t.send(t.ada, { type: "castVote", card: "8" });
+    atDeadline(t);
+    expect(nudges(t.ada)).toEqual([]);
+    expect(nudges(t.ben)).toEqual([]);
+  });
+
+  it("nudges nobody away: only a connected person can hear it", () => {
+    const t = runningWithAVote();
+    t.service.close(t.ada); // Ada's laptop sleeps: away, still in the room
+    atDeadline(t);
+    expect(nudges(t.ada)).toEqual([]);
+    expect(t.last(t.ben).timer.state).toBe("expired");
+  });
+
+  it("starts the cooldown at the deadline, even when the callback runs late", () => {
+    const t = runningWithAVote();
+    t.advance(MIN + 5_000); // the event loop was busy: time's up runs 5 s late
+    t.scheduler.runDue();
+    expect(nudges(t.ada)).toEqual([{ type: "nudged", reason: "time" }]);
+    // 30 s after the deadline, which is when the facilitator's screen shows
+    // Nudge again: the server takes it, though only 25 s have passed since
+    // the callback ran.
+    t.advance(NUDGE_COOLDOWN_MS - 5_000);
+    t.send(t.ben, {
+      type: "nudge",
+      participantId: derivePublicId(ROOM, tokenOf("Ada")),
+    });
+    expect(nudges(t.ada)).toEqual([
+      { type: "nudged", reason: "time" },
+      { type: "nudged" },
+    ]);
+  });
+
+  it("restarts the cooldown: a person's nudge straight after is dropped, then allowed", () => {
+    const t = runningWithAVote();
+    atDeadline(t);
+    const nudgeAda = {
+      type: "nudge",
+      participantId: derivePublicId(ROOM, tokenOf("Ada")),
+    };
+    t.send(t.ben, nudgeAda);
+    expect(nudges(t.ada)).toHaveLength(1); // the timer's alone
+    t.advance(NUDGE_COOLDOWN_MS);
+    t.send(t.ben, nudgeAda);
+    expect(nudges(t.ada)).toEqual([
+      { type: "nudged", reason: "time" },
+      { type: "nudged" },
+    ]);
   });
 });

@@ -53,12 +53,13 @@ const revealed: Revealed = {
   ticket: null,
   scores: null,
   timer: { durationMs: 60_000, state: "idle", endsAt: null, remainingMs: null },
-  revealCause: null,
   participants: PEOPLE.map((name) => ({
     id: name,
     name,
     status: "connected",
     vote: VOTES[name],
+    voteAtReveal: VOTES[name],
+    changedAfterReveal: false,
   })),
   // As the server would compute them for these votes.
   results: {

@@ -1,6 +1,7 @@
 import type { ErrorCode } from "../shared/protocol.js";
 import type {
   ConnectionState,
+  NudgeReason,
   RoomAction,
 } from "./connection/room-connection.js";
 import { ERROR_COPY } from "./copy.js";
@@ -10,7 +11,7 @@ export interface SessionConnection {
   getState(): ConnectionState;
   subscribe(listener: () => void): () => void;
   onServerError(listener: (code: ErrorCode) => void): () => void;
-  onNudged(listener: () => void): () => void;
+  onNudged(listener: (reason: NudgeReason) => void): () => void;
   start(): void;
   restart(): void;
   retryNow(): void;
@@ -28,18 +29,23 @@ export interface SessionView {
    * the tab title show it. Anonymous: nothing here says who (ADR 0007).
    */
   readonly nudged: boolean;
+  /** Why the standing nudge came, which the banner says (ADR 0010). */
+  readonly nudgeReason: NudgeReason;
 }
 
 export interface SessionDeps {
   readonly connect: () => SessionConnection;
   /** Retry at once when the person comes back (online, tab visible). */
   readonly watchReturn: (connection: SessionConnection) => () => void;
+  /** Once for each nudge that arrives: its sound (sound.ts, v1.1). */
+  readonly onNudged?: () => void;
 }
 
 const BEFORE_CONNECT: SessionView = {
   state: { status: "connecting", attempt: 0, snapshot: null },
   notice: null,
   nudged: false,
+  nudgeReason: "person",
 };
 
 /**
@@ -90,17 +96,23 @@ export class RoomSession {
     const connection = this.deps.connect();
     this.connection = connection;
     this.listener = listener;
-    const update = (notice: string | null, nudge = false) => {
+    const update = (
+      notice: string | null,
+      nudge: NudgeReason | null = null,
+    ) => {
       const state = connection.getState();
-      const nudged = (nudge || this.view.nudged) && !nudgeEnded(state);
+      const nudged = (nudge !== null || this.view.nudged) && !nudgeEnded(state);
+      // The latest nudge says why; one that has ended keeps the last reason.
+      const nudgeReason = nudge ?? this.view.nudgeReason;
       if (
         state === this.view.state &&
         notice === this.view.notice &&
-        nudged === this.view.nudged
+        nudged === this.view.nudged &&
+        nudgeReason === this.view.nudgeReason
       ) {
         return;
       }
-      this.view = { state, notice, nudged };
+      this.view = { state, notice, nudged, nudgeReason };
       listener();
     };
     const stopState = connection.subscribe(() => {
@@ -118,9 +130,10 @@ export class RoomSession {
       }
       update(this.view.notice);
     });
-    const stopNudges = connection.onNudged(() =>
-      update(this.view.notice, true),
-    );
+    const stopNudges = connection.onNudged((reason) => {
+      this.deps.onNudged?.();
+      update(this.view.notice, reason);
+    });
     const stopErrors = connection.onServerError((code) => {
       const copy = ERROR_COPY[code];
       if (copy === null) return;

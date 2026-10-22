@@ -53,6 +53,14 @@ describe("the nudge's banner and tab title: one decision", () => {
     expect(banner).toBe("The room is waiting for your vote.");
   });
 
+  it("says time's up first when the timer nudged, with the same title (ADR 0010)", () => {
+    const { title, banner } = roomTitleAndBanner("1 waiting", true, "time");
+    expect(documentTitle(title)).toBe(
+      "Your vote, please – Planning Poker Session",
+    );
+    expect(banner).toBe("Time's up. The room is waiting for your vote.");
+  });
+
   it("goes back to the round's title, with no banner, once it ends", () => {
     expect(roomTitleAndBanner("1 waiting", false)).toEqual({
       title: "1 waiting",

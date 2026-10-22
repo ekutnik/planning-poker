@@ -19,6 +19,18 @@ export interface RevealedParticipantView {
   readonly name: string;
   readonly status: "connected" | "disconnected";
   readonly vote: Card | null;
+  /**
+   * The vote as it was at the reveal (ADR 0011), null for someone who had
+   * none: what a changed vote is shown against ("~~13~~ → 3"). It's in the
+   * snapshot, not remembered by the client, so a tab that joins after the
+   * change shows the same mark.
+   */
+  readonly voteAtReveal: Card | null;
+  /**
+   * The vote differs from the one at the reveal: changed, or cast after it
+   * by someone who hadn't voted. Changing back clears it.
+   */
+  readonly changedAfterReveal: boolean;
 }
 
 /**
@@ -50,8 +62,6 @@ export type RoomSnapshot =
       readonly ticket: string | null;
       readonly scores: Scores | null;
       readonly timer: TimerView;
-      /** "timer" when the timer revealed this round; null when a person did. */
-      readonly revealCause: "timer" | null;
     };
 
 /**
@@ -63,7 +73,11 @@ export type RoomSnapshot =
  */
 export interface TimerView {
   readonly durationMs: number;
-  readonly state: "idle" | "running" | "paused";
+  /**
+   * "expired" once time ran out (ADR 0010): the round goes on, `endsAt` is
+   * null and `remainingMs` 0, until Start, +30 s, a reveal or the next round.
+   */
+  readonly state: "idle" | "running" | "paused" | "expired";
   readonly endsAt: number | null;
   readonly remainingMs: number | null;
 }

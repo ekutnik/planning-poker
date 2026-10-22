@@ -18,7 +18,7 @@ import { NUDGE_COOLDOWN_MS } from "../shared/rules.js";
 import { KeyedLimiter } from "./limits/keyed.js";
 import { LogCaps } from "./limits/log-cap.js";
 import { TokenBucket } from "./limits/token-bucket.js";
-import { nudgeRefusal } from "./nudge.js";
+import { nudgeRefusal, timeUpNudges } from "./nudge.js";
 
 /**
  * One client socket, as the service sees it. Implementations must not throw:
@@ -295,7 +295,7 @@ function newThrottle(now: number, key: string): Throttle {
  * Transport-agnostic room registry. Sockets are a Connection; Fastify is just
  * one adapter. Time comes only from the injected clock, and every time-based
  * rule runs in sweep(), so tests use fake time. The one exception is the room
- * timer, whose reveal cannot wait up to a sweep interval: it has one timer
+ * timer, whose time's up cannot wait up to a sweep interval: it has one timer
  * per room with a running timer, from the injected scheduler (ADR 0008).
  */
 export class RoomService {
@@ -488,7 +488,7 @@ export class RoomService {
    */
   shutdown(): void {
     this.stopping = true;
-    // No timer may reveal a round while the process goes, or keep it alive.
+    // No timer may fire while the process goes, or keep it alive.
     for (const { handle } of this.timers.values()) this.scheduler.clear(handle);
     this.timers.clear();
     const everyone = [...this.pending.keys(), ...this.bindings.keys()];
@@ -910,11 +910,9 @@ export class RoomService {
     if (command.type === "castVote" || command.type === "leave") {
       this.nudgedAt.delete(nudgeKey(roomId, command.participantId));
     }
-    if (
-      command.type === "reveal" ||
-      command.type === "timeUp" ||
-      command.type === "reset"
-    ) {
+    // Not timeUp: the round goes on when time runs out (ADR 0010), and the
+    // timer's own nudges restart the cooldown instead (nudgeAtTimeUp).
+    if (command.type === "reveal" || command.type === "reset") {
       for (const key of this.nudgedAt.keys()) {
         if (key.startsWith(`${roomId} `)) this.nudgedAt.delete(key);
       }
@@ -1026,9 +1024,30 @@ export class RoomService {
     const result = applyCommand(room, command, now);
     if (!result.ok || result.room === room) return;
     this.store(result.room, now);
-    this.endCooldowns(roomId, command);
     this.log.debug({ room: roomId, type: "time-up" });
     this.broadcast(result.room);
+    this.nudgeAtTimeUp(result.room, endsAt);
+  }
+
+  /**
+   * Time ran out (ADR 0010): everyone connected who hasn't voted is nudged,
+   * once, with reason "time", and their cooldown restarts, so a person's
+   * nudge straight after doesn't double it. If everyone has voted, nobody.
+   * After the broadcast, so the nudge arrives with the expired timer shown.
+   *
+   * The cooldown starts at the deadline, not when this runs: under load the
+   * callback can run late, and the facilitator's screen starts the same
+   * cooldown at the same deadline (withTimeUpNudges), so the two agree, and
+   * a Nudge button never comes back before the server would take it.
+   */
+  private nudgeAtTimeUp(room: Room, deadline: number): void {
+    const sockets = this.current.get(room.id);
+    for (const participantId of timeUpNudges(room)) {
+      const to = sockets?.get(participantId);
+      if (to === undefined) continue;
+      this.nudgedAt.set(nudgeKey(room.id, participantId), deadline);
+      to.send({ type: "nudged", reason: "time" });
+    }
   }
 
   private forget(conn: Connection): void {

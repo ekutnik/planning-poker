@@ -12,6 +12,7 @@ import { RoomSession } from "./room-session.js";
 import { RoomView } from "./RoomView.js";
 import { StoppedScreen } from "./StoppedScreen.js";
 import { SwitchRow } from "./SwitchRow.js";
+import type { SoundStore } from "./sound.js";
 import type { ThemeStore } from "./theme.js";
 import type { ToolsStore } from "./tools.js";
 import { bannerFor, canAct } from "./view.js";
@@ -20,6 +21,13 @@ interface Stores {
   readonly theme: ThemeStore;
   readonly facilitate: FacilitateStore;
   readonly tools: ToolsStore;
+  readonly sound: SoundStore;
+  /**
+   * Plays a nudge's sound, if this browser's Sound switch is on. Must stay
+   * the same function: the session below depends on it, so a new one would
+   * reconnect the room.
+   */
+  readonly nudgeSound: () => void;
 }
 
 /** A direct link asks for a name first; then the room itself. */
@@ -85,10 +93,11 @@ function Room({
         connect: () => createBrowserConnection(roomId, { sessionToken, name }),
         watchReturn: (connection) =>
           retryOnReturn(connection, window, document),
+        onNudged: stores.nudgeSound,
       }),
-    [roomId, sessionToken, name],
+    [roomId, sessionToken, name, stores.nudgeSound],
   );
-  const { state, notice, nudged } = useSyncExternalStore(
+  const { state, notice, nudged, nudgeReason } = useSyncExternalStore(
     session.subscribe,
     session.getSnapshot,
   );
@@ -120,6 +129,7 @@ function Room({
       theme={stores.theme}
       room={{
         facilitate: stores.facilitate,
+        sound: stores.sound,
         link: window.location.href,
         onLeave: () => session.leave(),
         ...(shown && {
@@ -137,7 +147,12 @@ function Room({
           },
           timer: {
             on: tools.timer,
-            busy: tools.timer && shown.timer.state !== "idle",
+            // Counting or paused: switching off would hide a timer still
+            // under way. Expired isn't (ADR 0010), so it may go.
+            busy:
+              tools.timer &&
+              (shown.timer.state === "running" ||
+                shown.timer.state === "paused"),
             onChange: (on) => stores.tools.set("timer", on),
           },
           scoring: {
@@ -169,6 +184,7 @@ function Room({
         persistent={identity.persistent}
         tools={tools}
         nudged={nudged}
+        nudgeReason={nudgeReason}
         onAction={(action) => session.send(action)}
       />
     </>

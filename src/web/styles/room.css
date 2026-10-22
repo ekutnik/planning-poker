@@ -217,9 +217,28 @@ button:disabled {
   color: var(--quiet);
 }
 
-/* The pill sits at the end of the row, however long the name. */
-.person > .pill {
+/* The pill sits at the end of the row, however long the name; after the
+   reveal the card's chip takes its place. */
+.person > .pill,
+.person > .chip,
+.person > .person-changed {
   margin-inline-start: auto;
+}
+
+/* A vote changed after the reveal (ADR 0011): the vote at the reveal
+   struck through, in Quiet, an arrow, then the chip. */
+.person-changed {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--quiet);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.person-changed .chip {
+  color: var(--ink);
 }
 
 /* The facilitator's Nudge button, before the pill: it takes the auto margin
@@ -271,14 +290,11 @@ button:disabled {
   color: var(--away-text);
 }
 
-/* After reveal, in wide only: everyone in a row that wraps, each name with
-   its card in a neutral chip. Compact leaves it out: the scale above lists
-   every vote, and height is scarce. */
+/* After reveal, in wide only: the same list in the same column, each name
+   with its card in a neutral chip. Compact leaves it out: the scale above
+   lists every vote, and height is scarce. */
 .people--revealed {
   display: none;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: var(--space-12) var(--space-32);
 }
 
 /* A value chip: the card, neutral, since colour lives on the scale. */
@@ -407,14 +423,13 @@ button:disabled {
   flex: none;
 }
 
-/* The scale: the deck row after reveal. All ten steps across, names
-   stacked above each card, when the scale has room for ten 100px columns:
-   the width of a pill holding a long word such as "Oppenheimer", so names
-   wrap between words (only a longer word breaks inside). Otherwise, as always in compact, only the cards
-   that got votes, one row each: the card, then its names wrapping beside
-   it. The scale's own width decides, like the deck's. Across, cards nobody
-   chose keep their place with a Rule outline and an Ink numeral, so the
-   gaps show the spread. */
+/* The scale: the deck row after reveal. In compact, only the cards that
+   got votes, one row each: the card, then its names wrapping beside it.
+   In wide, the deck itself: the same columns, every card where it was while
+   voting, the names stacked above each one, five at most (stack.ts), and
+   cards nobody chose kept in place with a Rule outline and an Ink numeral,
+   so the gaps show the spread. The scale's own width decides between ten
+   across and two rows of five, as the deck's does. */
 .scale-area {
   grid-area: scale;
   container: scale / inline-size;
@@ -461,6 +476,34 @@ button:disabled {
   background: transparent;
 }
 
+/* In the room the scale's cards are buttons (ADR 0011): the room's button
+   rule must not size them. Your own card keeps its fill, so a winning card
+   stays green, with a 2px Cobalt ring 2px off it (a Paper gap, then the
+   ring). Focus goes outside the ring, so a focused card of yours shows
+   both, as on the deck. */
+button.scale-card {
+  min-height: 0;
+  padding: 0;
+}
+
+.scale-card[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 4px var(--cobalt);
+}
+
+.scale-card[aria-pressed="true"]:focus-visible {
+  outline-offset: 5px;
+}
+
+/* Hover, only where a pointer hovers, as on the deck; never a lift, which
+   would move a card at the moment it's read. */
+@media (hover: hover) {
+  button.scale-card:hover:not(:disabled):not([aria-pressed="true"]) {
+    border-color: var(--ink);
+  }
+}
+
 .scale-names {
   display: flex;
   flex-wrap: wrap;
@@ -471,11 +514,11 @@ button:disabled {
   list-style: none;
 }
 
-/* Each name is a pill, and a name too long for its column wraps inside it,
-   never cut and never shrunk: the stack grows to fit. The pill is what
-   keeps a wrapped name one person (A-04 cut names to one line instead,
-   before names had pills). A name wraps between words. Only a single word
-   that cannot fit a line on its own breaks inside, through overflow-wrap.
+/* Each name is a pill. In compact, where a name has the row beside its
+   card, one too long for it wraps inside the pill, never shrunk: the pill
+   keeps a wrapped name one person. A name wraps between words. Only a
+   single word that cannot fit a line on its own breaks inside, through
+   overflow-wrap. In wide, a stack's 68px column cuts it instead (below).
 
    No hyphens: auto, here or anywhere it could be inherited. It hyphenates
    in ordinary wrapping, before overflow-wrap is needed ("Oppen-heimer"); an
@@ -536,9 +579,24 @@ button:disabled {
   }
 }
 
+/* The sentence, then, when it shows, the line on points (ADR 0011), 8px
+   under it: one item of the grid, so the round's 28px row gap doesn't come
+   between them. */
+.result-area {
+  grid-area: result;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.result-note {
+  margin: 0;
+  color: var(--quiet);
+  font-size: var(--text-small);
+}
+
 /* The sentence, in Ink at regular weight: the colour is on the scale. */
 .result {
-  grid-area: result;
   margin: 0;
   font-size: var(--text-result);
   line-height: 1.5;
@@ -591,30 +649,32 @@ button:disabled {
       "side . . . .";
   }
 
+  /* The status line's top is the action row's top (v1.1, on the team's
+     feedback: the status line and the people sat lower than they needed
+     to), and the people follow 28px below it. */
   .round-side {
     grid-area: side;
     display: flex;
     flex-direction: column;
-    gap: 1.75rem; /* 28px: the people start level with the deck */
+    gap: 1.75rem; /* 28px */
   }
 
-  .status {
-    display: flex;
-    align-items: center;
-    min-block-size: 3.5rem; /* 56px: the action row */
+  /* After reveal the room keeps its columns: the status line and the
+     people on the left, where they were; on the right the action row, the
+     scale where the deck was, and the sentence, with nothing below it. The
+     action row stays where it was: the ticket, and Start next round where
+     Reveal votes was, still last in the DOM. */
+  .round--revealed {
+    grid-template-rows: auto auto auto 1fr;
   }
 
-  /* After reveal the scale takes the full width, so all ten steps fit,
-     with the sentence and then the people below it. The action row stays
-     where it was: the ticket, and Start next round where Reveal votes was,
-     still last in the DOM. */
   .round--revealed,
   .round--tooled.round--revealed {
     grid-template-areas:
-      "status . ticket timer controls"
-      "scale scale scale scale scale"
-      "result result result result result"
-      "people people people people people";
+      "side . ticket timer controls"
+      "side . scale scale scale"
+      "side . result result result"
+      "side . . . .";
   }
 
   .people--revealed {
@@ -666,39 +726,55 @@ button:disabled {
       "side . . . .";
   }
 
+  .round--revealed {
+    grid-template-rows: auto auto auto auto 1fr;
+  }
+
   .round--revealed,
   .round--tooled.round--revealed {
     grid-template-areas:
-      "status . ticket ticket ticket"
-      ". . . timer controls"
-      "scale scale scale scale scale"
-      "result result result result result"
-      "people people people people people";
+      "side . ticket ticket ticket"
+      "side . . timer controls"
+      "side . scale scale scale"
+      "side . result result result"
+      "side . . . .";
   }
 }
 
-/* All ten across, on one baseline, once every column can be as wide as a
-   name needs: 100px, a pill holding a long word such as "Oppenheimer"
-   (81px of text and 10px of padding each side). Ten of those and nine
-   12px gaps make the width this switches at, 1108px; a test derives it
-   from the column and the gap. */
-@container scale (min-width: 69.25rem) {
+/* "+n more", and its panel, in wide only: compact shows every name. */
+.scale-more {
+  display: none;
+}
+
+/* The scale in wide: the deck's grid, ten 68px columns or two rows of five,
+   12px apart, every card on its row's baseline, and the card as wide as the
+   deck's, so each card is exactly below where it was while voting. */
+@media (min-width: 55em) {
   .scale {
-    grid-template-columns: repeat(10, minmax(6.25rem, 1fr));
-    column-gap: var(--space-12);
+    grid-template-columns: repeat(5, minmax(0, 4.25rem));
+    gap: var(--space-12);
     align-items: end;
   }
 
+  @container scale (min-width: 49.25rem) {
+    .scale {
+      grid-template-columns: repeat(10, 4.25rem);
+    }
+  }
+
+  /* Stretched, so the names' list is the column's width, never its
+     longest name's: that is what cuts a long name rather than widening the
+     stack past its card. */
   .scale-step,
   .scale-step--empty {
     display: flex;
     flex-direction: column-reverse;
-    align-items: center;
+    align-items: stretch;
     gap: var(--space-8);
   }
 
   .scale-card {
-    inline-size: min(100%, 4.75rem); /* 76px */
+    inline-size: 100%;
   }
 
   /* Stacked upwards: the first to join nearest the card. */
@@ -707,6 +783,103 @@ button:disabled {
     flex-wrap: nowrap;
     align-items: center;
     gap: var(--space-4);
+  }
+
+  /* One line a name, cut with "…" when it is too long for its column, so
+     every row of a stack is 24px and its height depends only on how many
+     names it shows (v1.1). The whole name is still in the page, for a
+     screen reader, and in the people list and the panel. */
+  .scale-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Past the cap: still in the list a screen reader hears, off screen. */
+  .scale-name--over {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* On top of the stack. A small button, so one of the three heights. Its
+     words may run into the gaps beside a 68px column, but never into the
+     next card's. */
+  .scale-more {
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+
+  .scale-more-button {
+    flex: none;
+    padding-inline: var(--space-8);
+    white-space: nowrap;
+  }
+
+  /* Over the cards and the sentence, below its button, so nothing moves.
+     Positioned against .scale-more, which must stay position: relative:
+     from the column's start for the cards on the left, from its end on the
+     right, so it stays over the scale. Its display is set only when it is
+     not hidden, as the Menu's is. */
+  .scale-more-panel {
+    position: absolute;
+    inset-block-start: calc(100% + var(--space-4));
+    inset-inline-start: 0;
+    z-index: 5;
+    box-sizing: border-box;
+    inline-size: 13.75rem; /* 220px */
+    padding: var(--space-16);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-container);
+    background: var(--surface);
+  }
+
+  .scale-more-panel:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+  }
+
+  .scale-step:nth-child(5n + 4) .scale-more-panel,
+  .scale-step:nth-child(5n) .scale-more-panel {
+    inset-inline: auto 0;
+  }
+
+  @container scale (min-width: 49.25rem) {
+    .scale-step:nth-child(-n + 5) .scale-more-panel {
+      inset-inline: 0 auto;
+    }
+
+    .scale-step:nth-child(n + 6) .scale-more-panel {
+      inset-inline: auto 0;
+    }
+  }
+
+  .scale-more-title {
+    margin: 0;
+    font-size: var(--text-small);
+    font-weight: var(--weight-strong);
+  }
+
+  /* Everyone on the card, in join order, in two columns. A long name
+     wraps, as on the scale, never hyphenated. */
+  .scale-more-names {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    columns: 2;
+    column-gap: var(--space-12);
+    font-size: var(--text-small);
+  }
+
+  .scale-more-names li {
+    break-inside: avoid;
+    overflow-wrap: anywhere;
   }
 }
 

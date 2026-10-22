@@ -16,7 +16,9 @@ export const ERROR_COPY: Readonly<Record<ErrorCode, string | null>> = {
   NOT_CONNECTED: null, // shown as reconnecting
   NOT_JOINED: null, // the client sends room actions only once joined
   ALREADY_JOINED: null, // the client joins once per socket
-  VOTING_CLOSED: "Votes are revealed. Start the next round to vote again.",
+  // After the reveal a vote can change but not go (ADR 0011): reached when
+  // Clear my vote races someone's reveal.
+  VOTING_CLOSED: "Votes are revealed. Choose another card to change your vote.",
   NO_VOTES_CAST: "Nobody has voted yet. Choose a card before revealing.",
   UNKNOWN_PARTICIPANT: "This tab lost its seat. Reload the page to rejoin.",
   INVALID_MESSAGE:
@@ -123,6 +125,8 @@ export const HEADER_COPY = {
   facilitate: "Facilitate",
   facilitateNote: "Hides your vote so you can share your screen.",
   facilitating: "Facilitating",
+  sound: "Sound",
+  soundNote: "A short chime when someone nudges you.",
   theme: "Theme",
   leave: "Leave the room",
   /** The Menu's two groups: the room's tools (facilitator view), then yours. */
@@ -135,7 +139,7 @@ export const TOOLS_COPY = {
   ticket: "Ticket name",
   ticketNote: "Show what the room is estimating.",
   timer: "Timer",
-  timerNote: "Reveal the votes when time runs out.",
+  timerNote: "Nudge whoever hasn't voted when time runs out.",
   /** Instead of the note, while a running or paused timer holds it on. */
   timerBusy: "Available once the timer has stopped.",
 } as const;
@@ -160,6 +164,15 @@ export const PEOPLE_COPY = {
   hideVote: "Hide my vote",
   /** Followed by the card, as CardText gives it. */
   yourVote: "Your vote:",
+  /**
+   * After a vote changed after the reveal (ADR 0011), for a screen reader,
+   * after the new card: "3, changed from 13 after the reveal". The screen
+   * shows "~~13~~ → 3" instead, which a screen reader wouldn't read.
+   */
+  changedFrom: (spokenCard: string) =>
+    `changed from ${spokenCard} after the reveal`,
+  /** The same, for someone who had no vote at the reveal. */
+  votedAfter: "voted after the reveal",
 } as const;
 
 /** Keep score, in the Menu (facilitator view), and each person's points. */
@@ -189,13 +202,14 @@ export const TIMER_COPY = {
   /** After the numeral: for a screen reader in the facilitator's block. */
   left: "left",
   paused: "Paused",
-  /** After the numeral, for everyone but the facilitator. */
-  thenRevealed: "left, then votes are revealed",
+  /** After 0:00, for everyone, once time ran out (ADR 0010). */
+  expired: "Time's up",
   /** Said once each. The countdown itself is never said. */
   started: (words: string) => `Timer started: ${words}.`,
+  /** Restarted once its time ran out, by Start or +30 s (ADR 0010). */
+  restarted: "Timer started again.",
   tenLeft: "10 seconds left.",
-  /** The timer ran out with no votes: nothing was revealed. */
-  nobodyVoted: "Time's up. Nobody has voted yet.",
+  /** Said once, as time runs out, to whoever has voted: the rest get the nudge. */
   timesUp: "Time's up.",
 } as const;
 
@@ -232,6 +246,26 @@ export const RESULT_COPY = {
     endsSetAside
       ? "No result: no card has two votes once the lowest and highest vote are set aside."
       : "No result: no card has two votes.",
+  /**
+   * Under the sentence, only while Keep score is on and a vote has changed
+   * since the reveal (pointsNoteShown).
+   */
+  pointsNote: "A change after the reveal doesn't earn a point.",
+} as const;
+
+/**
+ * A capped name stack on the scale, in wide (docs/design.md, The revealed
+ * room): "+7 more", the panel's line "12 chose 5", and the button's name,
+ * "+7 more: show all 12 who chose 5". The name starts with the words on the
+ * button (WCAG 2.5.3, Label in Name), so "click +7 more" works by voice;
+ * the rest is the context a screen reader would otherwise lack. The card is
+ * given as it is said ("question mark", "coffee").
+ */
+export const STACK_COPY = {
+  more: (hidden: number) => `+${String(hidden)} more`,
+  chose: (count: number) => `${String(count)} chose`,
+  name: (hidden: number, count: number, spokenCard: string) =>
+    `${STACK_COPY.more(hidden)}: show all ${String(count)} who chose ${spokenCard}`,
 } as const;
 
 /** The landing preview's one control, and its revealed frame's status. */
@@ -247,6 +281,8 @@ export const PREVIEW_COPY = {
  */
 export const NUDGE_COPY = {
   banner: "The room is waiting for your vote.",
+  /** The timer's nudge, as its time ran out (ADR 0010). */
+  timesUpBanner: "Time's up. The room is waiting for your vote.",
   title: "Your vote, please",
   nudge: "Nudge",
   nudged: "Nudged",

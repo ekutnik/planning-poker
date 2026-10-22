@@ -67,3 +67,18 @@ function sentence(results: Revealed["results"]): string {
   }
   return parts.join(" ");
 }
+
+/**
+ * Whether the line under the sentence shows: "A change after the reveal
+ * doesn't earn a point." (ADR 0011). Only while Keep score is on (the
+ * snapshot's scores are null while it's off) and someone's vote has
+ * changed since the reveal: it explains the mark and the points that
+ * didn't move. It never invites a change, and goes once every changed
+ * vote is back (decided 2026-10-22).
+ */
+export function pointsNoteShown(snapshot: Revealed): boolean {
+  return (
+    snapshot.scores !== null &&
+    snapshot.participants.some((p) => p.changedAfterReveal)
+  );
+}

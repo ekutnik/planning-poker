@@ -34,6 +34,8 @@ const sentences = [
   COPY_LINK_COPY.failed,
   RUNNING_COPY.note,
   NUDGE_COPY.banner,
+  NUDGE_COPY.timesUpBanner,
+  RESULT_COPY.pointsNote,
   ...resultLines(),
 ];
 
@@ -69,8 +71,11 @@ const labels = [
   HEADER_COPY.leave,
   COPY_LINK_COPY.copy,
   COPY_LINK_COPY.copied,
-  // Pills and the own-vote button: "Voted", "No vote", "Clear my vote", …
-  ...Object.values(PEOPLE_COPY),
+  // Pills and the own-vote button: "Voted", "No vote", "Clear my vote", …,
+  // and the words after a changed vote's card: "changed from 13 after the
+  // reveal".
+  ...Object.values(PEOPLE_COPY).filter((copy) => typeof copy === "string"),
+  PEOPLE_COPY.changedFrom("13"),
   RUNNING_COPY.label,
   PREVIEW_COPY.pause,
   PREVIEW_COPY.play,

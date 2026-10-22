@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
+import type { Card } from "../shared/deck.js";
 import type { ParticipantId } from "../shared/ids.js";
 import type {
   RevealedParticipantView,
@@ -8,6 +9,7 @@ import type {
 import { CardText } from "./CardText.js";
 import { NUDGE_COPY, PEOPLE_COPY, SCORE_COPY } from "./copy.js";
 import { nudgeControl, type NudgeControl, type SentNudges } from "./nudges.js";
+import { spokenCard } from "./result.js";
 import { byPoints } from "./scores.js";
 
 /** The facilitator view's nudges: whom they have nudged, and how to nudge. */
@@ -218,6 +220,11 @@ function NudgeButton({
  * vote, a pill says so in words, the same to the eye and the ear: "Away"
  * for someone away, "No vote" in the Not yet colours for someone here.
  * Colour stays on the scale.
+ *
+ * A vote changed after the reveal (ADR 0011) shows the one at the reveal
+ * struck through, then an arrow, then the chip: "~~13~~ → 3". A screen
+ * reader doesn't read a strikethrough or the arrow, so both are hidden from
+ * it, and it hears the words: "3, changed from 13 after the reveal".
  */
 function RevealedPerson({
   person,
@@ -240,7 +247,9 @@ function RevealedPerson({
           <span className="person-you">{PEOPLE_COPY.you}</span>
         </>
       )}{" "}
-      {card !== null ? (
+      {card !== null && person.changedAfterReveal ? (
+        <Changed was={person.voteAtReveal} card={card} />
+      ) : card !== null ? (
         <span className="chip">
           <CardText card={card} />
         </span>
@@ -251,5 +260,34 @@ function RevealedPerson({
       )}
       <Points points={points} />
     </li>
+  );
+}
+
+/** "~~13~~ → 3" on screen; "3, changed from 13 after the reveal" aloud. */
+function Changed({
+  was,
+  card,
+}: {
+  readonly was: Card | null;
+  readonly card: Card;
+}) {
+  return (
+    <span className="person-changed">
+      <s className="person-was" aria-hidden="true">
+        {was === null ? PEOPLE_COPY.noVote : <CardText card={was} />}
+      </s>
+      <span className="person-arrow" aria-hidden="true">
+        →
+      </span>
+      <span className="chip">
+        <CardText card={card} />
+      </span>
+      <span className="visually-hidden">
+        {", "}
+        {was === null
+          ? PEOPLE_COPY.votedAfter
+          : PEOPLE_COPY.changedFrom(spokenCard(was))}
+      </span>
+    </span>
   );
 }

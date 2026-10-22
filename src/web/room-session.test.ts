@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ErrorCode } from "../shared/protocol.js";
 import type {
   ConnectionState,
+  NudgeReason,
   RoomAction,
 } from "./connection/room-connection.js";
 import { ERROR_COPY } from "./copy.js";
@@ -16,7 +17,7 @@ class FakeConnection implements SessionConnection {
   readonly sent: RoomAction[] = [];
   private readonly listeners = new Set<() => void>();
   private readonly errorListeners = new Set<(code: ErrorCode) => void>();
-  private readonly nudgeListeners = new Set<() => void>();
+  private readonly nudgeListeners = new Set<(reason: NudgeReason) => void>();
 
   getState = () => this.state;
   subscribe(listener: () => void) {
@@ -27,7 +28,7 @@ class FakeConnection implements SessionConnection {
     this.errorListeners.add(listener);
     return () => this.errorListeners.delete(listener);
   }
-  onNudged(listener: () => void) {
+  onNudged(listener: (reason: NudgeReason) => void) {
     this.nudgeListeners.add(listener);
     return () => this.nudgeListeners.delete(listener);
   }
@@ -58,8 +59,8 @@ class FakeConnection implements SessionConnection {
   error(code: ErrorCode) {
     for (const listener of this.errorListeners) listener(code);
   }
-  nudge() {
-    for (const listener of this.nudgeListeners) listener();
+  nudge(reason: NudgeReason = "person") {
+    for (const listener of this.nudgeListeners) listener(reason);
   }
   listening() {
     return (
@@ -68,10 +69,11 @@ class FakeConnection implements SessionConnection {
   }
 }
 
-function setup() {
+function setup(onNudged?: () => void) {
   const connections: FakeConnection[] = [];
   let watching = 0;
   const session = new RoomSession({
+    onNudged,
     connect: () => {
       const connection = new FakeConnection();
       connections.push(connection);
@@ -205,8 +207,12 @@ function open(youVoted: boolean, phase: "voting" | "revealed" = "voting") {
               endsAt: null,
               remainingMs: null,
             },
-            revealCause: null,
-            participants: participants.map((p) => ({ ...p, vote: null })),
+            participants: participants.map((p) => ({
+              ...p,
+              vote: null,
+              voteAtReveal: null,
+              changedAfterReveal: false,
+            })),
             results: {
               voteCount: 0,
               distribution: [],
@@ -272,12 +278,47 @@ describe("RoomSession: a nudge (ADR 0007)", () => {
     expect(session.getSnapshot().nudged).toBe(true);
   });
 
+  it("keeps why it came, which the banner says: the timer's, then a person's (ADR 0010)", () => {
+    const { session, connections } = setup();
+    session.subscribe(() => undefined);
+    connections[0]?.setState(open(false));
+    connections[0]?.nudge("time");
+    expect(session.getSnapshot()).toMatchObject({
+      nudged: true,
+      nudgeReason: "time",
+    });
+    connections[0]?.nudge("person");
+    expect(session.getSnapshot().nudgeReason).toBe("person");
+  });
+
   it("does not stand for someone who has already voted", () => {
     const { session, connections } = setup();
     session.subscribe(() => undefined);
     connections[0]?.setState(open(true));
     connections[0]?.nudge();
     expect(session.getSnapshot().nudged).toBe(false);
+  });
+
+  it("plays its sound once for each nudge that arrives (v1.1)", () => {
+    let sounds = 0;
+    const { session, connections } = setup(() => (sounds += 1));
+    session.subscribe(() => undefined);
+    connections[0]?.setState(open(false));
+    connections[0]?.nudge();
+    expect(sounds).toBe(1);
+    // A second nudge while the first still stands: a second sound.
+    connections[0]?.nudge();
+    expect(sounds).toBe(2);
+  });
+
+  it("plays the same sound for the timer's nudge at time's up (ADR 0010)", () => {
+    let sounds = 0;
+    const { session, connections } = setup(() => (sounds += 1));
+    session.subscribe(() => undefined);
+    connections[0]?.setState(open(false));
+    connections[0]?.nudge("time");
+    expect(sounds).toBe(1);
+    expect(session.getSnapshot().nudgeReason).toBe("time");
   });
 
   it("ends with the session: leaving drops it", () => {

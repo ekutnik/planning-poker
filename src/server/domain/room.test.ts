@@ -10,6 +10,8 @@ import {
   type Room,
 } from "./room.js";
 import type { Card } from "../../shared/deck.js";
+import { TIMER_DEFAULT_MS } from "../../shared/rules.js";
+import { project } from "./projection.js";
 import { computeResults } from "./results.js";
 
 const NOW = 1_000;
@@ -55,6 +57,11 @@ const reset = (participantId: string): Command => ({
   type: "reset",
   participantId,
 });
+const setTicket = (participantId: string, text: string): Command => ({
+  type: "setTicket",
+  participantId,
+  text,
+});
 const disconnect = (participantId: string): Command => ({
   type: "disconnect",
   participantId,
@@ -75,6 +82,7 @@ describe("join", () => {
       id: "alice",
       name: "alice",
       vote: null,
+      voteAtReveal: null,
       status: "connected",
       disconnectedAt: null,
     });
@@ -197,17 +205,20 @@ describe("castVote", () => {
     });
   });
 
-  it("rejects a different vote that arrives after reveal", () => {
+  it("accepts a different vote after the reveal (ADR 0011), and keeps the one at the reveal", () => {
     const room = run(
       createRoom("r1"),
       join("alice"),
       castVote("alice", "5"),
       reveal("alice"),
     );
-    expect(applyCommand(room, castVote("alice", "8"), NOW)).toEqual({
-      ok: false,
-      error: "VOTING_CLOSED",
+    const changed = must(applyCommand(room, castVote("alice", "8"), NOW));
+    expect(changed.participants.get("alice")).toMatchObject({
+      vote: "8",
+      voteAtReveal: "5",
     });
+    expect(changed.phase).toBe("revealed");
+    expect(changed.version).toBe(room.version + 1);
   });
 });
 
@@ -373,6 +384,44 @@ describe("reset", () => {
     expect(must(applyCommand(room, reset("alice"), NOW))).toBe(room);
   });
 
+  it("clears the ticket, in the same commit: the version goes up once", () => {
+    const revealed = run(
+      createRoom("r1"),
+      join("alice"),
+      join("bob"),
+      setTicket("alice", "PROJ-1"),
+      castVote("alice", "5"),
+      castVote("bob", "8"),
+      reveal("alice"),
+    );
+    const next = must(applyCommand(revealed, reset("bob"), NOW));
+    expect(next.ticket).toBeNull();
+    expect(next.phase).toBe("voting");
+    expect(next.version).toBe(revealed.version + 1);
+  });
+
+  it("with no ticket, does just what it did: the votes go, the version goes up once", () => {
+    const revealed = run(
+      createRoom("r1"),
+      join("alice"),
+      castVote("alice", "5"),
+      reveal("alice"),
+    );
+    const next = must(applyCommand(revealed, reset("alice"), NOW));
+    expect(next.ticket).toBeNull();
+    expect(next.participants.get("alice")?.vote).toBeNull();
+    expect(next.version).toBe(revealed.version + 1);
+  });
+
+  it("leaves the ticket when it is a no-op: nothing to start again", () => {
+    const room = run(
+      createRoom("r1"),
+      join("alice"),
+      setTicket("alice", "PROJ-1"),
+    );
+    expect(must(applyCommand(room, reset("alice"), NOW))).toBe(room);
+  });
+
   it("rejects reset from an unknown participant", () => {
     const room = run(createRoom("r1"), join("alice"));
     expect(applyCommand(room, reset("ghost"), NOW)).toEqual({
@@ -503,7 +552,10 @@ describe("invariants", () => {
     { command: castVote("bob", "8"), outcome: "change" },
     { command: reveal("alice"), outcome: "change" },
     { command: reveal("bob"), outcome: "noop" },
-    { command: castVote("alice", "3"), outcome: "reject" },
+    // After the reveal a vote can change (ADR 0011), but not go.
+    { command: castVote("alice", "3"), outcome: "change" },
+    { command: castVote("alice", "3"), outcome: "noop" },
+    { command: clearVote("alice"), outcome: "reject" },
     { command: reset("alice"), outcome: "change" },
     { command: reset("alice"), outcome: "noop" },
     { command: disconnect("bob"), outcome: "change" },
@@ -564,11 +616,6 @@ describe("invariants", () => {
 });
 
 describe("setTicket", () => {
-  const setTicket = (participantId: string, text: string): Command => ({
-    type: "setTicket",
-    participantId,
-    text,
-  });
   const inRoom = () => run(createRoom("r1"), join("alice"), join("bob"));
 
   it("starts with no ticket", () => {
@@ -636,13 +683,14 @@ describe("setTicket", () => {
     });
   });
 
-  it("works in either phase, and stays across a reveal and Start next round", () => {
-    const revealed = run(inRoom(), castVote("alice", "5"), reveal("alice"));
-    const set = run(revealed, setTicket("bob", "PROJ-1"));
+  it("works in either phase, and stays across a reveal", () => {
+    const voting = run(inRoom(), setTicket("bob", "PROJ-1"));
+    const revealed = run(voting, castVote("alice", "5"), reveal("alice"));
+    expect(revealed.phase).toBe("revealed");
+    expect(revealed.ticket).toBe("PROJ-1");
+    const set = run(revealed, setTicket("bob", "PROJ-2"));
     expect(set.phase).toBe("revealed");
-    expect(set.ticket).toBe("PROJ-1");
-    const next = run(set, reset("alice"), castVote("bob", "3"), reveal("bob"));
-    expect(next.ticket).toBe("PROJ-1");
+    expect(set.ticket).toBe("PROJ-2");
   });
 
   it("changes nothing else in the room", () => {
@@ -722,12 +770,20 @@ describe("keeping score", () => {
   it("with scoring off, a reveal is exactly the reveal it was before scores existed", () => {
     const before = run(room(false), castVote("a", "5"), castVote("b", "5"));
     const after = must(applyCommand(before, reveal("a"), NOW));
-    // Field by field: only the phase and the version change, as in v0.2.1;
-    // the new fields are left as they were, the scores the very same map.
+    // Field by field: only the phase and the version change, as in v0.2.1,
+    // and each vote is kept as it was at the reveal (ADR 0011); the other
+    // new fields are left as they were, the scores the very same map.
+    const atReveal = new Map(
+      [...before.participants].map(([id, p]) => [
+        id,
+        { ...p, voteAtReveal: p.vote },
+      ]),
+    );
     expect(after).toEqual({
       ...before,
       phase: "revealed",
       version: before.version + 1,
+      participants: atReveal,
     });
     expect(after.scores).toBe(before.scores);
     expect(after.scoring).toBe(false);
@@ -757,7 +813,8 @@ describe("keeping score", () => {
       text: "PROJ-1",
     };
     const first = round(run(room(true), ticket), { a: "5", b: "5" });
-    const second = round(run(first, reset("a")), { a: "5", b: "5" });
+    // Start next round clears the ticket, so the team types it again.
+    const second = round(run(first, reset("a"), ticket), { a: "5", b: "5" });
     expect(second.ticket).toBe("PROJ-1");
     expect(points(second)).toEqual({ a: 2, b: 2 });
   });
@@ -769,7 +826,7 @@ describe("keeping score", () => {
     expect(points(after)).toEqual({ a: 1 });
   });
 
-  it("a reveal by the timer (timeUp) awards points the same way", () => {
+  it("time running out awards nothing: only a reveal does (ADR 0010)", () => {
     const start: Command = { type: "timerStart", participantId: "a" };
     const running = run(
       room(true),
@@ -778,10 +835,108 @@ describe("keeping score", () => {
       start,
     );
     const endsAt = running.timer.endsAt ?? 0;
-    const revealed = must(applyCommand(running, { type: "timeUp" }, endsAt));
-    expect(revealed.phase).toBe("revealed");
-    expect(revealed.revealCause).toBe("timer");
+    const expired = must(applyCommand(running, { type: "timeUp" }, endsAt));
+    expect(expired.phase).toBe("voting");
+    expect(points(expired)).toEqual({});
+    const revealed = must(applyCommand(expired, reveal("a"), endsAt + 1_000));
     expect(points(revealed)).toEqual({ a: 1, b: 1 });
+  });
+
+  describe("votes after the reveal (ADR 0011)", () => {
+    /** Who the projection marks as changed after the reveal. */
+    const marked = (r: Room) =>
+      Object.fromEntries(
+        (
+          project(r, "a") as Extract<
+            ReturnType<typeof project>,
+            { phase: "revealed" }
+          >
+        ).participants.map((p) => [p.id, p.changedAfterReveal]),
+      );
+    // design.md's draw: 2, 3, 3, 5, 5, 13 is a draw between 3 and 5, once
+    // one vote at each end is dropped. Nobody scores at the reveal.
+    const draw = () =>
+      round(room(true), { a: "2", b: "3", c: "3", d: "5", e: "5", f: "13" });
+
+    it("changes the vote, marks it, and leaves the points: one version bump", () => {
+      const start = round(room(true), { a: "5", b: "5", c: "8" });
+      expect(points(start)).toEqual({ a: 1, b: 1 });
+      const changed = must(applyCommand(start, castVote("c", "5"), NOW));
+      expect(changed.participants.get("c")?.vote).toBe("5");
+      expect(marked(changed)).toMatchObject({ a: false, b: false, c: true });
+      expect(points(changed)).toEqual({ a: 1, b: 1 });
+      expect(changed.version).toBe(start.version + 1);
+    });
+
+    it("clears the mark when the vote changes back", () => {
+      const back = run(
+        round(room(true), { a: "5", b: "8" }),
+        castVote("b", "5"),
+        castVote("b", "8"),
+      );
+      expect(marked(back)).toMatchObject({ a: false, b: false });
+    });
+
+    it("recalculates the result: a change breaks a draw, and nobody's points change", () => {
+      const start = draw();
+      expect(computeResults(start).winners).toEqual(["3", "5"]);
+      expect(points(start)).toEqual({});
+      // The one far off, on 13, moves onto 3: 2, 3, 3, 3, 5, 5 less one vote
+      // at each end leaves 3, 3, 3, 5, so 3 wins.
+      const broken = run(start, castVote("f", "3"));
+      expect(computeResults(broken).winners).toEqual(["3"]);
+      expect(points(broken)).toEqual({});
+    });
+
+    it("never gives or takes a point for a change, whoever wins after it", () => {
+      const start = round(room(true), {
+        a: "5",
+        b: "5",
+        c: "8",
+        d: "8",
+        e: "8",
+      });
+      expect(points(start)).toEqual({ c: 1, d: 1, e: 1 });
+      // Two move to 5: 5 now wins, but the points stay as the reveal set them.
+      const moved = run(start, castVote("d", "5"), castVote("e", "5"));
+      expect(computeResults(moved).winners).toEqual(["5"]);
+      expect(points(moved)).toEqual({ c: 1, d: 1, e: 1 });
+    });
+
+    it("refuses clearVote: a revealed room never loses a vote", () => {
+      const start = draw();
+      expect(applyCommand(start, clearVote("a"), NOW)).toEqual({
+        ok: false,
+        error: "VOTING_CLOSED",
+      });
+    });
+
+    it("counts and marks a vote from someone who hadn't voted", () => {
+      const start = round(room(true), { a: "5", b: "5" });
+      const late = run(start, castVote("f", "5"));
+      expect(computeResults(late).voteCount).toBe(3);
+      expect(marked(late)).toMatchObject({ f: true, a: false });
+      expect(points(late)).toEqual({ a: 1, b: 1 });
+    });
+
+    it("forgets the votes at the reveal at Start next round", () => {
+      const next = run(
+        round(room(true), { a: "5", b: "8" }),
+        castVote("b", "5"),
+        reset("a"),
+      );
+      for (const p of next.participants.values()) {
+        expect(p.voteAtReveal).toBeNull();
+      }
+    });
+
+    it("still refuses a vote from someone away, before anything else", () => {
+      const start = run(draw(), disconnect("b"));
+      expect(applyCommand(start, castVote("b", "5"), NOW)).toEqual({
+        ok: false,
+        error: "NOT_CONNECTED",
+      });
+    });
   });
 
   describe("seats", () => {
@@ -851,6 +1006,8 @@ describe("keeping score", () => {
 
 describe("the timer", () => {
   const MIN = 60_000;
+  // A new room's duration, which the tests below start from.
+  const DURATION = TIMER_DEFAULT_MS;
   const cmd = (type: string, participantId = "alice"): Command =>
     ({ type, participantId }) as Command;
   const setDuration = (ms: number): Command => ({
@@ -864,22 +1021,21 @@ describe("the timer", () => {
   const running = () => at(NOW, inRoom(), cmd("timerStart"));
   const paused = () => at(NOW + 20_000, running(), cmd("timerPause"));
 
-  it("is idle in a new room, for a minute, with no deadline", () => {
+  it("is idle in a new room, for 30 seconds, with no deadline", () => {
     expect(createRoom("r1").timer).toEqual({
-      durationMs: MIN,
+      durationMs: 30_000,
       state: "idle",
       endsAt: null,
       remainingMs: null,
     });
-    expect(createRoom("r1").revealCause).toBeNull();
   });
 
   describe("timerStart", () => {
     it("while voting and idle: the deadline is now plus the duration", () => {
       expect(running().timer).toEqual({
-        durationMs: MIN,
+        durationMs: DURATION,
         state: "running",
-        endsAt: NOW + MIN,
+        endsAt: NOW + DURATION,
         remainingMs: null,
       });
     });
@@ -904,23 +1060,24 @@ describe("the timer", () => {
   describe("timerPause and timerResume", () => {
     it("pause keeps what is left; resume sets a new deadline from it", () => {
       expect(paused().timer).toEqual({
-        durationMs: MIN,
+        durationMs: DURATION,
         state: "paused",
         endsAt: null,
-        remainingMs: 40_000,
+        remainingMs: DURATION - 20_000, // paused 20 s in
       });
       const resumed = at(NOW + 90_000, paused(), cmd("timerResume"));
       expect(resumed.timer).toEqual({
-        durationMs: MIN,
+        durationMs: DURATION,
         state: "running",
-        endsAt: NOW + 90_000 + 40_000,
+        endsAt: NOW + 90_000 + DURATION - 20_000,
         remainingMs: null,
       });
     });
 
     it("a pause that arrives after the deadline keeps 0, not a negative time", () => {
       expect(
-        at(NOW + MIN + 500, running(), cmd("timerPause")).timer.remainingMs,
+        at(NOW + DURATION + 500, running(), cmd("timerPause")).timer
+          .remainingMs,
       ).toBe(0);
     });
 
@@ -941,14 +1098,14 @@ describe("the timer", () => {
   describe("timerAdd", () => {
     it("adds 30 s to a running timer's deadline", () => {
       expect(at(NOW + 1_000, running(), cmd("timerAdd")).timer.endsAt).toBe(
-        NOW + MIN + 30_000,
+        NOW + DURATION + 30_000,
       );
     });
 
     it("adds 30 s to what a paused timer has left", () => {
       expect(
         at(NOW + 25_000, paused(), cmd("timerAdd")).timer.remainingMs,
-      ).toBe(70_000);
+      ).toBe(DURATION - 20_000 + 30_000);
     });
 
     it("never takes what is left past 10 minutes, and is a no-op at the cap", () => {
@@ -986,7 +1143,7 @@ describe("the timer", () => {
 
     it("is a no-op for the same duration", () => {
       const r = inRoom();
-      expect(at(NOW, r, setDuration(MIN))).toBe(r);
+      expect(at(NOW, r, setDuration(DURATION))).toBe(r);
     });
 
     it("leaves a running timer's deadline alone: the new length is for the next start", () => {
@@ -994,7 +1151,7 @@ describe("the timer", () => {
       expect(changed.timer).toMatchObject({
         durationMs: 2 * MIN,
         state: "running",
-        endsAt: NOW + MIN,
+        endsAt: NOW + DURATION,
       });
     });
   });
@@ -1003,12 +1160,11 @@ describe("the timer", () => {
     it("at a reveal by a person, keeping the duration", () => {
       const r = run(running(), castVote("bob", "3"), reveal("alice"));
       expect(r.timer).toEqual({
-        durationMs: MIN,
+        durationMs: DURATION,
         state: "idle",
         endsAt: null,
         remainingMs: null,
       });
-      expect(r.revealCause).toBeNull();
     });
 
     it("at Start next round, from running or paused", () => {
@@ -1019,45 +1175,103 @@ describe("the timer", () => {
     });
   });
 
-  describe("timeUp", () => {
+  describe("timeUp (ADR 0010: a soft deadline)", () => {
     const voted = () => run(running(), castVote("bob", "8"));
+    const expiredAt = NOW + DURATION;
+    const expired = () => at(expiredAt, voted(), { type: "timeUp" });
+    // A one-minute timer that ran out, for the tests that need the whole
+    // duration to differ from the 30 s that +30 s adds.
+    const expiredMinute = () =>
+      at(
+        NOW + MIN,
+        at(NOW, run(inRoom(), setDuration(MIN)), cmd("timerStart")),
+        { type: "timeUp" },
+      );
 
-    it("at the deadline, reveals whether or not everyone has voted, marked as the timer's", () => {
-      const revealed = at(NOW + MIN, voted(), { type: "timeUp" });
-      expect(revealed.phase).toBe("revealed");
-      expect(revealed.revealCause).toBe("timer");
-      expect(revealed.timer.state).toBe("idle");
-      expect(revealed.version).toBe(voted().version + 1);
+    it("at the deadline, expires and reveals nothing: the round goes on", () => {
+      const r = expired();
+      expect(r.phase).toBe("voting");
+      expect(r.timer).toEqual({
+        durationMs: DURATION,
+        state: "expired",
+        endsAt: null,
+        remainingMs: 0,
+      });
+      expect(r.participants.get("bob")?.vote).toBe("8");
+      expect(r.version).toBe(voted().version + 1);
+    });
+
+    it("reveals nothing even when everyone has voted", () => {
+      const all = run(running(), castVote("alice", "5"), castVote("bob", "8"));
+      const r = at(NOW + DURATION, all, { type: "timeUp" });
+      expect(r.phase).toBe("voting");
+      expect(r.timer.state).toBe("expired");
+    });
+
+    it("expires the same way with no votes at all", () => {
+      const r = at(NOW + DURATION, running(), { type: "timeUp" });
+      expect(r.phase).toBe("voting");
+      expect(r.timer.state).toBe("expired");
     });
 
     it("before the deadline changes nothing", () => {
       const r = voted();
-      expect(at(NOW + MIN - 1, r, { type: "timeUp" })).toBe(r);
+      expect(at(NOW + DURATION - 1, r, { type: "timeUp" })).toBe(r);
     });
 
     it.each([
       ["idle", () => run(inRoom(), castVote("bob", "8"))],
       ["paused", () => run(paused(), castVote("bob", "8"))],
+      ["expired", expired],
     ])(
-      "changes nothing while %s: only a running timer can reveal",
+      "changes nothing while %s: only a running timer can expire",
       (_, timer) => {
         const r = timer();
         expect(at(NOW + 60 * MIN, r, { type: "timeUp" })).toBe(r);
       },
     );
 
-    it("with no votes at all, reveals nothing and goes back to idle", () => {
-      const r = at(NOW + MIN, running(), { type: "timeUp" });
-      expect(r.phase).toBe("voting");
-      expect(r.timer.state).toBe("idle");
+    it("Start from expired begins the whole duration again", () => {
+      const later = NOW + MIN + 5_000;
+      expect(at(later, expiredMinute(), cmd("timerStart")).timer).toEqual({
+        durationMs: MIN,
+        state: "running",
+        endsAt: later + MIN,
+        remainingMs: null,
+      });
     });
 
-    it("is cleared at Start next round, so the next reveal is a person's", () => {
-      const next = run(
-        at(NOW + MIN, voted(), { type: "timeUp" }),
-        reset("alice"),
-      );
-      expect(next.revealCause).toBeNull();
+    it("+30 s from expired runs the timer again, for 30 s", () => {
+      const later = NOW + MIN + 5_000;
+      expect(at(later, expiredMinute(), cmd("timerAdd")).timer).toEqual({
+        durationMs: MIN,
+        state: "running",
+        endsAt: later + 30_000,
+        remainingMs: null,
+      });
+    });
+
+    it("Pause and Resume from expired change nothing", () => {
+      const r = expired();
+      expect(at(expiredAt + 1, r, cmd("timerPause"))).toBe(r);
+      expect(at(expiredAt + 1, r, cmd("timerResume"))).toBe(r);
+    });
+
+    it("a reveal from expired returns it to idle, keeping the duration", () => {
+      const r = run(expired(), reveal("alice"));
+      expect(r.phase).toBe("revealed");
+      expect(r.timer).toEqual({
+        durationMs: DURATION,
+        state: "idle",
+        endsAt: null,
+        remainingMs: null,
+      });
+    });
+
+    it("Start next round from expired returns it to idle", () => {
+      const r = run(expired(), reset("alice"));
+      expect(r.phase).toBe("voting");
+      expect(r.timer.state).toBe("idle");
     });
   });
 

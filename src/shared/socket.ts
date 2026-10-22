@@ -15,7 +15,10 @@
  * types (#20). The rule applies from the first deploy: until then no old
  * client exists anywhere.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
+// 4 (v1.1.0): the timer expires instead of revealing (ADR 0010), so the
+// snapshot loses revealCause and the timer gains "expired", a state an old
+// tab doesn't know.
 // 3 (v0.3.1): the timer.
 // 2 (v0.3.0): the ticket and scores. An old tab would not break, only miss
 // them, so by the rule above no bump is needed; it is bumped anyway, so that

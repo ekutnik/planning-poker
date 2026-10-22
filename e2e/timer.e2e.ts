@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { isolate } from "../src/web/isolate.js";
 import { expectAccessible } from "./axe.js";
 import { expect, newRoom, recordSpeech, spoken, test } from "./fixtures.js";
 
@@ -11,7 +12,7 @@ import { expect, newRoom, recordSpeech, spoken, test } from "./fixtures.js";
 /** Everyone else's timer: the block without its buttons. */
 const line = (page: Page) => page.locator(".timer--readout");
 
-test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers", async ({
+test("a custom 10 s timer, paused and resumed, ends without a reveal and nudges whoever hasn't voted (ADR 0010)", async ({
   people,
   baseURL,
 }) => {
@@ -30,7 +31,8 @@ test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers
   await expect(ben.heading).toHaveText("0 of 2 have voted");
   await expect(line(ben.page)).toHaveCount(0);
   const select = page.getByRole("combobox", { name: "Timer" });
-  await expect(select).toHaveValue("60000");
+  // A new room's timer: 30 s.
+  await expect(select).toHaveValue("30000");
 
   // Custom 0:10, then Start from the keyboard: focus stays on the button,
   // which is now Pause.
@@ -46,13 +48,13 @@ test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers
   await expect(pause).toBeFocused();
 
   // Everyone sees it, and hears it start, once.
-  await expect(line(ben.page)).toContainText("left, then votes are revealed");
+  await expect(line(ben.page)).toContainText("left");
   await expect
     .poll(() => spoken(ben.page))
     .toEqual(["Timer started: 10 seconds."]);
 
+  // Ada votes; Ben doesn't.
   await ada.card("5").click();
-  await ben.card("5").click();
 
   // Pause holds it: 3 s later it is still paused, and still voting.
   await pause.focus(); // voting moved focus to the card
@@ -64,22 +66,49 @@ test("a custom 10 s timer, paused and resumed, reveals the votes in two browsers
   const held = await line(ben.page).innerText();
   await page.waitForTimeout(3_000);
   await expect(line(ben.page)).toHaveText(held);
-  await expect(ben.heading).toHaveText("Everyone has voted");
+  await expect(ben.heading).toHaveText("1 of 2 has voted");
 
-  // Resume carries on, and at the deadline the server reveals, for both.
+  // Resume carries on. At the deadline the timer expires, for both, and
+  // nothing is revealed: the round stays open (ADR 0010).
   await page.keyboard.press("Enter");
   await expect(pause).toBeFocused();
-  for (const person of [ada, ben]) {
-    await expect(person.heading).toHaveText("Votes revealed", {
-      timeout: 15_000,
-    });
-  }
-  // Ben's focus was on his card, which went with the voting screen, so it
-  // moved to the new heading, "Votes revealed", and the region adds the rest.
-  await expect(ben.heading).toBeFocused();
+  await expect(line(ben.page)).toContainText("Time's up", { timeout: 15_000 });
+  await expect(line(ben.page)).toContainText("0:00");
+  await expect(ben.heading).toHaveText("1 of 2 has voted");
+  await expect(ada.heading).toHaveText(`Waiting for ${isolate("Ben")}`);
+
+  // Ben hadn't voted: he is nudged, with the time's-up copy. Ada had: she
+  // hears "Time's up.", and her row for Ben says Nudged, since the server's
+  // cooldown restarted.
+  await expect(
+    ben.page.getByText("Time's up. The room is waiting for your vote."),
+  ).toBeVisible();
   await expect
-    .poll(() => spoken(ben.page))
-    .toEqual(["Timer started: 10 seconds.", "Time's up. Everyone chose 5."]);
+    .poll(() => spoken(ada.page))
+    .toEqual(["Timer started: 10 seconds.", "Time's up."]);
+  await expect(page.getByRole("button", { name: "Nudged Ben" })).toBeVisible();
+  expect(await spoken(ben.page)).toEqual(["Timer started: 10 seconds."]);
+
+  // Expired isn't counting, so Timer may be switched off again.
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(page.getByRole("switch", { name: "Timer" })).toBeEnabled();
+  await page.keyboard.press("Escape");
+
+  // Start runs the whole 0:10 again; then Ben votes, and Ada reveals.
+  await page.getByRole("button", { name: "Start the timer" }).click();
+  await expect(pause).toBeVisible();
+  await expect
+    .poll(() => spoken(ada.page))
+    .toEqual([
+      "Timer started: 10 seconds.",
+      "Time's up.",
+      "Timer started again.",
+    ]);
+  await ben.card("5").click();
+  await page.getByRole("button", { name: "Reveal votes" }).click();
+  for (const person of [ada, ben]) {
+    await expect(person.heading).toHaveText("Votes revealed");
+  }
 
   // The next round: the timer is idle again, its 0:10 kept.
   await page.getByRole("button", { name: "Start next round" }).click();
@@ -98,9 +127,9 @@ test("+30 s adds to what is left", async ({ people, baseURL }) => {
   });
   const page = ada.page;
   await page.getByRole("button", { name: "Start the timer" }).click();
-  await expect(page.locator(".timer-time")).toHaveText(/^(1:00|0:59)$/);
+  await expect(page.locator(".timer-time")).toHaveText(/^(0:30|0:29)$/);
   await page.getByRole("button", { name: "Add 30 seconds" }).click();
-  await expect(page.locator(".timer-time")).toHaveText(/^(1:30|1:29)$/);
+  await expect(page.locator(".timer-time")).toHaveText(/^(1:00|0:59)$/);
 });
 
 test("axe: the timer idle, running and paused, and a participant's block", async ({
@@ -157,7 +186,7 @@ test("a custom time out of range shows why, and Start waits for a good one", asy
   await expect(page.locator(".timer-time")).toHaveText(/^0:(30|29)$/);
 });
 
-test("with no votes when time runs out, nothing is revealed, and it says so", async ({
+test("with no votes when time runs out, everyone is nudged and the round stays open", async ({
   people,
   baseURL,
 }) => {
@@ -176,14 +205,15 @@ test("with no votes when time runs out, nothing is revealed, and it says so", as
   await ada.page.getByLabel("Custom time").press("Enter");
   await ada.page.getByRole("button", { name: "Start the timer" }).click();
   await expect(line(ben.page)).toBeVisible();
-  await expect(line(ben.page)).toHaveCount(0, { timeout: 15_000 });
+  for (const person of [ada, ben]) {
+    await expect(
+      person.page.getByText("Time's up. The room is waiting for your vote."),
+    ).toBeVisible({ timeout: 15_000 });
+  }
+  await expect(line(ben.page)).toContainText("Time's up");
   await expect(ben.heading).toHaveText("0 of 2 have voted");
-  await expect
-    .poll(() => spoken(ben.page))
-    .toEqual([
-      "Timer started: 10 seconds.",
-      "Time's up. Nobody has voted yet.",
-    ]);
+  // The banner says it; the room's own region says nothing more.
+  expect(await spoken(ben.page)).toEqual(["Timer started: 10 seconds."]);
 });
 
 test("a second facilitator's select shows the room's duration, custom or not", async ({

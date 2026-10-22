@@ -15,6 +15,9 @@ import {
   type StopReason,
 } from "./policy.js";
 
+/** Why a nudge came: a person's, or the timer's as its time ran out (ADR 0010). */
+export type NudgeReason = "person" | "time";
+
 export type ConnectionState =
   | {
       readonly status: "connecting";
@@ -113,7 +116,7 @@ export class RoomConnection {
   };
   private readonly listeners = new Set<() => void>();
   private readonly errorListeners = new Set<(code: ErrorCode) => void>();
-  private readonly nudgeListeners = new Set<() => void>();
+  private readonly nudgeListeners = new Set<(reason: NudgeReason) => void>();
 
   // The current socket and what is scoped to it. Every socket's events carry
   // the generation they were opened with; older generations are ignored.
@@ -158,8 +161,11 @@ export class RoomConnection {
     return () => this.errorListeners.delete(listener);
   }
 
-  /** Someone nudged this person (ADR 0007). The message says nothing more. */
-  onNudged(listener: () => void): () => void {
+  /**
+   * Someone nudged this person (ADR 0007), or the timer did as its time ran
+   * out (ADR 0010). The message says nothing more.
+   */
+  onNudged(listener: (reason: NudgeReason) => void): () => void {
     this.nudgeListeners.add(listener);
     return () => this.nudgeListeners.delete(listener);
   }
@@ -285,9 +291,12 @@ export class RoomConnection {
         return;
       case "pong":
         return;
-      case "nudged":
-        for (const listener of this.nudgeListeners) listener();
+      case "nudged": {
+        const reason: NudgeReason =
+          message.reason === "time" ? "time" : "person";
+        for (const listener of this.nudgeListeners) listener(reason);
         return;
+      }
     }
   }
 

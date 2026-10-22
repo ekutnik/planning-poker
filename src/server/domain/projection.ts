@@ -29,6 +29,8 @@ export function project(room: Room, viewerId: ParticipantId): RoomSnapshot {
         name: p.name,
         status: p.status,
         vote: p.vote,
+        voteAtReveal: p.voteAtReveal,
+        changedAfterReveal: p.vote !== p.voteAtReveal,
       });
     }
     return {
@@ -41,7 +43,6 @@ export function project(room: Room, viewerId: ParticipantId): RoomSnapshot {
       ticket: room.ticket,
       scores: scoresFor(room),
       timer: timerView(room),
-      revealCause: room.revealCause,
     };
   }
 
