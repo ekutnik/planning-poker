@@ -371,12 +371,26 @@ describe("a vote changed after the reveal (ADR 0011)", () => {
     );
   });
 
-  it("doesn't invite anyone to change their vote: the sentence is the last line (decided in #111's review)", () => {
-    for (const html of [render(true, changed), render(false, changed)]) {
-      expect(html).not.toMatch(/Changed your mind|Choose another card/);
+  it("puts the line on points under the sentence, with Keep score on and a vote changed (2026-10-22)", () => {
+    const scored: Revealed = { ...changed, scores: { Ada: 1 } };
+    for (const html of [render(true, scored), render(false, scored)]) {
       expect(html).toMatch(
-        /<p class="result">[^<]*<\/p><div class="controls">/,
+        /<div class="result-area"><p class="result">[^<]*<\/p><p class="result-note">A change after the reveal doesn&#x27;t earn a point.<\/p><\/div><div class="controls">/,
       );
+    }
+  });
+
+  it("has nothing after the sentence otherwise, and never invites a change", () => {
+    for (const shown of [
+      changed, // Keep score off
+      { ...snapshot, scores: { Ada: 1 } }, // no change
+    ]) {
+      for (const html of [render(true, shown), render(false, shown)]) {
+        expect(html).toMatch(
+          /<div class="result-area"><p class="result">[^<]*<\/p><\/div><div class="controls">/,
+        );
+        expect(html).not.toMatch(/Changed your mind|Choose another card/);
+      }
     }
   });
 });

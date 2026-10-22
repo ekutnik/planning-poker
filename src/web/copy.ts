@@ -246,6 +246,11 @@ export const RESULT_COPY = {
     endsSetAside
       ? "No result: no card has two votes once the lowest and highest vote are set aside."
       : "No result: no card has two votes.",
+  /**
+   * Under the sentence, only while Keep score is on and a vote has changed
+   * since the reveal (pointsNoteShown).
+   */
+  pointsNote: "A change after the reveal doesn't earn a point.",
 } as const;
 
 /**

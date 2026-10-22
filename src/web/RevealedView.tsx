@@ -1,7 +1,8 @@
 import type { RoomSnapshot } from "../shared/snapshot.js";
 import type { RoomAction } from "./connection/room-connection.js";
 import { People } from "./People.js";
-import { resultCopy } from "./result.js";
+import { RESULT_COPY } from "./copy.js";
+import { pointsNoteShown, resultCopy } from "./result.js";
 import { Scale } from "./Scale.js";
 import { ScreenHeading } from "./ScreenHeading.js";
 
@@ -18,7 +19,8 @@ type Revealed = Extract<RoomSnapshot, { phase: "revealed" }>;
  *
  * The cards can be chosen again (ADR 0011): a vote changed now moves the
  * result, never the points. Nothing on screen invites a change: it's for
- * the exceptional case, such as settling a draw.
+ * the exceptional case, such as settling a draw. Once one is made, with
+ * Keep score on, a line under the sentence says it earned no point.
  */
 export function RevealedView({
   snapshot,
@@ -58,7 +60,15 @@ export function RevealedView({
           onChoose={(card) => onAction({ type: "castVote", card })}
         />
       </div>
-      <p className="result">{copy.summary}</p>
+      {/* The sentence, and under it, only while Keep score is on and a vote
+          has changed since the reveal, why the points didn't move. Not a
+          live region: the people list and the sentence already say it. */}
+      <div className="result-area">
+        <p className="result">{copy.summary}</p>
+        {pointsNoteShown(snapshot) && (
+          <p className="result-note">{RESULT_COPY.pointsNote}</p>
+        )}
+      </div>
       <div className="controls">
         <button
           type="button"
