@@ -53,13 +53,14 @@ export interface RoomHeader {
 
 /**
  * The same header on every screen: the mark and the product's name, then
- * the controls. The title is fixed: rooms have no names yet (#35), and the
- * room id must never stand in for one, because it is the room's credential
- * and the facilitator's screen is shared. In a room: the Facilitating pill
- * (only while on), Copy link, and a Menu: in the facilitator view, first
- * the Session tools (Ticket, Timer, Keep score), then Just for you
- * (Facilitate, Theme); otherwise Facilitate and Theme alone; then Leave the
- * room. Elsewhere the Menu holds Theme alone.
+ * the controls. The title is fixed: rooms have no names (#35, not planned),
+ * and the room id must never stand in for one, because it is the room's
+ * credential and the facilitator's screen is shared. In a room: the
+ * Facilitating pill (only while on), Copy link, and a Menu: in the
+ * facilitator view, first the Session tools (Ticket, Timer, Keep score),
+ * then Just for you (Facilitate, Sound, Theme); otherwise Facilitate, Sound
+ * and Theme alone; then Leave the room. Elsewhere the Menu holds Theme
+ * alone.
  *
  * In compact, Copy link moves into the Menu, first, so the pill and the
  * Menu fit beside the name in one row: it is used once a session, by

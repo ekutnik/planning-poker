@@ -271,8 +271,8 @@ The visual and interaction design, and the reasoning behind it, is in [docs/desi
 
 ## Roadmap
 
-- **Now (v1): launched.** The repository and the app are public. One team uses it for its planning sessions, and what they find shapes what comes next.
-- **Later:** named rooms ([#35](https://github.com/ekutnik/planning-poker/issues/35)).
+- **Now (v1.1): launched.** The repository and the app are public. One team uses it for its planning sessions, and what they find shapes what comes next: v1.1 was their feedback from their second session.
+- **Next:** whatever the team asks for after their next session. Named rooms ([#35](https://github.com/ekutnik/planning-poker/issues/35)) are not planned: nobody has asked for them, and the Ticket name already says what a room is estimating.
 
 ## Credits
 
