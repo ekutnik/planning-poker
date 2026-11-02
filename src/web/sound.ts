@@ -77,12 +77,18 @@ export interface Chime {
   readonly play: () => void;
 }
 
-/** Two notes, G5 then C6, about 300 ms in all, at a moderate volume. */
+/**
+ * The chime, G5 then C6, about 300 ms, played twice, 150 ms apart, about
+ * 0.75 s in all: once, at 0.15, went by unnoticed in the team's session of
+ * 2026-11-02.
+ */
 const NOTES = [
   { hz: 784, at: 0, length: 0.14 },
   { hz: 1047, at: 0.15, length: 0.15 },
+  { hz: 784, at: 0.45, length: 0.14 },
+  { hz: 1047, at: 0.6, length: 0.15 },
 ];
-const PEAK = 0.15;
+const PEAK = 0.2;
 
 /**
  * Browsers only let a page make sound after the person has interacted with

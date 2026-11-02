@@ -37,6 +37,19 @@ jobs:
   # and WebKit, with axe on every screen. The report is kept when it fails.
   e2e:
     runs-on: ubuntu-latest
+    # Playwright's own image, at the version package-lock.json locks (a test
+    # holds the two together): the browsers and their system libraries are
+    # in it, so nothing comes from Ubuntu's package mirror, which once held
+    # this job for an hour (#114).
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+    # A run takes about 8 minutes: a step that hangs fails, rather than run
+    # for GitHub's default of 6 hours.
+    timeout-minutes: 30
+    env:
+      # The image runs as root, and Firefox won't start as root with a HOME
+      # it doesn't own (Playwright's docs for CI).
+      HOME: /root
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -44,7 +57,6 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run test:e2e
       - if: failure()
         uses: actions/upload-artifact@v7

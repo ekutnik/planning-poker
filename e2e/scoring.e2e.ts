@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expectAccessible } from "./axe.js";
-import { expect, newRoom, row, test } from "./fixtures.js";
+import { expect, newRoom, row, test, type Person } from "./fixtures.js";
 
 /**
  * Keep score, from the facilitator's Menu: points at each reveal with one
@@ -98,4 +98,61 @@ test("axe: the room with points, voting and revealed", async ({
   await ada.page.getByRole("button", { name: "Reveal votes" }).click();
   await expect(row(ben.page, "Ada")).toContainText("1 pt");
   await expectAccessible(ben.page, "revealed with points");
+});
+
+test("points outlast a seat: Leave the room and back restores them, in points order; another browser starts at 0 (ADR 0012)", async ({
+  people,
+  baseURL,
+}) => {
+  const roomId = await newRoom(baseURL ?? "");
+  const ada = await people.join(roomId, "Ada", { facilitate: true });
+  const ben = await people.join(roomId, "Ben");
+  const cy = await people.join(roomId, "Cy");
+  const page = ada.page;
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByRole("switch", { name: "Keep score" }).click();
+  await page.keyboard.press("Escape");
+  const round = async (votes: readonly [Person, string][]) => {
+    for (const [person, card] of votes) await person.card(card).click();
+    for (const [person] of votes) {
+      await expect(row(page, person.name).getByText("Voted")).toBeVisible();
+    }
+    await page.getByRole("button", { name: "Reveal votes" }).click();
+    await page.getByRole("button", { name: "Start next round" }).click();
+    await expect(
+      page.getByRole("button", { name: "Reveal votes" }),
+    ).toBeVisible();
+  };
+
+  // Ben 2, Ada 1, Cy 1: Ben first, the tie in join order.
+  await round([
+    [ben, "5"],
+    [cy, "5"],
+  ]);
+  await round([
+    [ada, "8"],
+    [ben, "8"],
+    [cy, "3"],
+  ]);
+  await expect(row(page, "Ben").getByText("2 pts")).toBeVisible();
+  expect(await names(page)).toEqual(["Ben", "Ada", "Cy"]);
+
+  // Ben leaves: he's off the list, and nobody else's points move.
+  await ben.page.getByRole("button", { name: "Menu" }).click();
+  await ben.page.getByRole("button", { name: "Leave the room" }).click();
+  await expect(row(page, "Ben")).toHaveCount(0);
+  expect(await names(page)).toEqual(["Ada", "Cy"]);
+
+  // Someone else called Ben, in another browser, starts at 0.
+  const other = await people.join(roomId, "Ben");
+  await expect(row(page, "Ben").getByText("0 pts")).toBeVisible();
+  expect(await names(page)).toEqual(["Ada", "Cy", "Ben"]);
+  await other.page.getByRole("button", { name: "Menu" }).click();
+  await other.page.getByRole("button", { name: "Leave the room" }).click();
+  await expect(row(page, "Ben")).toHaveCount(0);
+
+  // The same browser, back on the same link: his points, and his place.
+  await ben.page.goto(`/r/${roomId}`);
+  await expect(row(page, "Ben").getByText("2 pts")).toBeVisible();
+  expect(await names(page)).toEqual(["Ben", "Ada", "Cy"]);
 });

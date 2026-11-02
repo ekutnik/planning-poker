@@ -602,6 +602,9 @@ export class RoomService {
    *   terminate one whose last pong is PONG_TIMEOUT_MS old.
    * - Grace removal (#19): propose `expire` for every disconnected participant;
    *   the domain removes those disconnected for DISCONNECT_GRACE_MS.
+   * - Kept points (ADR 0012): propose `forgetPoints` for every room with
+   *   people in it; the domain forgets those older than KEPT_POINTS_MS. An
+   *   empty room's go with it.
    * - Room TTL (#18): evict a room that has been empty for roomTtlMs. A room
    *   with participants is never evicted; heartbeat and grace removal make an
    *   abandoned room empty within about 105s.
@@ -650,6 +653,7 @@ export class RoomService {
 
     // The sweep proposes; the domain decides who is past the grace period.
     const expiredRooms: Room[] = [];
+    const forgetfulRooms: Room[] = [];
     if (!stalled) {
       for (const room of this.rooms.values()) {
         let next = room;
@@ -659,7 +663,15 @@ export class RoomService {
           const result = applyCommand(next, command, now);
           if (result.ok) next = result.room;
         }
-        if (next !== room) expiredRooms.push(next);
+        const expired = next !== room;
+        // Not in an empty room: writing it would restart its 10 minutes
+        // (store()), and all its points go with it soon anyway.
+        if (next.participants.size > 0) {
+          const result = applyCommand(next, { type: "forgetPoints" }, now);
+          if (result.ok) next = result.room;
+        }
+        if (expired) expiredRooms.push(next);
+        else if (next !== room) forgetfulRooms.push(next);
       }
     }
 
@@ -683,6 +695,7 @@ export class RoomService {
     for (const [, beat] of due) beat.lastPingAt = now;
     for (const roomId of evicted) this.evict(roomId);
     for (const room of expiredRooms) this.store(room, now);
+    for (const room of forgetfulRooms) this.store(room, now);
     for (const key of cooled) this.nudgedAt.delete(key);
     this.roomCreations.sweep(now);
     this.commands.sweep(now);
@@ -753,9 +766,12 @@ export class RoomService {
     throttles: number;
     roomKeys: number;
     commandKeys: number;
+    keptPoints: number;
   } {
     let sockets = 0;
     for (const room of this.current.values()) sockets += room.size;
+    let keptPoints = 0;
+    for (const room of this.rooms.values()) keptPoints += room.keptPoints.size;
     return {
       rooms: this.rooms.size,
       emptyRooms: this.emptySince.size,
@@ -772,6 +788,7 @@ export class RoomService {
       throttles: this.throttles.size,
       roomKeys: this.roomCreations.size,
       commandKeys: this.commands.size,
+      keptPoints,
     };
   }
 

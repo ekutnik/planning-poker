@@ -266,13 +266,14 @@ The architecture decisions, each with its context and consequences:
 - [0009. Limits per client address, sized for a team behind one NAT](docs/decisions/0009-limits-per-client-address.md)
 - [0010. The timer is a soft deadline](docs/decisions/0010-the-timer-is-a-soft-deadline.md)
 - [0011. Votes can change after the reveal; points settle at the reveal](docs/decisions/0011-votes-can-change-after-the-reveal.md)
+- [0012. Points outlast a seat for 4 hours](docs/decisions/0012-points-outlast-a-seat-for-4-hours.md)
 
 The visual and interaction design, and the reasoning behind it, is in [docs/design.md](docs/design.md).
 
 ## Roadmap
 
-- **Now (v1): launched.** The repository and the app are public. One team uses it for its planning sessions, and what they find shapes what comes next.
-- **Later:** named rooms ([#35](https://github.com/ekutnik/planning-poker/issues/35)).
+- **Now (v1.1): launched.** The repository and the app are public. One team uses it for its planning sessions, and what they find shapes what comes next: v1.1 was their feedback from their second session.
+- **Next:** whatever the team asks for after their next session. Named rooms ([#35](https://github.com/ekutnik/planning-poker/issues/35)) are not planned: nobody has asked for them, and the Ticket name already says what a room is estimating.
 
 ## Credits
 

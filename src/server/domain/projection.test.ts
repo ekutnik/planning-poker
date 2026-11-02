@@ -308,3 +308,42 @@ describe("project — a vote changed after the reveal (ADR 0011)", () => {
     expect(back.participants.every((p) => !p.changedAfterReveal)).toBe(true);
   });
 });
+
+describe("project — points of someone who has left (ADR 0012)", () => {
+  const scored = () => {
+    const on: Command = {
+      type: "setScoring",
+      participantId: "a",
+      on: true,
+    };
+    return run(
+      createRoom("r1"),
+      join("a"),
+      join("gone"),
+      on,
+      castVote("a", "5"),
+      castVote("gone", "5"),
+      reveal("a"),
+    );
+  };
+  const left = () => run(scored(), { type: "leave", participantId: "gone" });
+
+  it("never sends them, or that they exist, while revealed or voting", () => {
+    const voting = run(left(), { type: "reset", participantId: "a" });
+    for (const room of [left(), voting]) {
+      expect(room.keptPoints.has("gone")).toBe(true);
+      const wire = onWire(project(room, "a"));
+      expect(JSON.stringify(wire)).not.toContain("gone");
+      expect(JSON.stringify(wire)).not.toMatch(/kept|leftAt/i);
+      expect((wire as { scores: unknown }).scores).toEqual({ a: 1 });
+    }
+  });
+
+  it("sends them again once the same browser is back", () => {
+    const back = run(left(), join("gone"));
+    expect((onWire(project(back, "a")) as { scores: unknown }).scores).toEqual({
+      a: 1,
+      gone: 1,
+    });
+  });
+});

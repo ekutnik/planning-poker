@@ -3,6 +3,8 @@ import {
   applyCommand,
   createRoom,
   DISCONNECT_GRACE_MS,
+  KEPT_POINTS_MS,
+  MAX_KEPT_POINTS,
   MAX_NAME_LENGTH,
   MAX_PARTICIPANTS,
   type Command,
@@ -947,7 +949,7 @@ describe("keeping score", () => {
       expect(points(back)).toEqual({ a: 1, b: 1 });
     });
 
-    it("someone removed loses them, by leaving or by the grace period ending", () => {
+    it("someone gone is out of the scores, by leaving or by the grace period ending", () => {
       expect(points(run(scored(), leave("b")))).toEqual({ a: 1 });
       const expired = runAt(
         NOW + DISCONNECT_GRACE_MS,
@@ -957,9 +959,104 @@ describe("keeping score", () => {
       expect(points(expired)).toEqual({ a: 1 });
     });
 
-    it("a newcomer, even with the same id as someone who left, starts at 0", () => {
-      const rejoined = run(scored(), leave("b"), join("b"));
-      expect(rejoined.scores.get("b")).toBeUndefined();
+    describe("points outlast a seat (ADR 0012)", () => {
+      const MINUTE = 60_000;
+      const HOUR = 60 * MINUTE;
+      /** b is away, and removed when the grace period ends. */
+      const removedAt = NOW + DISCONNECT_GRACE_MS + 1_000;
+      const removed = () =>
+        runAt(removedAt, run(scored(), disconnect("b")), expire("b"));
+      const backAt = (now: number, from = removed()) =>
+        must(applyCommand(from, join("b"), now));
+
+      it("keeps the points, with when they left, on removal and on leaving", () => {
+        expect(removed().keptPoints).toEqual(
+          new Map([["b", { points: 1, leftAt: removedAt }]]),
+        );
+        const left = must(applyCommand(scored(), leave("b"), NOW + 5));
+        expect(left.keptPoints).toEqual(
+          new Map([["b", { points: 1, leftAt: NOW + 5 }]]),
+        );
+      });
+
+      it("gives them back at 3 h 59 m, in the same change as the join", () => {
+        const from = removed();
+        const back = backAt(removedAt + 3 * HOUR + 59 * MINUTE, from);
+        expect(points(back)).toEqual({ a: 1, b: 1 });
+        expect(back.keptPoints.size).toBe(0);
+        expect(back.version).toBe(from.version + 1);
+      });
+
+      it("doesn't at 4 h 1 m, even before the sweep has been round", () => {
+        const back = backAt(removedAt + 4 * HOUR + MINUTE);
+        expect(points(back)).toEqual({ a: 1 });
+        expect(back.keptPoints.size).toBe(0);
+      });
+
+      it("doesn't at exactly 4 h", () => {
+        expect(points(backAt(removedAt + KEPT_POINTS_MS))).toEqual({ a: 1 });
+      });
+
+      it("gives them back after Leave the room", () => {
+        const back = run(scored(), leave("b"), join("b"));
+        expect(points(back)).toEqual({ a: 1, b: 1 });
+      });
+
+      it("gives a different browser 0, and keeps the points for the first", () => {
+        const other = run(removed(), join("b2", "b"));
+        expect(other.scores.get("b2")).toBeUndefined();
+        expect(other.keptPoints.has("b")).toBe(true);
+      });
+
+      it("keeps nothing for someone with no points", () => {
+        expect(run(room(true), leave("c")).keptPoints.size).toBe(0);
+      });
+
+      it("keeps them when the room is full, for when a seat opens", () => {
+        const full = run(
+          removed(),
+          ...Array.from({ length: MAX_PARTICIPANTS - 5 }, (_, i) =>
+            join(`x${String(i)}`),
+          ),
+        );
+        expect(applyCommand(full, join("b"), removedAt + 1)).toEqual({
+          ok: false,
+          error: "ROOM_FULL",
+        });
+        expect(full.keptPoints.has("b")).toBe(true);
+      });
+
+      it("forgets them once they've run out, and only those, without a version bump", () => {
+        const two = runAt(removedAt + HOUR, removed(), leave("a"));
+        const at = (now: number) =>
+          must(applyCommand(two, { type: "forgetPoints" }, now));
+        expect(at(removedAt + KEPT_POINTS_MS - 1)).toBe(two);
+        const forgot = at(removedAt + KEPT_POINTS_MS);
+        expect([...forgot.keptPoints.keys()]).toEqual(["a"]);
+        expect(forgot.version).toBe(two.version);
+      });
+
+      it("keeps 100 at most, dropping the oldest", () => {
+        let r = run(room(true));
+        for (let i = 0; i <= MAX_KEPT_POINTS; i += 1) {
+          const id = `p${String(i)}`;
+          r = runAt(
+            NOW + i,
+            r,
+            join(id),
+            castVote("a", "5"),
+            castVote(id, "5"),
+            reveal("a"),
+            reset("a"),
+            leave(id),
+          );
+        }
+        expect(MAX_KEPT_POINTS).toBe(100);
+        expect(r.keptPoints.size).toBe(100);
+        expect(r.keptPoints.has("p0")).toBe(false);
+        expect(r.keptPoints.has("p1")).toBe(true);
+        expect(r.keptPoints.has("p100")).toBe(true);
+      });
     });
   });
 
