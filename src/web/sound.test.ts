@@ -29,6 +29,8 @@ class FakeContext {
   currentTime = 10;
   destination = {} as AudioDestinationNode;
   readonly started: { hz: number; at: number }[] = [];
+  /** The peak of each note's ramp: its volume. */
+  readonly peaks: number[] = [];
   resumes = 0;
   resume = (): Promise<void> => {
     this.resumes += 1;
@@ -39,7 +41,7 @@ class FakeContext {
     ({
       gain: {
         setValueAtTime: () => undefined,
-        linearRampToValueAtTime: () => undefined,
+        linearRampToValueAtTime: (value: number) => this.peaks.push(value),
         exponentialRampToValueAtTime: () => undefined,
       },
       connect: () => undefined,
@@ -132,6 +134,14 @@ describe("the chime", () => {
     fake.started.forEach(({ at }, i) => {
       expect(at).toBeCloseTo(10 + (offsets[i] ?? Number.NaN), 6);
     });
+  });
+
+  it("plays all four notes at a peak gain of 0.2", () => {
+    const fake = new FakeContext();
+    const chime = createChime(() => asContext(fake));
+    chime.unlock();
+    chime.play();
+    expect(fake.peaks).toEqual([0.2, 0.2, 0.2, 0.2]);
   });
 
   it("creates its audio once, and resumes it on a later gesture if suspended", () => {
