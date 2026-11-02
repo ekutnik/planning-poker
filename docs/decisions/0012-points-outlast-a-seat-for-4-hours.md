@@ -18,6 +18,7 @@ The seat keeps its rule, and the points outlast it by 4 hours.
 - **The seat is unchanged:** 60 s, then removal. Leave the room is immediate.
 - **On removal or Leave the room,** the person's points stay in the room (`keptPoints`), with the time they left. They're out of `scores`.
 - **The same browser back within 4 hours gets them back,** in the same change as the join, by the clock rather than by whether the sweep has been round. At 4 hours or later it starts at 0.
+- **Why 4 hours:** a session runs 90–120 minutes; 4 hours covers someone who drops at the start and returns at the end, with margin for an overrun.
 - **After 4 hours the sweep forgets them,** through a server-only command, `forgetPoints`, so the rule stays in the reducer. No viewer can see them, so it's no change to the room: the version stays, and nothing is sent. The sweep leaves an empty room alone, since writing it would restart its 10 minutes.
 - **They go with the room.** An empty room still closes after 10 minutes, so the team's next session, a fortnight later on the same link, starts at 0 for everyone.
 - **Never in a snapshot.** Points of someone who has left aren't sent, and nor is the fact that they exist. So no protocol change.
