@@ -380,6 +380,7 @@ describe("RoomService", () => {
       throttles: 0,
       roomKeys: 0,
       commandKeys: 0,
+      keptPoints: 0,
     });
   });
 
@@ -976,6 +977,123 @@ describe("RoomService — sweep: room TTL (#18)", () => {
     ctx.advance(SWEEP_INTERVAL_MS);
     ctx.service.sweep();
     expect(ctx.service.bookkeeping().rooms).toBe(0);
+  });
+});
+
+describe("RoomService — points outlast a seat (ADR 0012)", () => {
+  const MINUTE = 60_000;
+  const HOUR = 60 * MINUTE;
+  const BOB_ID = derivePublicId(ROOM, BOB);
+  const ALICE_ID = derivePublicId(ROOM, ALICE);
+
+  /** Alice and Bob, a point each, Keep score on; Alice answers her pings. */
+  function scoredRoom() {
+    const ctx = setup();
+    const alice = ctx.connect("alice");
+    const bob = ctx.connect("bob");
+    ctx.join(alice, ALICE, "Alice");
+    ctx.join(bob, BOB, "Bob");
+    const send = (message: object) =>
+      ctx.service.message(alice, JSON.stringify(message));
+    send({ type: "setScoring", on: true });
+    send({ type: "castVote", card: "5" });
+    ctx.service.message(bob, JSON.stringify({ type: "castVote", card: "5" }));
+    send({ type: "reveal" });
+    send({ type: "reset" });
+    /** Time passes, swept like the real timer, and Alice stays connected. */
+    const pass = (ms: number) => {
+      for (let t = 0; t < ms; t += SWEEP_INTERVAL_MS) {
+        ctx.advance(Math.min(SWEEP_INTERVAL_MS, ms - t));
+        ctx.service.pong(alice);
+        ctx.service.sweep();
+      }
+    };
+    const scores = () => {
+      const last = snapshots(alice).at(-1);
+      return last?.type === "snapshot" ? last.snapshot.scores : undefined;
+    };
+    const comeBack = (token = BOB, id = "bob-again") => {
+      const conn = ctx.connect(id);
+      ctx.join(conn, token, "Bob");
+      return conn;
+    };
+    return { ...ctx, alice, bob, pass, scores, comeBack };
+  }
+
+  /** Bob's connection drops, and the grace period ends: 61 s away. */
+  function removeBob(room: ReturnType<typeof scoredRoom>) {
+    room.service.close(room.bob);
+    room.pass(61_000 + SWEEP_INTERVAL_MS);
+    expect(room.scores()).toEqual({ [ALICE_ID]: 1 });
+  }
+
+  it("away 61 s, back at 3 h 59 m: the points are restored", () => {
+    const room = scoredRoom();
+    removeBob(room);
+    expect(room.service.bookkeeping().keptPoints).toBe(1);
+    room.pass(3 * HOUR + 59 * MINUTE);
+    expect(room.service.bookkeeping().keptPoints).toBe(1);
+    room.comeBack();
+    expect(room.scores()).toEqual({ [ALICE_ID]: 1, [BOB_ID]: 1 });
+    expect(room.service.bookkeeping().keptPoints).toBe(0);
+  });
+
+  it("back at 4 h 1 m: 0 points, and the sweep had already forgotten them", () => {
+    const room = scoredRoom();
+    removeBob(room);
+    room.pass(4 * HOUR + MINUTE);
+    expect(room.service.bookkeeping().keptPoints).toBe(0);
+    room.comeBack();
+    expect(room.scores()).toEqual({ [ALICE_ID]: 1, [BOB_ID]: 0 });
+  });
+
+  it("Leave the room, then back: restored", () => {
+    const room = scoredRoom();
+    room.service.message(room.bob, JSON.stringify({ type: "leave" }));
+    expect(room.scores()).toEqual({ [ALICE_ID]: 1 });
+    room.pass(HOUR);
+    room.comeBack();
+    expect(room.scores()).toEqual({ [ALICE_ID]: 1, [BOB_ID]: 1 });
+  });
+
+  it("a different browser: 0 points, whatever the name", () => {
+    const room = scoredRoom();
+    removeBob(room);
+    room.comeBack("SESSIONTOKEN_BOBS_PHONE1");
+    const other = derivePublicId(ROOM, "SESSIONTOKEN_BOBS_PHONE1");
+    expect(room.scores()).toEqual({ [ALICE_ID]: 1, [other]: 0 });
+    expect(room.service.bookkeeping().keptPoints).toBe(1);
+  });
+
+  it("forgetting sends nobody anything: no viewer can see them", () => {
+    const room = scoredRoom();
+    removeBob(room);
+    room.pass(4 * HOUR - MINUTE);
+    const before = snapshots(room.alice).length;
+    expect(room.service.bookkeeping().keptPoints).toBe(1);
+    room.pass(2 * MINUTE);
+    expect(room.service.bookkeeping().keptPoints).toBe(0);
+    expect(snapshots(room.alice)).toHaveLength(before);
+  });
+
+  it("they go with the room, 10 minutes after it empties, on time", () => {
+    const room = scoredRoom();
+    removeBob(room);
+    // Alice goes just before Bob's points run out: forgetting them mustn't
+    // write the empty room, which would restart its 10 minutes.
+    room.pass(4 * HOUR - 5 * MINUTE);
+    room.service.message(room.alice, JSON.stringify({ type: "leave" }));
+    expect(room.service.bookkeeping()).toMatchObject({
+      emptyRooms: 1,
+      keptPoints: 2,
+    });
+    room.tick(ROOM_TTL_MS - SWEEP_INTERVAL_MS);
+    expect(room.service.bookkeeping().rooms).toBe(1);
+    room.tick(SWEEP_INTERVAL_MS);
+    expect(room.service.bookkeeping()).toMatchObject({
+      rooms: 0,
+      keptPoints: 0,
+    });
   });
 });
 

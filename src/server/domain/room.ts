@@ -26,6 +26,17 @@ export { MAX_NAME_LENGTH, MAX_PARTICIPANTS } from "../../shared/rules.js";
  */
 export const DISCONNECT_GRACE_MS = 60_000;
 
+/**
+ * How long points outlast a seat (ADR 0012): someone removed from the room,
+ * or who left it, gets their points back if the same browser returns within
+ * this long. Long enough for any session, short enough that the next one,
+ * on the same link, starts clean.
+ */
+export const KEPT_POINTS_MS = 4 * 60 * 60_000;
+
+/** The most departed people a room keeps points for; the oldest go first. */
+export const MAX_KEPT_POINTS = 100;
+
 export type { ParticipantId };
 export type Phase = "voting" | "revealed";
 
@@ -43,6 +54,11 @@ export interface Participant {
   readonly disconnectedAt: number | null;
 }
 
+export interface KeptPoints {
+  readonly points: number;
+  readonly leftAt: number;
+}
+
 export interface Room {
   readonly id: string;
   readonly phase: Phase;
@@ -57,11 +73,17 @@ export interface Room {
   /** Keep score: off until someone turns it on. */
   readonly scoring: boolean;
   /**
-   * Points per participant, awarded at each reveal while scoring is on and
-   * never recalculated. Turning scoring off keeps them; leaving loses them.
-   * Someone with no entry has 0.
+   * Points per participant in the room, awarded at each reveal while scoring
+   * is on and never recalculated. Turning scoring off keeps them. Someone
+   * with no entry has 0.
    */
   readonly scores: ReadonlyMap<ParticipantId, number>;
+  /**
+   * The points of people no longer in the room, with when they left, oldest
+   * first (ADR 0012). Never in a snapshot: they come back into `scores` if
+   * the same browser returns within KEPT_POINTS_MS.
+   */
+  readonly keptPoints: ReadonlyMap<ParticipantId, KeptPoints>;
   /**
    * The timer (ADR 0008): idle until someone starts it, expired when its
    * time runs out (ADR 0010), back to idle at every reveal and at Start next
@@ -110,6 +132,11 @@ export type Command =
    * comes from the room service's timer, never from a client.
    */
   | { readonly type: "timeUp" }
+  /**
+   * The server's own command, from the sweep: forget the kept points that
+   * have run out (ADR 0012). It comes from the room service, never a client.
+   */
+  | { readonly type: "forgetPoints" }
   | { readonly type: "expire"; readonly participantId: ParticipantId };
 
 export type { DomainError };
@@ -129,6 +156,7 @@ export function createRoom(id: string): Room {
     ticket: null,
     scoring: false,
     scores: new Map(),
+    keptPoints: new Map(),
     timer: idleTimer(TIMER_DEFAULT_MS),
   };
 }
@@ -140,7 +168,7 @@ export function applyCommand(
 ): Result {
   switch (command.type) {
     case "join":
-      return join(room, command);
+      return join(room, command, now);
     case "castVote":
       return castVote(room, command);
     case "clearVote":
@@ -152,7 +180,7 @@ export function applyCommand(
     case "disconnect":
       return disconnect(room, command, now);
     case "leave":
-      return leave(room, command);
+      return leave(room, command, now);
     case "expire":
       return expire(room, command, now);
     case "setTicket":
@@ -171,6 +199,8 @@ export function applyCommand(
       return timerAdd(room, command, now);
     case "timeUp":
       return timeUp(room, now);
+    case "forgetPoints":
+      return forgetPoints(room, now);
     default: {
       const unreachable: never = command;
       throw new Error(`Unhandled command: ${JSON.stringify(unreachable)}`);
@@ -189,7 +219,13 @@ function commit(
   changes: Partial<
     Pick<
       Room,
-      "phase" | "participants" | "ticket" | "scoring" | "scores" | "timer"
+      | "phase"
+      | "participants"
+      | "ticket"
+      | "scoring"
+      | "scores"
+      | "keptPoints"
+      | "timer"
     >
   >,
 ): Room {
@@ -203,15 +239,45 @@ function withParticipant(
   return new Map(room.participants).set(participant.id, participant);
 }
 
-function without(room: Room, participantId: ParticipantId): Room {
+/**
+ * Someone goes: the seat goes now, and their points move aside, with the
+ * time, for KEPT_POINTS_MS (ADR 0012). The same browser has the same id, so
+ * join() can give them back; a newcomer with the same name has another id,
+ * and starts at 0.
+ */
+function without(room: Room, participantId: ParticipantId, now: number): Room {
   const participants = new Map(room.participants);
   participants.delete(participantId);
-  // Someone removed from the room loses their points; a newcomer with the
-  // same name starts at 0. A reconnect keeps its id, and so its points.
-  if (!room.scores.has(participantId)) return commit(room, { participants });
+  const points = room.scores.get(participantId);
+  if (points === undefined) return commit(room, { participants });
   const scores = new Map(room.scores);
   scores.delete(participantId);
-  return commit(room, { participants, scores });
+  const keptPoints = new Map(room.keptPoints);
+  keptPoints.set(participantId, { points, leftAt: now });
+  // In order of leaving, so the first key is the oldest.
+  for (const oldest of keptPoints.keys()) {
+    if (keptPoints.size <= MAX_KEPT_POINTS) break;
+    keptPoints.delete(oldest);
+  }
+  return commit(room, { participants, scores, keptPoints });
+}
+
+/**
+ * Someone arriving: their kept points, if any, come back while they're still
+ * good, by the clock rather than by whether the sweep has been round yet.
+ */
+function pointsBack(
+  room: Room,
+  participantId: ParticipantId,
+  now: number,
+): Partial<Pick<Room, "scores" | "keptPoints">> {
+  const kept = room.keptPoints.get(participantId);
+  if (kept === undefined) return {};
+  const keptPoints = new Map(room.keptPoints);
+  keptPoints.delete(participantId);
+  if (now - kept.leftAt >= KEPT_POINTS_MS) return { keptPoints };
+  const scores = new Map(room.scores).set(participantId, kept.points);
+  return { scores, keptPoints };
 }
 
 function hasAnyVote(room: Room): boolean {
@@ -223,7 +289,7 @@ function hasAnyVote(room: Room): boolean {
 
 // --- commands ---
 
-function join(room: Room, cmd: CommandOf<"join">): Result {
+function join(room: Room, cmd: CommandOf<"join">, now: number): Result {
   // Normalised and validated by the rule the client shares (src/shared/rules).
   const name = validName(cmd.name);
   if (name === null) return fail("INVALID_NAME");
@@ -252,7 +318,12 @@ function join(room: Room, cmd: CommandOf<"join">): Result {
     status: "connected",
     disconnectedAt: null,
   };
-  return ok(commit(room, { participants: withParticipant(room, joined) }));
+  return ok(
+    commit(room, {
+      participants: withParticipant(room, joined),
+      ...pointsBack(room, cmd.participantId, now),
+    }),
+  );
 }
 
 /**
@@ -398,9 +469,23 @@ function disconnect(
   return ok(commit(room, { participants: withParticipant(room, gone) }));
 }
 
-function leave(room: Room, cmd: CommandOf<"leave">): Result {
+function leave(room: Room, cmd: CommandOf<"leave">, now: number): Result {
   if (!room.participants.has(cmd.participantId)) return ok(room); // no-op: already gone
-  return ok(without(room, cmd.participantId));
+  return ok(without(room, cmd.participantId, now));
+}
+
+/**
+ * Forgets the kept points that have run out. No viewer can see them, so it
+ * isn't a change to the room: the version stays, and nothing is sent.
+ */
+function forgetPoints(room: Room, now: number): Result {
+  let keptPoints: Map<ParticipantId, KeptPoints> | null = null;
+  for (const [id, { leftAt }] of room.keptPoints) {
+    if (now - leftAt < KEPT_POINTS_MS) continue;
+    keptPoints ??= new Map(room.keptPoints);
+    keptPoints.delete(id);
+  }
+  return ok(keptPoints === null ? room : { ...room, keptPoints });
 }
 
 /**
@@ -591,5 +676,5 @@ function expire(room: Room, cmd: CommandOf<"expire">, now: number): Result {
   if (!participant) return ok(room); // no-op: already gone
   if (participant.disconnectedAt === null) return ok(room); // no-op: connected
   if (now - participant.disconnectedAt < DISCONNECT_GRACE_MS) return ok(room); // no-op: still in grace
-  return ok(without(room, cmd.participantId));
+  return ok(without(room, cmd.participantId, now));
 }

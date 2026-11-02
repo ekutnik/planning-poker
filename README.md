@@ -266,6 +266,7 @@ The architecture decisions, each with its context and consequences:
 - [0009. Limits per client address, sized for a team behind one NAT](docs/decisions/0009-limits-per-client-address.md)
 - [0010. The timer is a soft deadline](docs/decisions/0010-the-timer-is-a-soft-deadline.md)
 - [0011. Votes can change after the reveal; points settle at the reveal](docs/decisions/0011-votes-can-change-after-the-reveal.md)
+- [0012. Points outlast a seat for 4 hours](docs/decisions/0012-points-outlast-a-seat-for-4-hours.md)
 
 The visual and interaction design, and the reasoning behind it, is in [docs/design.md](docs/design.md).
 

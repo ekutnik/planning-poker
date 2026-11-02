@@ -9,6 +9,7 @@ import {
   RoomService,
   SWEEP_INTERVAL_MS,
 } from "./room-service.js";
+import { KEPT_POINTS_MS } from "./domain/room.js";
 import { derivePublicId } from "./identity.js";
 
 /**
@@ -280,6 +281,51 @@ describe("the room timer's scheduling", () => {
     const t = runningWithAVote();
     const message = t.ada.sent.filter((m) => m.type === "snapshot").at(-1);
     expect(message).toMatchObject({ serverNow: t.now() });
+  });
+});
+
+describe("kept points and the timer (ADR 0012, ADR 0010)", () => {
+  it("forgetting kept points leaves a running timer alone: time's up on its original deadline, once", () => {
+    const { service, scheduler, ada, ben, send, last, advance, now } = setup();
+    send(ada, { type: "setScoring", on: true });
+    send(ada, { type: "castVote", card: "5" });
+    send(ben, { type: "castVote", card: "5" });
+    send(ada, { type: "reveal" });
+    send(ada, { type: "reset" });
+    send(ben, { type: "leave" });
+    expect(service.bookkeeping().keptPoints).toBe(1);
+
+    // A two-minute timer that starts one minute before Ben's points run out.
+    advance(KEPT_POINTS_MS - MIN);
+    send(ada, { type: "timerSetDuration", ms: 2 * MIN });
+    send(ada, { type: "timerStart" });
+    const { endsAt } = last(ada).timer;
+    expect(endsAt).toBe(now() + 2 * MIN);
+    const scheduled = [...scheduler.pending.values()];
+    expect(scheduled.map((timer) => timer.at)).toEqual([endsAt]);
+    const sentBefore = ada.sent.length;
+
+    // The points run out; the sweep forgets them, and saves the room.
+    advance(MIN);
+    service.sweep();
+    expect(service.bookkeeping().keptPoints).toBe(0);
+    expect(last(ada).timer.state).toBe("running");
+    expect(last(ada).timer.endsAt).toBe(endsAt);
+    // The same callback, not one set again, and nothing sent to anyone.
+    expect([...scheduler.pending.values()]).toEqual(scheduled);
+    expect(ada.sent).toHaveLength(sentBefore);
+
+    // A moment before the deadline, nothing; at it, time's up, once.
+    advance(MIN - 1);
+    scheduler.runDue();
+    expect(last(ada).timer.state).toBe("running");
+    advance(1);
+    scheduler.runDue();
+    expect(last(ada).timer.state).toBe("expired");
+    expect(
+      ada.sent.filter((m) => m.type === "nudged" && m.reason === "time"),
+    ).toHaveLength(1);
+    expect(scheduler.pending.size).toBe(0);
   });
 });
 
