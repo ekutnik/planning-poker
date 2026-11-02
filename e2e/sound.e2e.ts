@@ -74,7 +74,7 @@ test("a nudge plays the chime in a tab that has had a gesture, and not before", 
   await ben.heading.click();
   await ada.page.getByRole("button", { name: "Nudge Ben" }).click();
   await expect(ben.page.getByText(BANNER)).toBeVisible();
-  await expect.poll(() => audio(ben.page)).toEqual({ created: 1, notes: 2 });
+  await expect.poll(() => audio(ben.page)).toEqual({ created: 1, notes: 4 });
 
   // Cy's tab was opened and never touched: the browser allows no sound, so
   // none is made, nothing is logged, and the banner says it all the same.
@@ -105,7 +105,7 @@ test("joining with the Join button turns the sound on: that click is the gesture
 
   await nudgeBen.click();
   await expect(ben.page.getByText(BANNER)).toBeVisible();
-  await expect.poll(() => audio(ben.page)).toEqual({ created: 1, notes: 2 });
+  await expect.poll(() => audio(ben.page)).toEqual({ created: 1, notes: 4 });
 });
 
 test("a time's-up nudge plays the chime too (ADR 0010)", async ({
@@ -132,7 +132,7 @@ test("a time's-up nudge plays the chime too (ADR 0010)", async ({
   await expect(
     ben.page.getByText("Time's up. The room is waiting for your vote."),
   ).toBeVisible({ timeout: 20_000 });
-  await expect.poll(() => audio(ben.page)).toEqual({ created: 1, notes: 2 });
+  await expect.poll(() => audio(ben.page)).toEqual({ created: 1, notes: 4 });
 });
 
 test("the Sound switch is this browser's: off, a nudge is silent, and it stays off", async ({
@@ -227,7 +227,7 @@ test("with the browser's own audio, a nudge logs no error or warning", async ({
   await ben.heading.click();
   await ada.page.getByRole("button", { name: "Nudge Ben" }).click();
   await expect(ben.page.getByText(BANNER)).toBeVisible();
-  // The chime's 300 ms, played out.
-  await ben.page.waitForTimeout(400);
+  // The chime's 0.75 s, played out.
+  await ben.page.waitForTimeout(900);
   expect(errors).toEqual([]);
 });
