@@ -122,15 +122,16 @@ describe("the chime", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it("plays two notes, about 300 ms in all, once unlocked by a gesture", () => {
+  it("plays the chime twice, 150 ms apart, about 0.75 s in all, once unlocked by a gesture", () => {
     const fake = new FakeContext();
     const chime = createChime(() => asContext(fake));
     chime.unlock();
     chime.play();
-    expect(fake.started).toEqual([
-      { hz: 784, at: 10 },
-      { hz: 1047, at: 10.15 },
-    ]);
+    expect(fake.started.map(({ hz }) => hz)).toEqual([784, 1047, 784, 1047]);
+    const offsets = [0, 0.15, 0.45, 0.6];
+    fake.started.forEach(({ at }, i) => {
+      expect(at).toBeCloseTo(10 + (offsets[i] ?? Number.NaN), 6);
+    });
   });
 
   it("creates its audio once, and resumes it on a later gesture if suspended", () => {
@@ -145,7 +146,7 @@ describe("the chime", () => {
     expect(create).toHaveBeenCalledTimes(1);
     expect(fake.resumes).toBe(1);
     chime.play();
-    expect(fake.started).toHaveLength(2);
+    expect(fake.started).toHaveLength(4);
   });
 
   it("resumes the audio at once if the browser creates it suspended", () => {
@@ -155,7 +156,7 @@ describe("the chime", () => {
     chime.unlock(); // the one gesture
     expect(fake.resumes).toBe(1);
     chime.play();
-    expect(fake.started).toHaveLength(2);
+    expect(fake.started).toHaveLength(4);
   });
 
   it("never throws when the browser won't create the audio, and plays nothing", () => {
