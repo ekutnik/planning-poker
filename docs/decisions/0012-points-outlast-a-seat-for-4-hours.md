@@ -46,3 +46,5 @@ The seat keeps its rule, and the points outlast it by 4 hours.
 What gets easier: a dropped connection, a sleeping laptop or a mistaken Leave the room no longer costs anyone their points.
 
 What gets harder: the room holds state for people who aren't in it, so it needs its own limit, sweep and leak check. A different browser or device is still a new person, and starts at 0.
+
+Note (2026-11-02): a room stays open while any tab in it keeps reconnecting, as tabs on sleeping devices did after that day's session. Everyone still in the room keeps their points, so a session on the same link could inherit them. The 4-hour limit covers only people who have left.
